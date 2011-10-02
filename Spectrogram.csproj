@@ -46,6 +46,7 @@
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Audio.cs" />
     <Compile Include="Complex.cs" />
     <Compile Include="Feed.cs" />
     <Compile Include="Program.cs" />

@@ -35,6 +35,9 @@
     <StartupObject />
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Mp3Sharp">
+      <HintPath>.\Mp3Sharp.dll</HintPath>
+    </Reference>
     <Reference Include="OpenTK">
       <HintPath>..\OpenAL\OpenTK.dll</HintPath>
     </Reference>
@@ -47,6 +50,7 @@
     <Compile Include="Feed.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Sampling.cs" />
     <Compile Include="Signal.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

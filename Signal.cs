@@ -32,7 +32,7 @@ namespace Spectrogram
         }
 
         /// <summary>
-        /// Gets a looped version of this signal.
+        /// Constructs a looped version of this signal.
         /// </summary>
         public Signal<T> Loop(int Times)
         {
@@ -40,11 +40,19 @@ namespace Spectrogram
         }
 
         /// <summary>
-        /// Gets a dilated version of this signal.
+        /// Constructs a dilated version of this signal.
         /// </summary>
         public Signal<T> Dilate(double Factor)
         {
             return new DilateSignal<T>(this, Factor);
+        }
+
+        /// <summary>
+        /// Constructs an offset version of this signal.
+        /// </summary>
+        public Signal<T> Offset(double Offset)
+        {
+            return new OffsetSignal<T>(this, Offset);
         }
 
         /// <summary>
@@ -56,41 +64,36 @@ namespace Spectrogram
         /// The length of the signal.
         /// </summary>
         public readonly double Length;
+
+        /// <summary>
+        /// Gets wether this signal is bounded (has a finite length).
+        /// </summary>
+        public bool Bounded
+        {
+            get
+            {
+                return !double.IsPositiveInfinity(this.Length);
+            }
+        }
     }
 
     /// <summary>
-    /// A signal created from uniformly-spaced samples.
+    /// A signal created from a sample array.
     /// </summary>
-    public abstract class DiscreteSignal<T> : Signal<T>
+    public sealed class DiscreteSignal<T> : Signal<T>
     {
-        public DiscreteSignal(int Size, double Rate)
+        public DiscreteSignal(ISampleSource<T> Source, int Size, double Rate)
             : base(Size / Rate)
         {
+            this.Source = Source;
             this.Size = Size;
             this.Rate = Rate;
         }
 
-        public override T this[double Time]
-        {
-            get
-            {
-                return this.GetSample((int)(Time / this.Rate));
-            }
-        }
-
         /// <summary>
-        /// Reads the data in this signal into the given buffer.
+        /// The source sample array for this signal.
         /// </summary>
-        public virtual void Read(T[] Buffer, int Start, int Size, int Offset)
-        {
-            while (Size-- > 0)
-                Buffer[Offset++] = this.GetSample(Start++);
-        }
-        
-        /// <summary>
-        /// Gets the value of a certain sample in this signal.
-        /// </summary>
-        public abstract T GetSample(int Sample);
+        public readonly ISampleSource<T> Source;
 
         /// <summary>
         /// The amount of samples in this signal.
@@ -101,6 +104,16 @@ namespace Spectrogram
         /// The amount of samples in a time unit in this signal.
         /// </summary>
         public readonly double Rate;
+
+        public override T this[double Time]
+        {
+            get
+            {
+                T[] buf = new T[1];
+                this.Source.Read((int)(Time / this.Rate), 1, buf, 0);
+                return buf[0];
+            }
+        }
     }
 
     /// <summary>
@@ -185,7 +198,7 @@ namespace Spectrogram
         /// <summary>
         /// The offset in the source signal this signal starts at.
         /// </summary>
-        public readonly double Offset;
+        public readonly new double Offset;
 
         public override T this[double Time]
         {
@@ -197,7 +210,7 @@ namespace Spectrogram
     }
 
     /// <summary>
-    /// A signal that contains a sine wave with a period of one time unit.
+    /// An unbounded signal that contains a sine wave with a period of one time unit.
     /// </summary>
     public sealed class SineSignal : Signal<double>
     {

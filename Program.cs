@@ -16,7 +16,7 @@ namespace Spectrogram
         public static void Main(string[] Args)
         {
             Audio.Initialize();
-            Audio.Output(SineSignal.Instance.Dilate(1.0 / 440.0).Play());
+            Audio.Output(SineSignal.Instance.Dilate(1.0 / 880.0).Play(0.0));
 
             DateTime lasttime = DateTime.Now;
             while (true)

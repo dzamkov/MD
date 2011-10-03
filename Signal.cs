@@ -18,17 +18,17 @@ namespace Spectrogram
         /// <summary>
         /// Begins playing this signal to a feed.
         /// </summary>
-        public SignalFeed<T> Play(double Start)
+        public SignalFeed<T> Play(double Start, T Default)
         {
-            return new SignalFeed<T>(this, Start);
+            return new SignalFeed<T>(this, Default, Start);
         }
 
         /// <summary>
         /// Begins playing this signal to a feed.
         /// </summary>
-        public SignalFeed<T> Play()
+        public SignalFeed<T> Play(T Default)
         {
-            return new SignalFeed<T>(this, 0.0);
+            return new SignalFeed<T>(this, Default, 0.0);
         }
 
         /// <summary>
@@ -156,7 +156,7 @@ namespace Spectrogram
             : base(Source.Length * Factor)
         {
             this.Source = Source;
-            this.Factor = Factor;
+            this.InverseFactor = 1.0 / Factor;
         }
 
         /// <summary>
@@ -167,13 +167,24 @@ namespace Spectrogram
         /// <summary>
         /// The time dilation factor.
         /// </summary>
-        public readonly double Factor;
+        public double Factor
+        {
+            get
+            {
+                return 1.0 / this.InverseFactor;
+            }
+        }
+
+        /// <summary>
+        /// The inverse of the time dilation factor.
+        /// </summary>
+        public readonly double InverseFactor;
 
         public override T this[double Time]
         {
             get
             {
-                return this.Source[Time * Factor];
+                return this.Source[Time * InverseFactor];
             }
         }
     }

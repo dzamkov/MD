@@ -13,14 +13,14 @@ namespace Spectrogram
     }
 
     /// <summary>
-    /// A feed that plays a signal with one second being one time unit. When the feed reachs the end of the signal,
-    /// it will loop back to the beginning.
+    /// A feed that plays a signal with one second being one time unit
     /// </summary>
     public sealed class SignalFeed<T> : Feed<T>
     {
-        internal SignalFeed(Signal<T> Source, double Time)
+        internal SignalFeed(Signal<T> Source, T Default, double Time)
         {
             this.Source = Source;
+            this.Default = Default;
             this._Time = Time;
         }
 
@@ -30,13 +30,18 @@ namespace Spectrogram
         public readonly Signal<T> Source;
 
         /// <summary>
+        /// The default value of the feed for when the feed is paused or over.
+        /// </summary>
+        public readonly T Default;
+
+        /// <summary>
         /// The current value of the feed.
         /// </summary>
         public T Current
         {
             get
             {
-                return this.Source[this._Time];
+                return this._Time < Source.Length ? this.Source[this._Time] : this.Default;
             }
         }
 

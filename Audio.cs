@@ -28,17 +28,12 @@ namespace Spectrogram
         /// <summary>
         /// Outputs the given feed to the primary audio device.
         /// </summary>
-        public static void Output<T, TMode>(Feed<T> Feed, TMode Mode)
-            where TMode : IAudioMode<T>
+        public static void Output<T, TCompound>(Feed<T> Feed, ALFormat Format)
+            where TCompound : ICompound<T, byte>
         {
-            _Source s = new _SignalFeedSource<T, TMode>((SignalFeed<T>)Feed, Mode, 2048);
-            s.Initialize(4);
+            _Source s = new _SignalFeedSource<T, TCompound>((SignalFeed<T>)Feed, Format, 65536 * 4);
+            s.Initialize(2);
             s.Play();
-        }
-
-        public static void Output(Feed<double> Feed)
-        {
-            Output(Feed, new Mono16Mode());
         }
 
         /// <summary>
@@ -57,13 +52,11 @@ namespace Spectrogram
         /// </summary>
         private abstract class _Source
         {
-            public _Source(ALFormat Format, int SampleSize, int BufferSize)
+            public _Source(ALFormat Format, int BufferSize)
             {
                 this.ID = AL.GenSource();
-                this.BufferSize = BufferSize;
-                this.TempBuffer = new byte[this.BufferSize * SampleSize];
+                this.TempBuffer = new byte[BufferSize];
                 this.Format = Format;
-                this.SampleRate = SampleRate;
             }
 
             /// <summary>
@@ -75,11 +68,6 @@ namespace Spectrogram
             /// The ID of the source.
             /// </summary>
             public readonly int ID;
-
-            /// <summary>
-            /// The size, in samples, of the buffers in this source.
-            /// </summary>
-            public readonly int BufferSize;
 
             /// <summary>
             /// The audio format used by this source.
@@ -97,6 +85,17 @@ namespace Spectrogram
             public int SampleRate;
 
             /// <summary>
+            /// Gets the buffer size (in bytes) for this source.
+            /// </summary>
+            public int BufferSize
+            {
+                get
+                {
+                    return this.TempBuffer.Length;
+                }
+            }
+
+            /// <summary>
             /// Generates and writes the given amount of buffers for this source.
             /// </summary>
             public void Initialize(int Amount)
@@ -112,13 +111,7 @@ namespace Spectrogram
             /// </summary>
             public void Write(int Buffer)
             {
-                unsafe
-                {
-                    fixed (byte* ptr = this.TempBuffer)
-                    {
-                        this.Write(ptr);
-                    }
-                }
+                this.Write(this.TempBuffer);
                 AL.BufferData<byte>(Buffer, this.Format, this.TempBuffer, this.TempBuffer.Length, this.SampleRate);
                 AL.SourceQueueBuffer(this.ID, Buffer);
             }
@@ -126,7 +119,7 @@ namespace Spectrogram
             /// <summary>
             /// Writes the next section of BufferSize samples to the given buffer; advances the read position.
             /// </summary>
-            public abstract unsafe void Write(byte* Buffer);
+            public abstract void Write(byte[] Buffer);
 
             /// <summary>
             /// Updates this source by the given amount of time in seconds.
@@ -187,35 +180,25 @@ namespace Spectrogram
         /// <summary>
         /// A source for a signal feed.
         /// </summary>
-        private sealed class _SignalFeedSource<T, TMode> : _Source
-            where TMode : IAudioMode<T>
+        private sealed class _SignalFeedSource<T, TCompound> : _Source
+            where TCompound : ICompound<T, byte>
         {
-            public _SignalFeedSource(SignalFeed<T> Feed, TMode Mode, int BufferSize)
-                : base(Mode.Format, Mode.BytesPerSample, BufferSize)
+            public _SignalFeedSource(SignalFeed<T> Feed, ALFormat Format, int BufferSize)
+                : base(Format, BufferSize)
             {
+                _AutoTimedSignalFeed.Remove(Feed);
                 this.Feed = Feed;
-                this.Mode = Mode;
-
                 Signal<T> source = Feed.Source;
-                DiscreteSignal<T> dissource = source as DiscreteSignal<T>;
-                if (dissource != null)
+
+                // Deconstruct source signal to find a data array, sample rate, position and base rate
+                this.BaseRate = 1.0f;
+                this.Position = 0;
+                DiscreteSignal<T> ds = source as DiscreteSignal<T>;
+                if (ds != null)
                 {
-                    this.SampleRate = dissource.Rate;
-                    base.SampleRate = (int)(this.SampleRate);
-                    this.Stream = dissource.Source.Stream(0);
-                }
-                else
-                {
-                    base.SampleRate = 44100;
-                    if (source.Bounded)
-                    {
-                        this.SampleRate = source.Length / ((int)(base.SampleRate * source.Length));
-                    }
-                    else
-                    {
-                        this.SampleRate = base.SampleRate;
-                    }
-                    this.Stream = new SignalSampleSource<T>(source, this.SampleRate).Stream(0);
+                    this.SampleRate = ds.Rate;
+                    base.SampleRate = (int)ds.Rate;
+                    this.Data = ds.Data.Split<byte, TCompound>();
                 }
             }
 
@@ -225,36 +208,45 @@ namespace Spectrogram
             public readonly SignalFeed<T> Feed;
 
             /// <summary>
-            /// The audio mode for this source.
-            /// </summary>
-            public readonly TMode Mode;
-
-            /// <summary>
-            /// The actual sample rate for the stream.
+            /// The actual sample rate for the stream (used for timing), takes into account base playback rate.
             /// </summary>
             public new double SampleRate;
 
             /// <summary>
-            /// The sample stream for this source. This stream should be unbounded (looping or infinite).
+            /// The base playback rate of the signal.
             /// </summary>
-            public ISampleStream<T> Stream;
+            public float BaseRate;
+
+            /// <summary>
+            /// The sample data array for the source.
+            /// </summary>
+            public Array<byte> Data;
+
+            /// <summary>
+            /// The position of the next byte in the data array to be written into a buffer.
+            /// </summary>
+            public int Position;
 
             /// <summary>
             /// The time in the signal the first buffer in the source starts at.
             /// </summary>
             public double StartTime;
 
-            public override unsafe void Write(byte* Buffer)
+            /// <summary>
+            /// Gets the amount of bytes in a sample in this source.
+            /// </summary>
+            public int SampleSize
             {
-                T[] samps = new T[this.BufferSize];
-                this.Stream.Read(this.BufferSize, samps, 0);
-
-                int d = this.Mode.BytesPerSample;
-                for (int t = 0; t < samps.Length; t++)
+                get
                 {
-                    this.Mode.Write(samps[t], Buffer);
-                    Buffer += d;
+                    return default(TCompound).Size;
                 }
+            }
+
+            public override void Write(byte[] Buffer)
+            {
+                this.Data.Read(this.Position, Buffer.Length, Buffer, 0);
+                this.Position += Buffer.Length;
             }
 
             public override void Update(double Time)
@@ -264,7 +256,7 @@ namespace Spectrogram
 
                 if (bufferprocessed > 0)
                 {
-                    this.StartTime += (double)this.BufferSize / this.SampleRate;
+                    this.StartTime += (double)(this.BufferSize / this.SampleSize) / this.SampleRate;
 
                     int[] buffers = new int[bufferprocessed];
                     AL.SourceUnqueueBuffers(this.ID, bufferprocessed, buffers);
@@ -272,68 +264,19 @@ namespace Spectrogram
                     {
                         this.Write(buffers[t]);
                     }
+
+                    AL.SourcePlay(this.ID);
                 }
 
+                // Update feed time
                 int sampleoffset;
                 AL.GetSource(this.ID, ALGetSourcei.SampleOffset, out sampleoffset);
                 this.Feed._Time = this.StartTime + (double)sampleoffset / this.SampleRate;
+
+                // Update playback rate
+                float nrate = (float)this.Feed.Rate.Current * this.BaseRate;
+                AL.Source(this.ID, ALSourcef.Pitch, nrate);
             }
-        }
-    }
-
-    /// <summary>
-    /// Contains information that allows a signal to be interpreted as audio.
-    /// </summary>
-    public interface IAudioMode<T>
-    {
-        /// <summary>
-        /// Gets the format of this audio mode.
-        /// </summary>
-        ALFormat Format { get; }
-
-        /// <summary>
-        /// Gets the size, in bytes, of a sample using this audio mode.
-        /// </summary>
-        int BytesPerSample { get; }
-
-        /// <summary>
-        /// Writes a sample to the given buffer.
-        /// </summary>
-        unsafe void Write(T Sample, byte* Buffer);
-    }
-
-    /// <summary>
-    /// 16bit monochannel audio mode.
-    /// </summary>
-    public struct Mono16Mode : IAudioMode<double>, IAudioMode<short>
-    {
-        public ALFormat Format
-        {
-            get 
-            {
-                return ALFormat.Mono16;
-            }
-        }
-
-        public int BytesPerSample
-        {
-            get
-            {
-                return 2;
-            }
-        }
-
-        public unsafe void Write(double Sample, byte* Buffer)
-        {
-            short samp = (short)(Sample * 32767.0);
-            Buffer[0] = (byte)samp;
-            Buffer[1] = (byte)(samp >> 8);
-        }
-
-        public unsafe void Write(short Sample, byte* Buffer)
-        {
-            Buffer[0] = (byte)Sample;
-            Buffer[1] = (byte)(Sample >> 8);
         }
     }
 }

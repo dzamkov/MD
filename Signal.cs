@@ -1,10 +1,27 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 
 namespace Spectrogram
 {
+    /// <summary>
+    /// Contains functions and objects related to signals.
+    /// </summary>
+    public static class Signal
+    {
+        /// <summary>
+        /// A signal for a sine wave.
+        /// </summary>
+        public static Signal<double> Sine = SineSignal.Instance;
+
+        /// <summary>
+        /// The time signal.
+        /// </summary>
+        public static Signal<double> Time = TimeSignal.Instance;
+    }
+
     /// <summary>
     /// Represents a static, continous signal of values of the given type.
     /// </summary>
@@ -18,17 +35,25 @@ namespace Spectrogram
         /// <summary>
         /// Begins playing this signal to a feed.
         /// </summary>
-        public SignalFeed<T> Play(double Start, T Default)
+        public SignalFeed<T> Play(double Start, Feed<double> Rate)
         {
-            return new SignalFeed<T>(this, Default, Start);
+            return new SignalFeed<T>(this, Rate, Start);
         }
 
         /// <summary>
         /// Begins playing this signal to a feed.
         /// </summary>
-        public SignalFeed<T> Play(T Default)
+        public SignalFeed<T> Play(double Start)
         {
-            return new SignalFeed<T>(this, Default, 0.0);
+            return new SignalFeed<T>(this, new ControlFeed<double>(1.0), Start);
+        }
+
+        /// <summary>
+        /// Begins playing this signal to a feed.
+        /// </summary>
+        public SignalFeed<T> Play()
+        {
+            return new SignalFeed<T>(this, new ControlFeed<double>(1.0), 0.0);
         }
 
         /// <summary>
@@ -53,6 +78,14 @@ namespace Spectrogram
         public Signal<T> Offset(double Offset)
         {
             return new OffsetSignal<T>(this, Offset);
+        }
+
+        /// <summary>
+        /// Constructs a mapped version of this signal using the given mapping function.
+        /// </summary>
+        public Signal<F> Map<F>(Expression<Func<T, F>> Map)
+        {
+            return new MapSignal<T, F>(this, Map.Compile());
         }
 
         /// <summary>
@@ -82,23 +115,17 @@ namespace Spectrogram
     /// </summary>
     public sealed class DiscreteSignal<T> : Signal<T>
     {
-        public DiscreteSignal(ISampleSource<T> Source, int Size, double Rate)
-            : base(Size / Rate)
+        public DiscreteSignal(Array<T> Data, int Size, double Rate)
+            : base(Data.Size / Rate)
         {
-            this.Source = Source;
-            this.Size = Size;
+            this.Data = Data;
             this.Rate = Rate;
         }
 
         /// <summary>
-        /// The source sample array for this signal.
+        /// The (immutable) source sample data for this signal.
         /// </summary>
-        public readonly ISampleSource<T> Source;
-
-        /// <summary>
-        /// The amount of samples in this signal.
-        /// </summary>
-        public readonly int Size;
+        public readonly Array<T> Data;
 
         /// <summary>
         /// The amount of samples in a time unit in this signal.
@@ -110,7 +137,7 @@ namespace Spectrogram
             get
             {
                 T[] buf = new T[1];
-                this.Source.Read((int)(Time / this.Rate), 1, buf, 0);
+                this.Data.Read((int)(Time / this.Rate), 1, buf, 0);
                 return buf[0];
             }
         }
@@ -153,7 +180,7 @@ namespace Spectrogram
     public sealed class DilateSignal<T> : Signal<T>
     {
         public DilateSignal(Signal<T> Source, double Factor)
-            : base(Source.Length * Factor)
+            : base(Source.Length / Factor)
         {
             this.Source = Source;
             this.InverseFactor = 1.0 / Factor;
@@ -221,6 +248,38 @@ namespace Spectrogram
     }
 
     /// <summary>
+    /// A signal created by mapping values from a source signal.
+    /// </summary>
+    public sealed class MapSignal<TSource, T> : Signal<T>
+    {
+        public MapSignal(Signal<TSource> Source, Func<TSource, T> Map)
+            : base(Source.Length)
+        {
+            this.Source = Source;
+            this.Map = Map;
+        }
+
+        /// <summary>
+        /// The source for this signal.
+        /// </summary>
+        public readonly Signal<TSource> Source;
+
+        /// <summary>
+        /// The mapping function for the signal.
+        /// </summary>
+        public readonly Func<TSource, T> Map;
+
+        public override T this[double Time]
+        {
+            get
+            {
+                return this.Map(this.Source[Time]);
+            }
+        }
+    }
+
+
+    /// <summary>
     /// An unbounded signal that contains a sine wave with a period of one time unit.
     /// </summary>
     public sealed class SineSignal : Signal<double>
@@ -241,6 +300,31 @@ namespace Spectrogram
             get
             {
                 return Math.Sin(Time * 2.0 * Math.PI);
+            }
+        }
+    }
+
+    /// <summary>
+    /// An unbound signal whose value at any time is that time.
+    /// </summary>
+    public sealed class TimeSignal : Signal<double>
+    {
+        private TimeSignal()
+            : base(double.PositiveInfinity)
+        {
+
+        }
+
+        /// <summary>
+        /// The only instance of this class.
+        /// </summary>
+        public static readonly TimeSignal Instance = new TimeSignal();
+
+        public override double this[double Time]
+        {
+            get
+            {
+                return Time;
             }
         }
     }

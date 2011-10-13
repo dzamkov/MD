@@ -4,7 +4,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 
-namespace Spectrogram
+namespace MD
 {
     /// <summary>
     /// Contains functions and objects related to signals.
@@ -20,6 +20,16 @@ namespace Spectrogram
         /// The time signal.
         /// </summary>
         public static Signal<double> Time = TimeSignal.Instance;
+
+        /// <summary>
+        /// Creates a discrete sampling of a signal.
+        /// </summary>
+        /// <param name="PreferredRate">The preferred sample rate for the resulting signal. This may be ignored if it's quicker or more accurate to produce
+        /// a signal with a different sample rate.</param>
+        public static DiscreteSignal<T> Sample<T>(Signal<T> Signal, double PreferredRate)
+        {
+            throw new NotImplementedException();
+        }
     }
 
     /// <summary>

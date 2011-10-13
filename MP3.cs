@@ -6,7 +6,7 @@ using System.Threading;
 
 using Mp3Sharp;
 
-namespace Spectrogram
+namespace MD
 {
     /// <summary>
     /// An mp3 signal source.
@@ -153,6 +153,15 @@ namespace Spectrogram
                 {
                     return (int)this._Stream.Length;
                 }
+            }
+
+            public override byte Read(int Index)
+            {
+                while (this._Memory.Size < Index)
+                {
+                    Thread.Sleep(10);
+                }
+                return this._Memory.Read(Index);
             }
 
             public override void Read(int Start, int Size, byte[] Buffer, int Offset)

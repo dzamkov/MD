@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 
-namespace Spectrogram
+namespace MD
 {
     /// <summary>
     /// Contains functions related to arrays.
@@ -25,9 +26,28 @@ namespace Spectrogram
         public abstract int Size { get; }
 
         /// <summary>
+        /// Reads the value of this array at the given index.
+        /// </summary>
+        public abstract T Read(int Index);
+
+        /// <summary>
         /// Reads a portion of this array into the given buffer.
         /// </summary>
-        public abstract void Read(int Start, int Size, T[] Buffer, int Offset);
+        public virtual void Read(int Start, int Size, T[] Buffer, int Offset)
+        {
+            while (Size-- > 0)
+            {
+                Buffer[Offset++] = this.Read(Start++);
+            }
+        }
+
+        /// <summary>
+        /// Constructs a mapped version of this array using the given mapping function.
+        /// </summary>
+        public Array<F> Map<F>(Expression<Func<T, F>> Map)
+        {
+            return new MapArray<T, F>(this, Map.Compile());
+        }
 
         /// <summary>
         /// Combines items in this array to form an array of compounds.
@@ -53,6 +73,41 @@ namespace Spectrogram
                 return ca.Source;
 
             return new SplitArray<F, T, TCompound>(this);
+        }
+    }
+
+    /// <summary>
+    /// An array created by mapping values from a source array.
+    /// </summary>
+    public sealed class MapArray<TSource, T> : Array<T>
+    {
+        public MapArray(Array<TSource> Source, Func<TSource, T> Map)
+        {
+            this.Source = Source;
+            this.Map = Map;
+        }
+
+        /// <summary>
+        /// The source for this array.
+        /// </summary>
+        public readonly Array<TSource> Source;
+
+        /// <summary>
+        /// The mapping function for the array.
+        /// </summary>
+        public readonly Func<TSource, T> Map;
+
+        public override int Size
+        {
+            get
+            {
+                return this.Source.Size;
+            }
+        }
+
+        public override T Read(int Index)
+        {
+            return this.Map(this.Source.Read(Index));
         }
     }
 
@@ -95,6 +150,13 @@ namespace Spectrogram
             {
                 return this.BufferSize * this._Buffers.Count;
             }
+        }
+
+        public override T Read(int Index)
+        {
+            int ib = Index / this.BufferSize;
+            int io = Index - (ib * this.BufferSize);
+            return this._Buffers[ib][io];
         }
 
         public override void Read(int Start, int Size, T[] Buffer, int Offset)
@@ -143,6 +205,15 @@ namespace Spectrogram
             }
         }
 
+        public override T Read(int Index)
+        {
+            TCompound compound = default(TCompound);
+            int compoundsize = compound.Size;
+            TSource[] sourcebuf = new TSource[compoundsize];
+            this.Source.Read(Index * compoundsize, compoundsize, sourcebuf, 0);
+            return compound.Combine(sourcebuf, 0);
+        }
+
         public override void Read(int Start, int Size, T[] Buffer, int Offset)
         {
             TCompound compound = default(TCompound);
@@ -182,6 +253,11 @@ namespace Spectrogram
             {
                 return this.Source.Size * default(TCompound).Size;
             }
+        }
+
+        public override T Read(int Index)
+        {
+            throw new NotImplementedException();
         }
 
         public override void Read(int Start, int Size, T[] Buffer, int Offset)

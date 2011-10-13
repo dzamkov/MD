@@ -4,7 +4,7 @@ using System.Linq;
 using System.Windows.Forms;
 using System.Reflection;
 
-namespace Spectrogram
+namespace MD
 {
     /// <summary>
     /// Program main class.
@@ -28,8 +28,8 @@ namespace Spectrogram
                 {
                     MP3Source source = new MP3Source(ofd.FileName);
 
-                    Signal<double> rate = Signal.Time.Map(x => 1.0 + x * 0.05);
-                    Audio.Output<Stero<short>, Stero16Compound>(source.Stero16Signal.Play(0.0, rate.Play()), OpenTK.Audio.OpenAL.ALFormat.Stereo16);
+                    Spectrogram spec = new Spectrogram(source.Stero16Signal.Map(x => (x.Left * 16384.0) + (x.Right * 16384.0)));
+                    spec.Show();
                 }
             }
 

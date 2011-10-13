@@ -5,7 +5,7 @@ using System.Linq;
 using OpenTK.Audio;
 using OpenTK.Audio.OpenAL;
 
-namespace Spectrogram
+namespace MD
 {
     /// <summary>
     /// Contains functions related to audio output and input.

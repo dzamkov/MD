@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Spectrogram
+namespace MD
 {
     /// <summary>
     /// Represents a double-precision complex number.

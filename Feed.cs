@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Spectrogram
+namespace MD
 {
     /// <summary>
     /// A value that varies continously in real-time.

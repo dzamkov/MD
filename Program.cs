@@ -4,6 +4,10 @@ using System.Linq;
 using System.Windows.Forms;
 using System.Reflection;
 
+using MD.Codec;
+using MD.Data;
+using MD.UI;
+
 namespace MD
 {
     /// <summary>
@@ -20,25 +24,17 @@ namespace MD
             Application.EnableVisualStyles();
             Audio.Initialize();
 
-            using (OpenFileDialog ofd = new OpenFileDialog())
-            {
-                ofd.Filter = "(*.mp3)|*.mp3|All Files (*.*)|*.*";
-                ofd.InitialDirectory = "F:\\Music";
-                if (ofd.ShowDialog() == DialogResult.OK)
-                {
-                    MP3Source source = new MP3Source(ofd.FileName);
-
-                    Spectrogram spec = new Spectrogram(source.Stero16Signal.Map(x => (x.Left * 16384.0) + (x.Right * 16384.0)));
-                    spec.Show();
-                }
-            }
+            PlotForm pf = new PlotForm();
+            pf.Show();
 
             DateTime lasttime = DateTime.Now;
-            while (true)
+            while (pf.Visible)
             {
                 DateTime curtime = DateTime.Now;
                 double updatetime = (curtime - lasttime).Milliseconds / 1000.0;
                 lasttime = curtime;
+
+                pf.Update(updatetime);
 
                 _AutoTimedSignalFeed.Update(updatetime);
                 Audio.Update(updatetime);

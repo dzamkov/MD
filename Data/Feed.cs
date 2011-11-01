@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace MD
+namespace MD.Data
 {
     /// <summary>
     /// A value that varies continously in real-time.

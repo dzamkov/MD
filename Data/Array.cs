@@ -4,16 +4,8 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 
-namespace MD
+namespace MD.Data
 {
-    /// <summary>
-    /// Contains functions related to arrays.
-    /// </summary>
-    public static class Array
-    {
-        
-    }
-
     /// <summary>
     /// A continous collection of data indexed by an integer. Unless stated otherwise, an array can be
     /// assumed to be mutable.

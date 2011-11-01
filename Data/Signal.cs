@@ -4,7 +4,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 
-namespace MD
+namespace MD.Data
 {
     /// <summary>
     /// Contains functions and objects related to signals.
@@ -20,16 +20,6 @@ namespace MD
         /// The time signal.
         /// </summary>
         public static Signal<double> Time = TimeSignal.Instance;
-
-        /// <summary>
-        /// Creates a discrete sampling of a signal.
-        /// </summary>
-        /// <param name="PreferredRate">The preferred sample rate for the resulting signal. This may be ignored if it's quicker or more accurate to produce
-        /// a signal with a different sample rate.</param>
-        public static DiscreteSignal<T> Sample<T>(Signal<T> Signal, double PreferredRate)
-        {
-            throw new NotImplementedException();
-        }
     }
 
     /// <summary>
@@ -99,9 +89,19 @@ namespace MD
         }
 
         /// <summary>
-        /// Gets the value of the signal at the given time in the interval [0, this.Length).
+        /// Approximates the value of the signal at the given time in the interval [0, this.Length).
         /// </summary>
         public abstract T this[double Time] { get; }
+
+        /// <summary>
+        /// Creates a discrete sampling of this signal.
+        /// </summary>
+        /// <param name="PreferredRate">The preferred sample rate for the resulting signal. This may be ignored if it's quicker or more accurate to produce
+        /// a signal with a different sample rate.</param>
+        public virtual DiscreteSignal<T> Sample(double PreferredRate)
+        {
+            throw new NotImplementedException();
+        }
 
         /// <summary>
         /// The length of the signal.
@@ -125,7 +125,7 @@ namespace MD
     /// </summary>
     public sealed class DiscreteSignal<T> : Signal<T>
     {
-        public DiscreteSignal(Array<T> Data, int Size, double Rate)
+        public DiscreteSignal(Array<T> Data, double Rate)
             : base(Data.Size / Rate)
         {
             this.Data = Data;
@@ -141,6 +141,11 @@ namespace MD
         /// The amount of samples in a time unit in this signal.
         /// </summary>
         public readonly double Rate;
+
+        public override DiscreteSignal<T> Sample(double PreferredRate)
+        {
+            return this;
+        }
 
         public override T this[double Time]
         {
@@ -217,6 +222,12 @@ namespace MD
         /// </summary>
         public readonly double InverseFactor;
 
+        public override DiscreteSignal<T> Sample(double PreferredRate)
+        {
+            DiscreteSignal<T> source = this.Source.Sample(PreferredRate);
+            return new DiscreteSignal<T>(source.Data, source.Rate * this.InverseFactor);
+        }
+
         public override T this[double Time]
         {
             get
@@ -278,6 +289,12 @@ namespace MD
         /// The mapping function for the signal.
         /// </summary>
         public readonly Func<TSource, T> Map;
+
+        public override DiscreteSignal<T> Sample(double PreferredRate)
+        {
+            DiscreteSignal<TSource> source = this.Source.Sample(PreferredRate);
+            return new DiscreteSignal<T>(new MapArray<TSource, T>(source.Data, this.Map), source.Rate);
+        }
 
         public override T this[double Time]
         {

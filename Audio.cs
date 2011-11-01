@@ -5,6 +5,8 @@ using System.Linq;
 using OpenTK.Audio;
 using OpenTK.Audio.OpenAL;
 
+using MD.Data;
+
 namespace MD
 {
     /// <summary>
@@ -191,15 +193,10 @@ namespace MD
                 Signal<T> source = Feed.Source;
 
                 // Deconstruct source signal to find a data array, sample rate, position and base rate
-                this.BaseRate = 1.0f;
-                this.Position = 0;
-                DiscreteSignal<T> ds = source as DiscreteSignal<T>;
-                if (ds != null)
-                {
-                    this.SampleRate = ds.Rate;
-                    base.SampleRate = (int)ds.Rate;
-                    this.Data = ds.Data.Split<byte, TCompound>();
-                }
+                DiscreteSignal<T> ds = source.Sample(44100.0);
+                base.SampleRate = (int)ds.Rate;
+                this.SampleRate = ds.Rate;
+                this.Data = ds.Data.Split<byte, TCompound>();
             }
 
             /// <summary>
@@ -208,14 +205,9 @@ namespace MD
             public readonly SignalFeed<T> Feed;
 
             /// <summary>
-            /// The actual sample rate for the stream (used for timing), takes into account base playback rate.
+            /// The actual sample rate for the stream (used for timing).
             /// </summary>
             public new double SampleRate;
-
-            /// <summary>
-            /// The base playback rate of the signal.
-            /// </summary>
-            public float BaseRate;
 
             /// <summary>
             /// The sample data array for the source.
@@ -274,7 +266,7 @@ namespace MD
                 this.Feed._Time = this.StartTime + (double)sampleoffset / this.SampleRate;
 
                 // Update playback rate
-                float nrate = (float)this.Feed.Rate.Current * this.BaseRate;
+                float nrate = (float)this.Feed.Rate.Current;
                 AL.Source(this.ID, ALSourcef.Pitch, nrate);
             }
         }

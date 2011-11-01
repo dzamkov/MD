@@ -6,7 +6,9 @@ using System.Threading;
 
 using Mp3Sharp;
 
-namespace MD
+using MD.Data;
+
+namespace MD.Codec
 {
     /// <summary>
     /// An mp3 signal source.
@@ -98,7 +100,7 @@ namespace MD
             {
                 return new DiscreteSignal<Stero<short>>(
                     this.Raw.Combine<Stero<short>, Stero16Compound>(),
-                    this.Size, this.SampleRate);
+                    this.SampleRate);
             }
         }
 
@@ -126,7 +128,7 @@ namespace MD
                 {
                     byte[] buf = new byte[this._Memory.BufferSize];
                     int r = this._Stream.Read(buf, 0, buf.Length);
-                    Thread.Sleep(10);
+                    Thread.Sleep(100);
                     this._Memory.Append(buf);
                     this._Initialized = true;
                     if (r != buf.Length)

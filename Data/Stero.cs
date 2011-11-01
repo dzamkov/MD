@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace MD
+namespace MD.Data
 {
     /// <summary>
     /// A stero sample of a certain type.
@@ -68,7 +68,7 @@ namespace MD
 
         Stero<short> ICompound<Stero<short>, byte>.Combine(byte[] Buffer, int Offset)
         {
-            throw new NotImplementedException();
+            return new Stero<short>(BitConverter.ToInt16(Buffer, Offset), BitConverter.ToInt16(Buffer, Offset + 2));
         }
 
         public void Split(Stero<short> Compound, byte[] Buffer, int Offset)

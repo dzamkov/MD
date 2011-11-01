@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace MD
+using MD.Data;
+
+namespace MD.Analysis
 {
     /// <summary>
     /// Contains functions for performing fourier transforms.
@@ -13,7 +15,7 @@ namespace MD
         /// <summary>
         /// Performs a fourier transform on a real input array and outputs the result to a complex output array.
         /// </summary>
-        public static unsafe void Real(double* Input, double* Output, double* Twiddle, int Samples, int Step)
+        public static unsafe void ApplyReal(double* Input, double* Output, double* Twiddle, int Samples, int Step)
         {
             if (Samples == 1)
             {
@@ -26,8 +28,8 @@ namespace MD
                 int dstep = Step * 2;
                 double* a = Output;
                 double* b = Output + Samples;
-                Real(Input, a, Twiddle, hsamps, dstep);
-                Real(Input + dstep, b, Twiddle, hsamps, dstep);
+                ApplyReal(Input, a, Twiddle, hsamps, dstep);
+                ApplyReal(Input + dstep, b, Twiddle, hsamps, dstep);
                 double* twid = Twiddle;
                 for (int t = 0; t < hsamps; t++)
                 {

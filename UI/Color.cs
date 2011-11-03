@@ -30,24 +30,23 @@ namespace MD.UI
         }
 
         /// <summary>
-        /// Writes the color (in 24 bit bgr format) to the given memory location.
+        /// Writes the color (in 32 bit argb format) to the given memory location.
         /// </summary>
-        public unsafe void Write(byte* Ptr)
+        public unsafe void Write(int* Ptr)
         {
-            byte r = (byte)(this.R * 255.0);
-            byte g = (byte)(this.G * 255.0);
-            byte b = (byte)(this.B * 255.0);
-            Ptr[0] = b;
-            Ptr[1] = g;
-            Ptr[2] = r;
+            const int a = 255;
+            int r = (int)(this.R * 255.9);
+            int g = (int)(this.G * 255.9);
+            int b = (int)(this.B * 255.9);
+            *Ptr = (a << 24) | (r << 16) | (g << 8) | b;
         }
 
         public static implicit operator System.Drawing.Color(Color A)
         {
             return System.Drawing.Color.FromArgb(255,
-                (int)(A.R * 255.0),
-                (int)(A.G * 255.0),
-                (int)(A.B * 255.0));
+                (int)(A.R * 255.9),
+                (int)(A.G * 255.9),
+                (int)(A.B * 255.9));
         }
 
         /// <summary>

@@ -12,7 +12,7 @@ namespace MD.UI
     {
         public PlotForm()
         {
-            this._PlotControl = new PlotControl();
+            this._PlotControl = new PlotControl(null);
             this._PlotControl.Dock = DockStyle.Fill;
             this.Controls.Add(this._PlotControl);
         }

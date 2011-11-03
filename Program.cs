@@ -24,6 +24,14 @@ namespace MD
             Application.EnableVisualStyles();
             Audio.Initialize();
 
+
+            Path file = "";
+            MP3Stream stream = new MP3Stream(new NativeStream(file));
+            stream.Initialize();
+            int[] data = new int[100000];
+            stream.Read(data.Length, data, 0);
+            stream.Terminate();
+
             PlotForm pf = new PlotForm();
             pf.Show();
 

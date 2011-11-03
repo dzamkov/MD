@@ -19,10 +19,9 @@ namespace MD.UI
         }
 
         /// <summary>
-        /// Draws the contents of the display control (in 24 bit bgr format) to the given buffer.
+        /// Draws the contents of the display control (in 32 bit argb format) to the given buffer.
         /// </summary>
-        /// <param name="StridePadding">The amount of extra bytes at the end of each row in the buffer.</param>
-        public abstract unsafe void Draw(byte* Ptr, int Width, int Height, int StridePadding);
+        public abstract unsafe void Draw(int* Ptr, int Width, int Height);
 
         protected override unsafe void OnPaint(PaintEventArgs e)
         {
@@ -31,13 +30,13 @@ namespace MD.UI
             // Make sure the buffer exists and is of the right size.
             if (this._Buffer == null)
             {
-                this._Buffer = new Bitmap(size.Width, size.Height, PixelFormat.Format24bppRgb);
+                this._Buffer = new Bitmap(size.Width, size.Height, PixelFormat.Format32bppArgb);
             }
 
             // Lock buffer for writing
-            BitmapData bd = this._Buffer.LockBits(new System.Drawing.Rectangle(0, 0, size.Width, size.Height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-            byte* ptr = (byte*)bd.Scan0.ToPointer();
-            this.Draw(ptr, size.Width, size.Height, bd.Stride - size.Width * 3);
+            BitmapData bd = this._Buffer.LockBits(new System.Drawing.Rectangle(0, 0, size.Width, size.Height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+            int* ptr = (int*)bd.Scan0.ToPointer();
+            this.Draw(ptr, size.Width, size.Height);
 
             // Unlock buffer and draw
             this._Buffer.UnlockBits(bd);

@@ -18,19 +18,32 @@ namespace MD.Data
         public abstract int Size { get; }
 
         /// <summary>
-        /// Reads the value of this array at the given index.
+        /// Gets the current value of the array at the given index.
         /// </summary>
-        public abstract T Read(int Index);
+        public virtual T this[int Index]
+        {
+            get
+            {
+                Stream<T> str = this.Read(Index, 1);
+                T val = default(T);
+                str.Read(ref val);
+                return val;
+            }
+        }
 
         /// <summary>
-        /// Reads a portion of this array into the given buffer.
+        /// Creates a stream to read this array starting at the given index. Note that the returned stream may be larger than the requested
+        /// Size (or even the size of the array).
         /// </summary>
-        public virtual void Read(int Start, int Size, T[] Buffer, int Offset)
+        /// <param name="Size">The maximum amount of data that will be read from the stream.</param>
+        public abstract Stream<T> Read(int Index, int Size);
+
+        /// <summary>
+        /// Creates a stream to read this array starting at the given index.
+        /// </summary>
+        public Stream<T> Read(int Index)
         {
-            while (Size-- > 0)
-            {
-                Buffer[Offset++] = this.Read(Start++);
-            }
+            return this.Read(Index, this.Size - Index);
         }
 
         /// <summary>
@@ -47,11 +60,11 @@ namespace MD.Data
         public Array<F> Combine<F, TCompound>()
             where TCompound : ICompound<F, T>
         {
-            SplitArray<T, F, TCompound> sa = this as SplitArray<T, F, TCompound>;
+            SplitArray<F, T, TCompound> sa = this as SplitArray<F, T, TCompound>;
             if (sa != null)
                 return sa.Source;
 
-            return new CombineArray<F, T, TCompound>(this);
+            return new CombineArray<T, F, TCompound>(this);
         }
 
         /// <summary>
@@ -60,11 +73,11 @@ namespace MD.Data
         public Array<F> Split<F, TCompound>()
             where TCompound : ICompound<T, F>
         {
-            CombineArray<T, F, TCompound> ca = this as CombineArray<T, F, TCompound>;
+            CombineArray<F, T, TCompound> ca = this as CombineArray<F, T, TCompound>;
             if (ca != null)
                 return ca.Source;
 
-            return new SplitArray<F, T, TCompound>(this);
+            return new SplitArray<T, F, TCompound>(this);
         }
     }
 
@@ -97,86 +110,183 @@ namespace MD.Data
             }
         }
 
-        public override T Read(int Index)
+        public override Stream<T> Read(int Index, int Size)
         {
-            return this.Map(this.Source.Read(Index));
+            return new MapStream<TSource, T>(this.Source.Read(Index, Size), this.Map);
         }
     }
 
     /// <summary>
-    /// A mutable array that stores data with a extendable list of fixed-sized buffers.
+    /// An array that reads from a buffer (native array).
+    /// </summary>
+    public sealed class BufferArray<T> : Array<T>
+    {
+        public BufferArray(T[] Source, int Size, int Offset)
+        {
+            this.Source = Source;
+            this.Offset = Offset;
+            this._Size = Size;
+        }
+
+        public BufferArray(T[] Source)
+        {
+            this.Source = Source;
+            this.Offset = 0;
+            this._Size = Source.Length;
+        }
+
+        /// <summary>
+        /// The source buffer for this array.
+        /// </summary>
+        public readonly T[] Source;
+
+        /// <summary>
+        /// The offset of this array in the source buffer.
+        /// </summary>
+        public readonly int Offset;
+
+        public override int Size
+        {
+            get
+            {
+                return this._Size;
+            }
+        }
+
+        public override T this[int Index]
+        {
+            get
+            {
+                return this.Source[this.Offset + Index];
+            }
+        }
+
+        public override Stream<T> Read(int Index, int Size)
+        {
+            return new BufferStream<T>(this.Source, this.Offset + Index);
+        }
+
+        private int _Size;
+    }
+
+    /// <summary>
+    /// A mutable array that stores data with a extendable list of buffers.
     /// </summary>
     public sealed class MemoryArray<T> : Array<T>
     {
-        public MemoryArray(int BufferSize)
+        public MemoryArray()
         {
-            this.BufferSize = BufferSize;
-            this._Buffers = new List<T[]>();
+            this._Chunks = new List<Chunk>();
+            this._Size = 0;
         }
 
         /// <summary>
-        /// The size of the buffers in this array.
+        /// Appends a chunk to this array using data from the given buffer. The buffer will be referenced directly; making any changes 
+        /// to the buffer will cause corresponding changes to be made in the array.
         /// </summary>
-        public readonly int BufferSize;
-
-        /// <summary>
-        /// Appends a buffer to this array. The buffer must have a size of the buffer size for this array. The buffer will
-        /// be referenced directly; making any changes to the buffer will cause corresponding changes to be made in the array.
-        /// </summary>
-        public void Append(T[] Buffer)
+        public void Append(T[] Buffer, int Size, int Offset)
         {
-            this._Buffers.Add(Buffer);
+            this._Chunks.Add(new Chunk
+            {
+                Buffer = Buffer,
+                Size = Size,
+                Offset = Offset,
+                Position = this._Size
+            });
         }
 
         /// <summary>
-        /// Clears all buffers in this array.
+        /// Clears the array (sets size to 0).
         /// </summary>
         public void Clear()
         {
-            this._Buffers.Clear();
+            this._Chunks.Clear();
+            this._Size = 0;
         }
 
         public override int Size
         {
             get
             {
-                return this.BufferSize * this._Buffers.Count;
+                return this._Size;
             }
         }
 
-        public override T Read(int Index)
+        public override Stream<T> Read(int Index, int Size)
         {
-            int ib = Index / this.BufferSize;
-            int io = Index - (ib * this.BufferSize);
-            return this._Buffers[ib][io];
-        }
-
-        public override void Read(int Start, int Size, T[] Buffer, int Offset)
-        {
-            int sb = Start / this.BufferSize;
-            int si = Start - (sb * this.BufferSize);
-            while (Size > 0)
+            Chunk chunk = default(Chunk);
+            int ci = this._FindChunk(Index, ref chunk);
+            int coffset = Index - chunk.Position;
+            if (chunk.Size - coffset < Size)
             {
-                T[] buf = this._Buffers[sb];
-                int tr = Math.Min(Size, this.BufferSize - si);
-                for (int t = 0; t < tr; t++)
-                {
-                    Buffer[Offset++] = buf[si++];
-                }
-
-                Size -= tr;
-                si = 0;
-                sb++;
+                return new BufferStream<T>(chunk.Buffer, chunk.Offset + coffset);
+            }
+            else
+            {
+                throw new NotImplementedException();
             }
         }
 
-        private List<T[]> _Buffers;
+        /// <summary>
+        /// Describes a chunk in a memory array.
+        /// </summary>
+        public struct Chunk
+        {
+            /// <summary>
+            /// The absolute position of this chunk in the memory array.
+            /// </summary>
+            public int Position;
+
+            /// <summary>
+            /// The buffer source for this chunk.
+            /// </summary>
+            public T[] Buffer;
+
+            /// <summary>
+            /// The chunk data's offset in the source buffer.
+            /// </summary>
+            public int Offset;
+
+            /// <summary>
+            /// The size of the chunk.
+            /// </summary>
+            public int Size;
+        }
+
+        /// <summary>
+        /// Gets the index (and description) of the chunk that includes the given absolute position.
+        /// </summary>
+        private int _FindChunk(int Position, ref Chunk Chunk)
+        {
+            int l = 0;
+            int h = this._Chunks.Count;
+            while (true)
+            {
+                int s = (l + h) / 2;
+                Chunk = this._Chunks[s];
+                if (Position >= Chunk.Position)
+                {
+                    if (Position - Chunk.Position < Chunk.Size)
+                    {
+                        return s;
+                    }
+                    l = s;
+                }
+                else
+                {
+                    h = s;
+                }
+            }
+        }
+
+        private int _Size;
+        private List<Chunk> _Chunks;
     }
 
     /// <summary>
     /// An array that combines items from a source array to make an array of compounds.
     /// </summary>
-    public sealed class CombineArray<T, TSource, TCompound> : Array<T>
+    public sealed class CombineArray<TSource, T, TCompound> : Array<T>
         where TCompound : ICompound<T, TSource>
     {
         public CombineArray(Array<TSource> Source)
@@ -197,36 +307,16 @@ namespace MD.Data
             }
         }
 
-        public override T Read(int Index)
+        public override Stream<T> Read(int Index, int Size)
         {
-            TCompound compound = default(TCompound);
-            int compoundsize = compound.Size;
-            TSource[] sourcebuf = new TSource[compoundsize];
-            this.Source.Read(Index * compoundsize, compoundsize, sourcebuf, 0);
-            return compound.Combine(sourcebuf, 0);
-        }
-
-        public override void Read(int Start, int Size, T[] Buffer, int Offset)
-        {
-            TCompound compound = default(TCompound);
-            int compoundsize = compound.Size;
-            TSource[] sourcebuf = new TSource[Size * compoundsize];
-            this.Source.Read(Start * compoundsize, sourcebuf.Length, sourcebuf, 0);
-            Start = 0;
-            while (Size > 0)
-            {
-                Buffer[Offset] = compound.Combine(sourcebuf, Start);
-                Start += compoundsize;
-                Size--;
-                Offset++;
-            }
+            throw new NotImplementedException();
         }
     }
 
     /// <summary>
     /// An array that splits items from a source array of compounds to make an array of base items.
     /// </summary>
-    public sealed class SplitArray<T, TSource, TCompound> : Array<T>
+    public sealed class SplitArray<TSource, T, TCompound> : Array<T>
         where TCompound : ICompound<TSource, T>
     {
         public SplitArray(Array<TSource> Source)
@@ -247,14 +337,20 @@ namespace MD.Data
             }
         }
 
-        public override T Read(int Index)
+        public override Stream<T> Read(int Index, int Size)
         {
-            throw new NotImplementedException();
-        }
-
-        public override void Read(int Start, int Size, T[] Buffer, int Offset)
-        {
-            throw new NotImplementedException();
+            TCompound compound = default(TCompound);
+            int compoundsize = compound.Size;
+            SplitStream<TSource, T, TCompound> str = new SplitStream<TSource, T, TCompound>(this.Source.Read(Index / compoundsize, (Size + compoundsize - 1) / compoundsize));
+            int r = Index % compoundsize;
+            if (r != 0)
+            {
+                if (str.AdvanceBuffer())
+                {
+                    str.Offset = r;
+                }
+            }
+            return str;
         }
     }
 

@@ -25,12 +25,15 @@ namespace MD
             Audio.Initialize();
 
 
-            Path file = "";
+            Path file = "F:\\Music\\Me\\57.mp3";
             MP3Stream stream = new MP3Stream(new NativeStream(file));
             stream.Initialize();
-            int[] data = new int[100000];
-            stream.Read(data.Length, data, 0);
-            stream.Terminate();
+
+            Feed<double> pitch = Signal.Time.Map(x => 1.0).Play();
+            Feed<long> pos = Audio.Output(
+                new SplitStream<Stero<int>, byte, Stero16Compound>(stream),
+                OpenTK.Audio.OpenAL.ALFormat.Stereo16,
+                44100, pitch);
 
             PlotForm pf = new PlotForm();
             pf.Show();
@@ -43,6 +46,7 @@ namespace MD
                 lasttime = curtime;
 
                 pf.Update(updatetime);
+                Console.WriteLine(pos.Current);
 
                 _AutoTimedSignalFeed.Update(updatetime);
                 Audio.Update(updatetime);

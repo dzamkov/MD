@@ -12,13 +12,14 @@ namespace MD.Codec
     /// <summary>
     /// A stream that returns (24-bit) pcm data for a source stream in the mp3 format.
     /// </summary>
-    public class MP3Stream : Stream<int>
+    public class MP3Stream : Stream<Stero<int>>
     {
         public MP3Stream(Stream<byte> Source)
         {
             this._Source = Source;
             this._Decoder = new Decoder();
             this._Buffer = new byte[_BufferSize];
+            this._SampleOffset = -1;
         }
 
         /// <summary>
@@ -37,39 +38,48 @@ namespace MD.Codec
             this._Decoder.Terminate();
         }
 
-        public override unsafe int Read(int Size, int[] Buffer, int Offset)
+        public override unsafe int Read(int Size, Stero<int>[] Buffer, int Offset)
         {
-            if (this._Read == null)
-                if (!this._AdvanceFrame())
-                    return 0;
-            int amountread = 0;
-            while (true)
+            fixed (byte* ptr = this._Buffer)
             {
-                int valsleft = Decoder.FrameSampleCount * 2 - (int)(this._Read - (int*)this._Decoder.Output);
-                if (Size > valsleft)
+                if (this._SampleOffset == -1)
+                    if (!this._AdvanceFrame(ptr))
+                        return 0;
+                int amountread = 0;
+                while (true)
                 {
-                    Size -= valsleft;
-                    amountread += valsleft;
-                    while (valsleft-- > 0)
+                    int sampsleft = Decoder.FrameSampleCount - this._SampleOffset;
+                    int* left = (int*)this._Decoder.Output + this._SampleOffset;
+                    int* right = (int*)(left + Decoder.FrameSampleCount);
+                    int channels = this._Decoder.Channels;
+                    if (Size > sampsleft)
                     {
-                        Buffer[Offset] = *this._Read;
-                        this._Read++;
-                        Offset++;
+                        Size -= sampsleft;
+                        amountread += sampsleft;
+                        while (sampsleft-- > 0)
+                        {
+                            Buffer[Offset] = new Stero<int>(*left, *right);
+                            Offset++;
+                            left++;
+                            right++;
+                        }
+                        if (!this._AdvanceFrame(ptr))
+                            return amountread;
+                        continue;
                     }
-                    if (!this._AdvanceFrame())
+                    else
+                    {
+                        amountread += Size;
+                        this._SampleOffset += Size;
+                        while (Size-- > 0)
+                        {
+                            Buffer[Offset] = new Stero<int>(*left, *right);
+                            Offset++;
+                            left++;
+                            right++;
+                        }
                         return amountread;
-                    continue;
-                }
-                else
-                {
-                    amountread += Size;
-                    while (Size-- > 0)
-                    {
-                        Buffer[Offset] = *this._Read;
-                        this._Read++;
-                        Offset++;
                     }
-                    return amountread;
                 }
             }
         }
@@ -77,37 +87,34 @@ namespace MD.Codec
         /// <summary>
         /// Tries decoding the next frame.
         /// </summary>
-        private unsafe bool _AdvanceFrame()
+        private unsafe bool _AdvanceFrame(byte* BufferPtr)
         {
-            fixed(byte* ptr = this._Buffer)
+            while (!this._Decoder.DecodeFrame())
             {
-                while (!this._Decoder.DecodeFrame())
+                if (this._Decoder.Error == Error.BufferData)
                 {
-                    if (this._Decoder.Error == Error.BufferData)
-                    {
-                        int size = this._AdvanceBuffer(0);
-                        if (size == 0)
-                            return false;
-                        this._Decoder.SetInput(ptr, size);
-                        continue;
-                    }
-                    if (this._Decoder.Error == Error.BufferLength)
-                    {
-                        int save = _BufferSize - (int)((byte*)this._Decoder.NextFrame - ptr);
-                        int size = this._AdvanceBuffer(save);
-                        if (size == 0)
-                            return false;
-                        this._Decoder.SetInput(ptr, save + size);
-                        continue;
-                    }
-                    if (!this._Decoder.ErrorRecoverable)
-                    {
+                    int size = this._AdvanceBuffer(0);
+                    if (size == 0)
                         return false;
-                    }
+                    this._Decoder.SetInput(BufferPtr, size);
+                    continue;
+                }
+                if (this._Decoder.Error == Error.BufferLength)
+                {
+                    int save = _BufferSize - (int)((byte*)this._Decoder.NextFrame - BufferPtr);
+                    int size = this._AdvanceBuffer(save);
+                    if (size == 0)
+                        return false;
+                    this._Decoder.SetInput(BufferPtr, save + size);
+                    continue;
+                }
+                if (!this._Decoder.ErrorRecoverable)
+                {
+                    return false;
                 }
             }
             this._Decoder.SynthFrame();
-            this._Read = (int*)this._Decoder.Output;
+            this._SampleOffset = 0;
             return true;
         }
 
@@ -117,6 +124,7 @@ namespace MD.Codec
         /// <param name="Save">The amount of data at the end of the buffer to save by moving to the beginning of the buffer.</param>
         private int _AdvanceBuffer(int Save)
         {
+            Save = Math.Max(Save, 0);
             int ts = _BufferSize - Save;
             for (int t = 0; t < Save; t++)
             {
@@ -133,6 +141,6 @@ namespace MD.Codec
         private byte[] _Buffer;
         private Stream<byte> _Source;
         private Decoder _Decoder;
-        private unsafe int* _Read;
+        private int _SampleOffset;
     }
 }

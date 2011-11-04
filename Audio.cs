@@ -28,14 +28,14 @@ namespace MD
         }
 
         /// <summary>
-        /// Outputs the given feed to the primary audio device.
+        /// Outputs the given feed to the primary audio device. Returns a feed that gives the current play position (in samples) in the stream.
         /// </summary>
-        public static void Output<T, TCompound>(Feed<T> Feed, ALFormat Format)
-            where TCompound : ICompound<T, byte>
+        public static Feed<long> Output(Stream<byte> Stream, ALFormat Format, int SampleRate, Feed<double> Pitch)
         {
-            _Source s = new _SignalFeedSource<T, TCompound>((SignalFeed<T>)Feed, Format, 65536 * 4);
-            s.Initialize(2);
+            _StreamSource s = new _StreamSource(Stream, Format, SampleRate, Pitch, 4096 * 8);
+            s.Initialize(4);
             s.Play();
+            return s.Position;
         }
 
         /// <summary>
@@ -182,63 +182,41 @@ namespace MD
         /// <summary>
         /// A source for a signal feed.
         /// </summary>
-        private sealed class _SignalFeedSource<T, TCompound> : _Source
-            where TCompound : ICompound<T, byte>
+        private sealed class _StreamSource : _Source
         {
-            public _SignalFeedSource(SignalFeed<T> Feed, ALFormat Format, int BufferSize)
+            public _StreamSource(Stream<byte> Stream, ALFormat Format, int SampleRate, Feed<double> Pitch, int BufferSize)
                 : base(Format, BufferSize)
             {
-                _AutoTimedSignalFeed.Remove(Feed);
-                this.Feed = Feed;
-                Signal<T> source = Feed.Source;
-
-                // Deconstruct source signal to find a data array, sample rate, position and base rate
-                DiscreteSignal<T> ds = source.Sample(44100.0);
-                base.SampleRate = (int)ds.Rate;
-                this.SampleRate = ds.Rate;
-                this.Data = ds.Data.Split<byte, TCompound>();
+                this.Stream = Stream;
+                this.SampleRate = SampleRate;
+                this.Pitch = Pitch;
+                this.Position = new ControlFeed<long>(0);
+                this.StartPosition = 0;
             }
 
             /// <summary>
-            /// The feed for this audio source.
+            /// The sample data stream for the source.
             /// </summary>
-            public readonly SignalFeed<T> Feed;
+            public readonly Stream<byte> Stream;
 
             /// <summary>
-            /// The actual sample rate for the stream (used for timing).
+            /// The pitch for the source.
             /// </summary>
-            public new double SampleRate;
+            public readonly Feed<double> Pitch;
 
             /// <summary>
-            /// The sample data array for the source.
+            /// The feed for the play position of this source.
             /// </summary>
-            public Array<byte> Data;
+            public readonly ControlFeed<long> Position;
 
             /// <summary>
-            /// The position of the next byte in the data array to be written into a buffer.
+            /// The position of the first sample currently in the buffer.
             /// </summary>
-            public int Position;
-
-            /// <summary>
-            /// The time in the signal the first buffer in the source starts at.
-            /// </summary>
-            public double StartTime;
-
-            /// <summary>
-            /// Gets the amount of bytes in a sample in this source.
-            /// </summary>
-            public int SampleSize
-            {
-                get
-                {
-                    return default(TCompound).Size;
-                }
-            }
+            public long StartPosition;
 
             public override void Write(byte[] Buffer)
             {
-                this.Data.Read(this.Position, Buffer.Length, Buffer, 0);
-                this.Position += Buffer.Length;
+                this.Stream.Read(Buffer.Length, Buffer, 0);
             }
 
             public override void Update(double Time)
@@ -248,7 +226,7 @@ namespace MD
 
                 if (bufferprocessed > 0)
                 {
-                    this.StartTime += (double)(this.BufferSize / this.SampleSize) / this.SampleRate;
+                    this.StartPosition += this.BufferSize * bufferprocessed;
 
                     int[] buffers = new int[bufferprocessed];
                     AL.SourceUnqueueBuffers(this.ID, bufferprocessed, buffers);
@@ -256,17 +234,16 @@ namespace MD
                     {
                         this.Write(buffers[t]);
                     }
-
                     AL.SourcePlay(this.ID);
                 }
 
-                // Update feed time
+                // Update play position
                 int sampleoffset;
                 AL.GetSource(this.ID, ALGetSourcei.SampleOffset, out sampleoffset);
-                this.Feed._Time = this.StartTime + (double)sampleoffset / this.SampleRate;
+                this.Position.Set(this.StartPosition + sampleoffset);
 
                 // Update playback rate
-                float nrate = (float)this.Feed.Rate.Current;
+                float nrate = (float)this.Pitch.Current;
                 AL.Source(this.ID, ALSourcef.Pitch, nrate);
             }
         }

@@ -79,6 +79,7 @@
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Codec\LibAVCodec.cs" />
     <Compile Include="Data\Array.cs" />
     <Compile Include="Audio.cs" />
     <Compile Include="Data\Complex.cs" />

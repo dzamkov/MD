@@ -151,9 +151,7 @@ namespace MD.Data
         {
             get
             {
-                T[] buf = new T[1];
-                this.Data.Read((int)(Time / this.Rate), 1, buf, 0);
-                return buf[0];
+                return this.Data[(int)(Time / this.Rate)];
             }
         }
     }

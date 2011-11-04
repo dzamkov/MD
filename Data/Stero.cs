@@ -24,6 +24,11 @@ namespace MD.Data
         /// The sample for the right channel.
         /// </summary>
         public T Right;
+
+        public override string ToString()
+        {
+            return this.Left.ToString() + ", " + this.Right.ToString();
+        }
     }
 
     /// <summary>
@@ -56,7 +61,7 @@ namespace MD.Data
     /// <summary>
     /// A compound for 16bit stero samples.
     /// </summary>
-    public struct Stero16Compound : ICompound<Stero<short>, byte>, ICompound<Stero<double>, byte>
+    public struct Stero16Compound : ICompound<Stero<short>, byte>, ICompound<Stero<int>, byte>, ICompound<Stero<double>, byte>
     {
         public int Size
         {
@@ -91,6 +96,23 @@ namespace MD.Data
             Buffer[Offset++] = (byte)samp;
             Buffer[Offset++] = (byte)(samp >> 8);
             samp = (short)(Compound.Right * 32767.0);
+            Buffer[Offset++] = (byte)samp;
+            Buffer[Offset] = (byte)(samp >> 8);
+        }
+
+
+        Stero<int> ICompound<Stero<int>, byte>.Combine(byte[] Buffer, int Offset)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Split(Stero<int> Compound, byte[] Buffer, int Offset)
+        {
+            short samp;
+            samp = (short)(Compound.Left / 16384);
+            Buffer[Offset++] = (byte)samp;
+            Buffer[Offset++] = (byte)(samp >> 8);
+            samp = (short)(Compound.Right / 16384);
             Buffer[Offset++] = (byte)samp;
             Buffer[Offset] = (byte)(samp >> 8);
         }

@@ -7,7 +7,7 @@ using OpenTK.Audio.OpenAL;
 
 using MD.Data;
 
-namespace MD
+namespace MD.UI
 {
     /// <summary>
     /// Contains functions related to audio output and input.

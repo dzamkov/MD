@@ -79,9 +79,10 @@
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Codec\Codec.cs" />
     <Compile Include="Codec\LibAVCodec.cs" />
     <Compile Include="Data\Array.cs" />
-    <Compile Include="Audio.cs" />
+    <Compile Include="UI\Audio.cs" />
     <Compile Include="Data\Complex.cs" />
     <Compile Include="Data\Feed.cs" />
     <Compile Include="Analysis\FFT.cs" />
@@ -135,6 +136,9 @@
     </BootstrapperPackage>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>COPY $(SolutionDir)Output\* $(SolutionDir)$(OutDir)</PostBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

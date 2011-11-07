@@ -29,7 +29,7 @@ namespace MD
             MP3Stream stream = new MP3Stream(new NativeStream(file));
             stream.Initialize();
 
-            Feed<double> pitch = Signal.Time.Map(x => 1.0).Play();
+            Feed<double> pitch = Signal.Time.Map(x => 1.0 + x / 10.0).Play();
             Feed<long> pos = Audio.Output(
                 new SplitStream<Stero<int>, byte, Stero16Compound>(stream),
                 OpenTK.Audio.OpenAL.ALFormat.Stereo16,

@@ -7,6 +7,7 @@ using System.Reflection;
 using MD.Codec;
 using MD.Data;
 using MD.UI;
+using MD.UI.Audio;
 
 namespace MD
 {
@@ -28,7 +29,7 @@ namespace MD
         {
             Directory = Path.WorkingDirectory;
             Application.EnableVisualStyles();
-            Audio.Initialize();
+            AudioOutput audiout = new OpenALOutput();
 
             // Load ALL THE PLUGINS
             foreach (Plugin plugin in Plugin.Available)
@@ -36,22 +37,16 @@ namespace MD
                 plugin.Load();
             }
 
-            IEnumerable<Codec.Codec> codecs = Codec.Codec.Codecs;
-
-            PlotForm pf = new PlotForm();
-            pf.Show();
-
             DateTime lasttime = DateTime.Now;
-            while (pf.Visible)
+            while (true)
             {
                 DateTime curtime = DateTime.Now;
                 double updatetime = (curtime - lasttime).Milliseconds / 1000.0;
                 lasttime = curtime;
 
-                pf.Update(updatetime);
 
                 _AutoTimedSignalFeed.Update(updatetime);
-                Audio.Update(updatetime);
+                audiout.Update(updatetime);
                 Application.DoEvents();
             }
         }

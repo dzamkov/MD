@@ -63,10 +63,13 @@
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Codec\Audio.cs" />
     <Compile Include="Codec\Codec.cs" />
+    <Compile Include="Codec\Content.cs" />
     <Compile Include="Data\Array.cs" />
     <Compile Include="Plugin.cs" />
-    <Compile Include="UI\Audio.cs" />
+    <Compile Include="UI\Audio\OpenAL.cs" />
+    <Compile Include="UI\Audio\Output.cs" />
     <Compile Include="Data\Complex.cs" />
     <Compile Include="Data\Feed.cs" />
     <Compile Include="Analysis\FFT.cs" />

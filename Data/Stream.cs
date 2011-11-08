@@ -17,7 +17,7 @@ namespace MD.Data
         public virtual bool Read(ref T Data)
         {
             T[] buf = new T[1];
-            if (this.Read(1, buf, 0) > 0)
+            if (this.Read(buf, 1, 0) > 0)
             {
                 Data = buf[0];
                 return true;
@@ -30,7 +30,7 @@ namespace MD.Data
         /// </summary>
         /// <param name="Size">The maximum amount of items to read.</param>
         /// <param name="Offset">The offset in the buffer to begin writing.</param>
-        public virtual int Read(int Size, T[] Buffer, int Offset)
+        public virtual int Read(T[] Buffer, int Size, int Offset)
         {
             int ar = 0;
             while (Size-- > 0)
@@ -64,7 +64,7 @@ namespace MD.Data
         /// </summary>
         public readonly Stream Source;
 
-        public override int Read(int Size, byte[] Buffer, int Offset)
+        public override int Read(byte[] Buffer, int Size, int Offset)
         {
             return this.Source.Read(Buffer, Offset, Size);
         }
@@ -113,7 +113,7 @@ namespace MD.Data
             return false;
         }
 
-        public override int Read(int Size, T[] Buffer, int Offset)
+        public override int Read(T[] Buffer, int Size, int Offset)
         {
             Size = Math.Min(this.Source.Length - this.Offset, Size);
             this.Offset += Size;
@@ -212,9 +212,9 @@ namespace MD.Data
             return false;
         }
 
-        public override int Read(int Size, T[] Buffer, int Offset)
+        public override int Read(T[] Buffer, int Size, int Offset)
         {
-            return base.Read(Size, Buffer, Offset);
+            return base.Read(Buffer, Size, Offset);
         }
 
         /// <summary>

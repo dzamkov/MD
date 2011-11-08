@@ -13,6 +13,7 @@
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
+    <IsWebBootstrapper>false</IsWebBootstrapper>
     <PublishUrl>publish\</PublishUrl>
     <Install>true</Install>
     <InstallFrom>Disk</InstallFrom>
@@ -25,7 +26,6 @@
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
     <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
-    <IsWebBootstrapper>false</IsWebBootstrapper>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
@@ -46,26 +46,10 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject />
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
-    <DebugSymbols>true</DebugSymbols>
-    <OutputPath>bin\x86\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DebugType>full</DebugType>
-    <PlatformTarget>x86</PlatformTarget>
-    <ErrorReport>prompt</ErrorReport>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
-    <OutputPath>bin\x86\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
-    <PlatformTarget>x86</PlatformTarget>
-    <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="MAD">
@@ -80,14 +64,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Codec\Codec.cs" />
-    <Compile Include="Codec\LibAVCodec.cs" />
     <Compile Include="Data\Array.cs" />
+    <Compile Include="Plugin.cs" />
     <Compile Include="UI\Audio.cs" />
     <Compile Include="Data\Complex.cs" />
     <Compile Include="Data\Feed.cs" />
     <Compile Include="Analysis\FFT.cs" />
     <Compile Include="Analysis\Window.cs" />
-    <Compile Include="Codec\MP3.cs" />
     <Compile Include="Data\Stream.cs" />
     <Compile Include="UI\Color.cs" />
     <Compile Include="UI\Gradient.cs" />
@@ -109,6 +92,8 @@
     </Compile>
     <Compile Include="UI\Spectrogram.cs" />
     <Compile Include="Util\Path.cs" />
+    <Compile Include="Util\Reflection.cs" />
+    <Compile Include="Util\Retract.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -137,7 +122,7 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>COPY $(SolutionDir)Output\* $(SolutionDir)$(OutDir)</PostBuildEvent>
+    <PostBuildEvent>XCOPY /E /Y "$(SolutionDir)Output" "$(SolutionDir)$(OutDir)"</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

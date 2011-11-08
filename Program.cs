@@ -16,24 +16,27 @@ namespace MD
     public static class Program
     {
         /// <summary>
+        /// The main program directory to load resources from.
+        /// </summary>
+        public static Path Directory;
+
+        /// <summary>
         /// Program main entry point.
         /// </summary>
         [STAThread]
         public static void Main(string[] Args)
         {
+            Directory = Path.WorkingDirectory;
             Application.EnableVisualStyles();
             Audio.Initialize();
 
+            // Load ALL THE PLUGINS
+            foreach (Plugin plugin in Plugin.Available)
+            {
+                plugin.Load();
+            }
 
-            Path file = "F:\\Music\\Me\\57.mp3";
-            MP3Stream stream = new MP3Stream(new NativeStream(file));
-            stream.Initialize();
-
-            Feed<double> pitch = Signal.Time.Map(x => 1.0 + x / 10.0).Play();
-            Feed<long> pos = Audio.Output(
-                new SplitStream<Stero<int>, byte, Stero16Compound>(stream),
-                OpenTK.Audio.OpenAL.ALFormat.Stereo16,
-                44100, pitch);
+            IEnumerable<Codec.Codec> codecs = Codec.Codec.Codecs;
 
             PlotForm pf = new PlotForm();
             pf.Show();
@@ -46,7 +49,6 @@ namespace MD
                 lasttime = curtime;
 
                 pf.Update(updatetime);
-                Console.WriteLine(pos.Current);
 
                 _AutoTimedSignalFeed.Update(updatetime);
                 Audio.Update(updatetime);

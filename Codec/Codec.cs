@@ -11,6 +11,25 @@ namespace MD.Codec
     /// </summary>
     public abstract class Codec
     {
+        public Codec(string Name, string Hint, bool CanEncode, bool CanDecode)
+        {
+            this.Name = Name;
+            this.Hint = Hint;
+            this.CanEncode = CanEncode;
+            this.CanDecode = CanDecode;
+        }
+
+        /// <summary>
+        /// The user-friendly name of this codec. This should reflect the origin of the codec and the type of streams it
+        /// can use.
+        /// </summary>
+        public readonly string Name;
+
+        /// <summary>
+        /// The file extension this codec is intended for.
+        /// </summary>
+        public readonly string Hint;
+
         /// <summary>
         /// Indicates wether this codec can be used for encoding.
         /// </summary>
@@ -40,6 +59,67 @@ namespace MD.Codec
             Subtitle = null;
             return false;
         }
+
+        /// <summary>
+        /// Registers a codec.
+        /// </summary>
+        public static RetractHandler Register(Codec Codec)
+        {
+            List<Codec> hc;
+            if (!_Codecs.TryGetValue(Codec.Hint, out hc))
+            {
+                hc = new List<Codec>();
+                _Codecs[Codec.Hint] = hc;
+            }
+            hc.Add(Codec);
+            return delegate
+            {
+                hc.Remove(Codec);
+            };
+        }
+
+        /// <summary>
+        /// Gets all codecs that are currently registered.
+        /// </summary>
+        public static IEnumerable<Codec> Codecs
+        {
+            get
+            {
+                return
+                    from hc in _Codecs
+                    from c in hc.Value
+                    select c;
+            }
+        }
+
+        /// <summary>
+        /// Gets all registered codecs with the given hint string.
+        /// </summary>
+        public static IEnumerable<Codec> GetCodecsByHint(string Hint)
+        {
+            List<Codec> hc;
+            if (_Codecs.TryGetValue(Hint, out hc))
+            {
+                return hc;
+            }
+            else
+            {
+                return new Codec[0];
+            }
+        }
+
+        /// <summary>
+        /// Gets all registered codecs with the given name.
+        /// </summary>
+        public static IEnumerable<Codec> GetCodecsByName(string Name)
+        {
+            return
+                from c in Codecs
+                where c.Name == Name
+                select c;
+        }
+
+        private static Dictionary<string, List<Codec>> _Codecs = new Dictionary<string, List<Codec>>();
     }
 
     /// <summary>

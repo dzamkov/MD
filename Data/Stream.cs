@@ -26,20 +26,45 @@ namespace MD.Data
         }
 
         /// <summary>
-        /// Reads the next few items from the stream into the given buffer and returns the amount of items read.
+        /// Reads the next items from the stream into the given buffer and returns the amount of items read.
         /// </summary>
         /// <param name="Size">The maximum amount of items to read.</param>
         /// <param name="Offset">The offset in the buffer to begin writing.</param>
         public virtual int Read(T[] Buffer, int Size, int Offset)
         {
             int ar = 0;
-            while (Size-- > 0)
+            while (Size > 0)
             {
                 if (!this.Read(ref Buffer[Offset]))
-                    return ar;
+                    break;
                 ar++;
                 Offset++;
+                Size--;
             }
+            return ar;
+        }
+
+        /// <summary>
+        /// Reads the next items from the stream into the given memory location. This should only be used when the stream contains
+        /// value types.
+        /// </summary>
+        public virtual unsafe int Read(byte* Destination, int Size)
+        {
+            T[] buf = new T[1];
+            int size = Unsafe.SizeOf<T>();
+            var handle = Unsafe.Pin<T>(buf);
+            byte* source = (byte*)handle.AddrOfPinnedObject().ToPointer();
+            int ar = 0;
+            while (Size > 0)
+            {
+                if (!this.Read(ref buf[0]))
+                    break;
+                Unsafe.Copy(source, Destination, size);
+                Destination += size;
+                ar++;
+                Size--;
+            }
+            Unsafe.Unpin(handle);
             return ar;
         }
     }
@@ -69,10 +94,41 @@ namespace MD.Data
             return this.Source.Read(Buffer, Offset, Size);
         }
 
+        public override unsafe int Read(byte* Destination, int Size)
+        {
+            fixed (byte* ptr = _ReadBuffer)
+            {
+                int ar = 0;
+                while (Size > 0)
+                {
+                    if (Size > _ReadBuffer.Length)
+                    {
+                        int r = this.Read(_ReadBuffer, _ReadBuffer.Length, 0);
+                        Size -= r;
+                        ar += r;
+                        Unsafe.Copy(ptr, Destination, r);
+                        Destination += r;
+                        if (r != _ReadBuffer.Length)
+                            break;
+                    }
+                    else
+                    {
+                        int r = this.Read(_ReadBuffer, Size, 0);
+                        ar += r;
+                        Unsafe.Copy(ptr, Destination, r);
+                        break;
+                    }
+                }
+                return ar;
+            }
+        }
+
         public void Dispose()
         {
             this.Source.Dispose();
         }
+
+        private static byte[] _ReadBuffer = new byte[4096];
     }
 
     /// <summary>
@@ -116,14 +172,27 @@ namespace MD.Data
         public override int Read(T[] Buffer, int Size, int Offset)
         {
             Size = Math.Min(this.Source.Length - this.Offset, Size);
-            this.Offset += Size;
-            T[] s = this.Source;
             int of = this.Offset;
+            T[] s = this.Source;
+            this.Offset += Size;
             while (Size-- > 0)
             {
                 Buffer[Offset++] = s[of++];
             }
             return Size;
+        }
+
+        public override unsafe int Read(byte* Destination, int Size)
+        {
+            int size = Unsafe.SizeOf<T>();
+            var handle = Unsafe.Pin<T>(Source);
+            byte* source = (byte*)handle.AddrOfPinnedObject().ToPointer();
+            source += this.Offset;
+            int r = Math.Min(Size, this.Source.Length - this.Offset);
+            Unsafe.Copy(source, Destination, size * r);
+            this.Offset += r;
+            Unsafe.Unpin(handle);
+            return r;
         }
     }
 
@@ -230,6 +299,60 @@ namespace MD.Data
                 return true;
             }
             return false;
+        }
+    }
+
+    /// <summary>
+    /// A stream that reads raw data from a pointer location.
+    /// </summary>
+    public sealed class UnsafeStream : Stream<byte>
+    {
+        public unsafe UnsafeStream(byte* Current, byte* End)
+        {
+            this.Current = Current;
+            this.End = End;
+        }
+
+        public UnsafeStream()
+        {
+            
+        }
+
+        /// <summary>
+        /// A pointer to the current position of the stream in memory.
+        /// </summary>
+        public unsafe byte* Current;
+
+        /// <summary>
+        /// A pointer to the end of the array in memory.
+        /// </summary>
+        public unsafe byte* End;
+
+        public override unsafe bool Read(ref byte Data)
+        {
+            if (this.Current < this.End)
+            {
+                Data = *this.Current;
+                this.Current++;
+                return true;
+            }
+            return false;
+        }
+
+        public override unsafe int Read(byte* Destination, int Size)
+        {
+            int ar = Math.Min((int)(this.End - this.Current), Size);
+            Unsafe.Copy(this.Current, Destination, ar);
+            this.Current += ar;
+            return ar;
+        }
+
+        public override unsafe int Read(byte[] Buffer, int Size, int Offset)
+        {
+            fixed (byte* ptr = Buffer)
+            {
+                return this.Read(ptr + Offset, Size);
+            }
         }
     }
 }

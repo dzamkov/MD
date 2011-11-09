@@ -100,13 +100,17 @@ namespace MD.UI.Audio
         public bool GetFormat(int Channels, AudioFormat SourceFormat, out ALFormat OutputFormat)
         {
             ALFormat[] formatbychannels = _Formats[(int)SourceFormat];
-            if (Channels >= formatbychannels.Length)
+            if (Channels > formatbychannels.Length)
             {
                 OutputFormat = (ALFormat)0;
                 return false;
             }
 
-            OutputFormat = formatbychannels[Channels];
+            OutputFormat = formatbychannels[Channels - 1];
+
+            if (OutputFormat == (ALFormat)0)
+                return false;
+
             if ((int)OutputFormat >= (int)ALFormat.MultiQuad8Ext && (int)OutputFormat <= (int)ALFormat.Multi71Chn32Ext && !this.SupportsMultiChannel)
                 return false;
 
@@ -282,7 +286,7 @@ namespace MD.UI.Audio
             int bufferprocessed;
             AL.GetSource(this._ID, ALGetSourcei.BuffersProcessed, out bufferprocessed);
 
-            if (bufferprocessed > 0 && AL.GetSourceState(this._ID) == ALSourceState.Playing)
+            if (bufferprocessed > 0)
             {
                 this._StartPosition += this.BufferSize * bufferprocessed;
 

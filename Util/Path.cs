@@ -53,6 +53,22 @@ namespace MD
         }
 
         /// <summary>
+        /// Gets the extension of this path, or null if there is none.
+        /// </summary>
+        public string Extension
+        {
+            get
+            {
+                int li = this._Path.LastIndexOf('.');
+                if (li > 0)
+                {
+                    return this._Path.Substring(li + 1);
+                }
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Reads the contents of the file at this path, or returns null if not possible.
         /// </summary>
         public string Contents

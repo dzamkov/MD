@@ -37,6 +37,13 @@ namespace MD
                 plugin.Load();
             }
 
+            Context context = Container.Load("N:\\Music\\Me\\57.mp3");
+            AudioContent audio = (AudioContent)context.Content[0];
+            AudioStream audiostr = audio.GetStream(context);
+
+            AudioOutputSource audiosrc = audiout.Begin(audiostr, (int)audio.SampleRate, audio.Channels, audio.Format);
+            audiosrc.Play();
+
             DateTime lasttime = DateTime.Now;
             while (true)
             {

@@ -41,7 +41,7 @@ namespace MD.Data
         /// <summary>
         /// Creates a stream to read this array starting at the given index.
         /// </summary>
-        public Stream<T> Read(int Index)
+        public Disposable<Stream<T>> Read(int Index)
         {
             return this.Read(Index, this.Size - Index);
         }
@@ -170,29 +170,29 @@ namespace MD.Data
     }
 
     /// <summary>
-    /// A mutable array that stores data with a extendable list of buffers.
+    /// A mutable array that stores data with a extendable list of chunks (also given by arrays).
     /// </summary>
-    public sealed class MemoryArray<T> : Array<T>
+    public sealed class ChunkArray<T> : Array<T>
     {
-        public MemoryArray()
+        public ChunkArray()
         {
             this._Chunks = new List<Chunk>();
             this._Size = 0;
         }
 
         /// <summary>
-        /// Appends a chunk to this array using data from the given buffer. The buffer will be referenced directly; making any changes 
-        /// to the buffer will cause corresponding changes to be made in the array.
+        /// Appends a chunk to this array using data from the given array. The array will be referenced directly; making any changes 
+        /// to the array will cause corresponding changes to be made in the chunk data.
         /// </summary>
-        public void Append(T[] Buffer, int Size, int Offset)
+        public void Append(Array<T> Source)
         {
+            int nsize = this._Size + Source.Size;
             this._Chunks.Add(new Chunk
             {
-                Buffer = Buffer,
-                Size = Size,
-                Offset = Offset,
+                Source = Source,
                 Position = this._Size
             });
+            this._Size = nsize;
         }
 
         /// <summary>
@@ -217,9 +217,9 @@ namespace MD.Data
             Chunk chunk = default(Chunk);
             int ci = this._FindChunk(Index, ref chunk);
             int coffset = Index - chunk.Position;
-            if (chunk.Size - coffset < Size)
+            if (chunk.Source.Size - coffset < Size)
             {
-                return new BufferStream<T>(chunk.Buffer, chunk.Offset + coffset);
+                return chunk.Source.Read(coffset, Size);
             }
             else
             {
@@ -238,19 +238,9 @@ namespace MD.Data
             public int Position;
 
             /// <summary>
-            /// The buffer source for this chunk.
+            /// The array containing the source data for this chunk.
             /// </summary>
-            public T[] Buffer;
-
-            /// <summary>
-            /// The chunk data's offset in the source buffer.
-            /// </summary>
-            public int Offset;
-
-            /// <summary>
-            /// The size of the chunk.
-            /// </summary>
-            public int Size;
+            public Array<T> Source;
         }
 
         /// <summary>
@@ -266,7 +256,7 @@ namespace MD.Data
                 Chunk = this._Chunks[s];
                 if (Position >= Chunk.Position)
                 {
-                    if (Position - Chunk.Position < Chunk.Size)
+                    if (Position - Chunk.Position < Chunk.Source.Size)
                     {
                         return s;
                     }
@@ -351,6 +341,46 @@ namespace MD.Data
                 }
             }
             return str;
+        }
+    }
+
+    /// <summary>
+    /// An array that reads raw data from a pointer location.
+    /// </summary>
+    public sealed class UnsafeArray : Array<byte>
+    {
+        public UnsafeArray()
+        {
+
+        }
+
+        public unsafe UnsafeArray(byte* Start, byte* End)
+        {
+            this.Start = Start;
+            this.End = End;
+        }
+
+        /// <summary>
+        /// A pointer to the beginning of the array in memory.
+        /// </summary>
+        public unsafe byte* Start;
+
+        /// <summary>
+        /// A pointer to the end of the array in memory.
+        /// </summary>
+        public unsafe byte* End;
+
+        public unsafe override int Size
+        {
+            get
+            {
+                return (int)(this.End - this.Start);
+            }
+        }
+
+        public override unsafe Stream<byte> Read(int Index, int Size)
+        {
+            return new UnsafeStream(this.Start + Index, this.End);
         }
     }
 

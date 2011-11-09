@@ -64,7 +64,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Codec\Audio.cs" />
-    <Compile Include="Codec\Codec.cs" />
+    <Compile Include="Codec\Container.cs" />
     <Compile Include="Codec\Content.cs" />
     <Compile Include="Data\Array.cs" />
     <Compile Include="Plugin.cs" />
@@ -94,9 +94,11 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="UI\Spectrogram.cs" />
+    <Compile Include="Util\Disposable.cs" />
     <Compile Include="Util\Path.cs" />
     <Compile Include="Util\Reflection.cs" />
     <Compile Include="Util\Retract.cs" />
+    <Compile Include="Util\Unsafe.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

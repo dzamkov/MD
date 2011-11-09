@@ -49,12 +49,12 @@ namespace MD.Codec
         /// <summary>
         /// Gets an audio stream for this audio content. This makes the context unusable for other purposes.
         /// </summary>
-        public AudioStream GetStream(Context Context)
+        public Disposable<AudioStream> GetStream(Disposable<Context> Context)
         {
             int ci = 0;
-            for (int t = 0; t < Context.Content.Length; t++)
+            for (int t = 0; t < (~Context).Content.Length; t++)
             {
-                Content cont = Context.Content[t];
+                Content cont = (~Context).Content[t];
                 if (cont == this)
                 {
                     ci = t;
@@ -75,7 +75,7 @@ namespace MD.Codec
     /// </summary>
     public class AudioStream : Stream<byte>, IDisposable
     {
-        public AudioStream(Context Context, AudioContent Content, int ContentIndex)
+        public AudioStream(Disposable<Context> Context, AudioContent Content, int ContentIndex)
         {
             this.Context = Context;
             this.Content = Content;
@@ -85,7 +85,7 @@ namespace MD.Codec
         /// <summary>
         /// The context this stream is for.
         /// </summary>
-        public readonly Context Context;
+        public readonly Disposable<Context> Context;
 
         /// <summary>
         /// The audio content this stream is for.
@@ -146,7 +146,7 @@ namespace MD.Codec
         private bool _AdvanceFrame()
         {
             int ci = this.ContentIndex;
-            while (this.Context.NextFrame(ref ci))
+            while ((~this.Context).NextFrame(ref ci))
             {
                 if (ci == this.ContentIndex)
                 {
@@ -159,7 +159,7 @@ namespace MD.Codec
 
         public void Dispose()
         {
-            this.Context.Finish();
+            this.Context.Dispose();
         }
     }
 

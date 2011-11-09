@@ -115,9 +115,46 @@ namespace MD
                 if (_Available == null)
                 {
                     _Available = new List<Plugin>();
-                    foreach (Path f in Program.Directory["Plugins"].Subfiles)
+                    _EnumeratePlugins(Program.Directory["Plugins"], _Available);
+                }
+                return _Available;
+            }
+        }
+        private static List<Plugin> _Available;
+
+        /// <summary>
+        /// Enumerates all plugins in the given directory and outputs them to the given list.
+        /// </summary>
+        private static void _EnumeratePlugins(Path Directory, List<Plugin> Out)
+        {
+            foreach (Path f in Directory.Subfiles)
+            {
+                if (f.FileExists && f.Extension == "dll")
+                {
+                    string name = f.Name;
+                    string[] parts = name.Split('_');
+
+                    if (parts.Length > 0 && parts[0] == "plugin")
                     {
-                        if (f.FileExists)
+                        string platform = null;
+                        if (parts.Length > 1)
+                            platform = parts[1];
+
+                        bool shouldload = false;
+                        switch (platform)
+                        {
+                            case "32":
+                                shouldload = !Environment.Is64BitProcess;
+                                break;
+                            case "64":
+                                shouldload = Environment.Is64BitProcess;
+                                break;
+                            default:
+                                shouldload = true;
+                                break;
+                        }
+
+                        if (shouldload)
                         {
                             Plugin pg = Load(f);
                             if (pg != null)
@@ -126,11 +163,15 @@ namespace MD
                             }
                         }
                     }
+                    continue;
                 }
-                return _Available;
+
+                if (f.DirectoryExists)
+                {
+                    _EnumeratePlugins(f, Out);
+                }
             }
         }
-        private static List<Plugin> _Available;
 
         private RetractHandler _Retract;
         private Func<RetractHandler> _Load;

@@ -38,13 +38,5 @@ namespace MD.Codec
         /// <param name="ContentIndex">The index of the content of the frame to read. If this is modified by the method, then the
         /// given value is the actual index of the content read.</param>
         public abstract bool NextFrame(ref int ContentIndex);
-
-        /// <summary>
-        /// Releases all resources used by the context.
-        /// </summary>
-        public virtual void Finish()
-        {
-
-        }
     }
 }

@@ -37,12 +37,14 @@ namespace MD
                 plugin.Load();
             }
 
-            Context context = Container.Load("N:\\Music\\Hans Zimmer\\Inception OST\\03 Dream Is Collapsing.flac");
+            Context context = Container.Load("N:\\Music\\Me\\19.mp3");
             AudioContent audio = (AudioContent)context.Content[0];
             AudioStream audiostr = audio.GetStream(context);
 
             AudioOutputSource audiosrc = audiout.Begin(audiostr, (int)audio.SampleRate, audio.Channels, audio.Format);
             audiosrc.Play();
+
+            audiosrc.LinkPitch(Signal.Time.Map(x => Math.Exp(x * 0.01)).Play());
 
             DateTime lasttime = DateTime.Now;
             while (true)

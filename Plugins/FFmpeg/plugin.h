@@ -28,10 +28,26 @@ void CloseStreamContext(AVIOContext* Context);
 /// <summary>
 /// A context for decoding.
 /// </summary>
-ref class _Context : Context {
+ref class _Context : Context, IDisposable {
 public:
 	_Context(array<Codec::Content^>^ Content) : Context(Content) {
 		this->_Packet = NULL;
+	}
+
+	~_Context() {
+		delete this->Stream;
+		this->!_Context();
+	}
+
+	!_Context() {
+		CloseStreamContext(this->IOContext);
+		delete[] this->StreamContent;
+		av_free(this->Buffer);
+		if (this->_Packet != NULL)
+		{
+			av_free_packet(this->_Packet);
+			delete this->_Packet;
+		}
 	}
 
 	virtual bool NextFrame(int% ContentIndex) override {
@@ -74,17 +90,7 @@ public:
 		return false;
 	}
 
-	virtual void Finish() override {
-		CloseStreamContext(this->IOContext);
-		delete[] this->StreamContent;
-		av_free(this->Buffer);
-		if (this->_Packet != NULL)
-		{
-			av_free_packet(this->_Packet);
-			delete this->_Packet;
-		}
-	}
-
+	Disposable<Stream<Byte>^> Stream;
 	int* StreamContent;
 	AVIOContext* IOContext;
 	AVFormatContext* FormatContext;
@@ -104,7 +110,7 @@ public:
 
 	}
 
-    virtual Context^ Decode(Stream<Byte>^ Stream) override {
+    virtual Disposable<Context^> Decode(Disposable<Stream<Byte>^> Stream) override {
 		AVIOContext* io = InitStreamContext(Stream, 65536 + FF_INPUT_BUFFER_PADDING_SIZE);
 		
 		// Find stream format information
@@ -159,6 +165,7 @@ public:
 
 		// Create output context
 		_Context^ context = gcnew _Context(contents->ToArray());
+		context->Stream = Stream;
 		context->StreamContent = streamcontent;
 		context->IOContext = io;
 		context->FormatContext = formatcontext;
@@ -168,7 +175,7 @@ public:
 		return context;
 	}
 
-    virtual Stream<Byte>^ Encode(Context^ Context) override {
+    virtual Disposable<Stream<Byte>^> Encode(Disposable<Context^> Context) override {
 		return nullptr;
 	}
 

@@ -25,12 +25,12 @@ namespace MD.Codec
         /// <summary>
         /// Decodes a content context from a stream using this container format. Returns null if not possible.
         /// </summary>
-        public abstract Context Decode(Stream<byte> Stream);
+        public abstract Disposable<Context> Decode(Disposable<Stream<byte>> Stream);
 
         /// <summary>
         /// Encodes a content context into a stream using this container format. Returns null if not possible.
         /// </summary>
-        public abstract Stream<byte> Encode(Context Context);
+        public abstract Disposable<Stream<byte>> Encode(Disposable<Context> Context);
         
         public override string ToString()
         {
@@ -61,7 +61,7 @@ namespace MD.Codec
         /// </summary>
         public static Context Load(Path File)
         {
-            Stream<byte> str = new NativeStream(File);
+            Stream<byte> str = File.Open();
             string ext = File.Extension;
             foreach (Container container in WithName(ext))
             {

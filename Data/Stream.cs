@@ -74,24 +74,19 @@ namespace MD.Data
     /// </summary>
     public sealed class NativeStream : Stream<byte>, IDisposable
     {
-        public NativeStream(Stream Source)
+        public NativeStream(Disposable<Stream> Source)
         {
             this.Source = Source;
-        }
-
-        public NativeStream(Path File)
-        {
-            this.Source = new FileStream(File, FileMode.Open);
         }
 
         /// <summary>
         /// The source stream for this native stream.
         /// </summary>
-        public readonly Stream Source;
+        public readonly Disposable<Stream> Source;
 
         public override int Read(byte[] Buffer, int Size, int Offset)
         {
-            return this.Source.Read(Buffer, Offset, Size);
+            return (~this.Source).Read(Buffer, Offset, Size);
         }
 
         public override unsafe int Read(byte* Destination, int Size)

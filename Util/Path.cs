@@ -68,6 +68,11 @@ namespace MD
             }
         }
 
+        public override string ToString()
+        {
+            return this._Path;
+        }
+
         /// <summary>
         /// Reads the contents of the file at this path, or returns null if not possible.
         /// </summary>
@@ -80,6 +85,14 @@ namespace MD
                     return tr.ReadToEnd();
                 }
             }
+        }
+
+        /// <summary>
+        /// Opens a stream to read the file at this path.
+        /// </summary>
+        public Disposable<Data.Stream<byte>> Open()
+        {
+            return new Data.NativeStream(new FileStream(this, FileMode.Open));
         }
 
         /// <summary>

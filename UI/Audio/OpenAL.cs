@@ -307,6 +307,13 @@ namespace MD.UI.Audio
             int sampleoffset;
             AL.GetSource(this._ID, ALGetSourcei.SampleOffset, out sampleoffset);
             this._Position = this._StartPosition + sampleoffset;
+
+            // Update pitch (if needed).
+            if (this._Pitch != null)
+            {
+                double nrate = this._Pitch.Current;
+                AL.Source(this._ID, ALSourcef.Pitch, (float)nrate);
+            }
         }
 
         /// <summary>
@@ -319,6 +326,12 @@ namespace MD.UI.Audio
             AL.SourceQueueBuffer(this._ID, ID);
         }
 
+        public override bool LinkPitch(Feed<double> Feed)
+        {
+            this._Pitch = Feed;
+            return true;
+        }
+
         private int _ID;
         private OpenALOutput _Output;
         private Stream<byte> _Stream;
@@ -327,5 +340,7 @@ namespace MD.UI.Audio
         private int _Position;
         private ALFormat _Format;
         private byte[] _Buffer;
+
+        private Feed<double> _Pitch;
     }
 }

@@ -1,6 +1,6 @@
 In order to compile this plugin, you need to do the following:
 
-* Build or download a dev build of FFmpeg and place it in the dev directory
+* Build or download a dev build of FFmpeg and place it in the corresponding dev directory
 	* You can download a build from http://ffmpeg.zeranoe.com/builds/
 	* Make sure the build platform of the library is consistent with the plugin
 

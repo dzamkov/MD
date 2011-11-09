@@ -37,7 +37,7 @@ namespace MD
                 plugin.Load();
             }
 
-            Context context = Container.Load("N:\\Music\\Me\\57.mp3");
+            Context context = Container.Load("N:\\Music\\Hans Zimmer\\Inception OST\\03 Dream Is Collapsing.flac");
             AudioContent audio = (AudioContent)context.Content[0];
             AudioStream audiostr = audio.GetStream(context);
 
@@ -50,7 +50,6 @@ namespace MD
                 DateTime curtime = DateTime.Now;
                 double updatetime = (curtime - lasttime).Milliseconds / 1000.0;
                 lasttime = curtime;
-
 
                 _AutoTimedSignalFeed.Update(updatetime);
                 audiout.Update(updatetime);

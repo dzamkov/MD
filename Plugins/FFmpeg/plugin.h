@@ -80,7 +80,7 @@ public:
 		av_free(this->Buffer);
 		if (this->_Packet != NULL)
 		{
-			av_free(this->_Packet);
+			av_free_packet(this->_Packet);
 			delete this->_Packet;
 		}
 	}
@@ -105,12 +105,21 @@ public:
 	}
 
     virtual Context^ Decode(Stream<Byte>^ Stream) override {
-		AVIOContext* io = InitStreamContext(Stream, 4096);
+		AVIOContext* io = InitStreamContext(Stream, 65536 + FF_INPUT_BUFFER_PADDING_SIZE);
 		
 		// Find stream format information
 		AVFormatContext* formatcontext;
-		if (av_open_input_stream(&formatcontext, io, "", this->Input, NULL) != 0 || av_find_stream_info(formatcontext) < 0)
+		int err = av_open_input_stream(&formatcontext, io, "", this->Input, NULL);
+		if (err != 0)
 		{
+			CloseStreamContext(io);
+			return nullptr;
+		}
+
+		err = av_find_stream_info(formatcontext);
+		if (err < 0)
+		{
+			av_close_input_stream(formatcontext);
 			CloseStreamContext(io);
 			return nullptr;
 		}

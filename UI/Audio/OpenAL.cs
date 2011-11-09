@@ -184,7 +184,7 @@ namespace MD.UI.Audio
             ALFormat format;
             if (this.GetFormat(Channels, Format, out format))
             {
-                return new OpenALOutputSource(this, Stream, SampleRate, format, 4096 * 4, 4);
+                return new OpenALOutputSource(this, Stream, SampleRate, format, 1024 * 16, 4);
             }
             return null;
         }
@@ -296,7 +296,11 @@ namespace MD.UI.Audio
                 {
                     this._Write(buffers[t]);
                 }
-                AL.SourcePlay(this._ID);
+
+                if (AL.GetSourceState(this._ID) != ALSourceState.Playing)
+                {
+                    AL.SourcePlay(this._ID);
+                }
             }
 
             // Update play position

@@ -5,6 +5,7 @@ Release
 *.suo
 *.ncb
 *.user
+*.sdf
 bin
 obj
 */bin

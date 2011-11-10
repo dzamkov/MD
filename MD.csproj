@@ -79,18 +79,10 @@
     <Compile Include="Data\Signal.cs" />
     <Compile Include="Data\Stero.cs" />
     <Compile Include="UI\Plot.cs" />
-    <Compile Include="UI\PlotControl.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Include="UI\PlotForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
     <Compile Include="UI\Point.cs" />
     <Compile Include="UI\Rectangle.cs" />
-    <Compile Include="UI\DisplayControl.cs">
-      <SubType>Component</SubType>
-    </Compile>
     <Compile Include="UI\Spectrogram.cs" />
+    <Compile Include="UI\Window.cs" />
     <Compile Include="Util\Disposable.cs" />
     <Compile Include="Util\Path.cs" />
     <Compile Include="Util\Reflection.cs" />

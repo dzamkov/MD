@@ -47,14 +47,14 @@ namespace MD.Data
     /// <summary>
     /// A feed that plays a signal with one second being one time unit
     /// </summary>
-    public sealed class SignalFeed<T> : Feed<T>, _IAutoTimedSignalFeed
+    public sealed class SignalFeed<T> : Feed<T>
     {
         internal SignalFeed(Signal<T> Source, Feed<double> Rate, double Time)
         {
             this.Source = Source;
             this.Rate = Rate;
             this._Time = Time;
-            _AutoTimedSignalFeed.Add(this);
+            this._RetractUpdate = Program.RegisterUpdate(delegate(double time) { this._Time += time; });
         }
 
         /// <summary>
@@ -86,60 +86,7 @@ namespace MD.Data
             }
         }
 
-        void _IAutoTimedSignalFeed.Update(double Time)
-        {
-            this._Time += Time;
-        }
-
+        internal RetractHandler _RetractUpdate;
         internal double _Time;
-    }
-
-    /// <summary>
-    /// Controls signal feeds that are automatically timed by the program.
-    /// </summary>
-    internal static class _AutoTimedSignalFeed
-    {
-        /// <summary>
-        /// A list of the currently active automatically timed signal feeds.
-        /// </summary>
-        private static readonly List<_IAutoTimedSignalFeed> _Feeds = new List<_IAutoTimedSignalFeed>();
-
-        /// <summary>
-        /// Updates the timing of all automatically timed signal feeds.
-        /// </summary>
-        public static void Update(double Time)
-        {
-            foreach (_IAutoTimedSignalFeed feed in _Feeds)
-            {
-                feed.Update(Time);
-            }
-        }
-
-        /// <summary>
-        /// Marks a signal feed as automatically timed.
-        /// </summary>
-        public static void Add(_IAutoTimedSignalFeed Feed)
-        {
-            _Feeds.Add(Feed);
-        }
-
-        /// <summary>
-        /// Marks a signal feed as not automatically timed.
-        /// </summary>
-        public static void Remove(_IAutoTimedSignalFeed Feed)
-        {
-            _Feeds.Remove(Feed);
-        }
-    }
-
-    /// <summary>
-    /// An interface to a signal feed whose timing is based on the program.
-    /// </summary>
-    internal interface _IAutoTimedSignalFeed
-    {
-        /// <summary>
-        /// Updates the timing of the signal feed.
-        /// </summary>
-        void Update(double Time);
     }
 }

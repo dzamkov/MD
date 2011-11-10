@@ -28,8 +28,6 @@ namespace MD
         public static void Main(string[] Args)
         {
             Directory = Path.WorkingDirectory;
-            Application.EnableVisualStyles();
-            AudioOutput audiout = new OpenALOutput();
 
             // Load ALL THE PLUGINS
             foreach (Plugin plugin in Plugin.Available)
@@ -37,25 +35,29 @@ namespace MD
                 plugin.Load();
             }
 
-            Context context = Container.Load("N:\\Music\\Me\\19.mp3");
-            AudioContent audio = (AudioContent)context.Content[0];
-            AudioStream audiostr = audio.GetStream(context);
+            new Window().Run(60.0);
+        }
 
-            AudioOutputSource audiosrc = audiout.Begin(audiostr, (int)audio.SampleRate, audio.Channels, audio.Format);
-            audiosrc.Play();
 
-            audiosrc.LinkPitch(Signal.Time.Map(x => Math.Exp(x * 0.01)).Play());
+        /// <summary>
+        /// Registers a callback to be called periodically with the time since the last update.
+        /// </summary>
+        public static RetractHandler RegisterUpdate(Action<double> Callback)
+        {
+            _Update.Add(Callback);
+            return delegate { _Update.Remove(Callback); };
+        }
+        private static List<Action<double>> _Update = new List<Action<double>>();
 
-            DateTime lasttime = DateTime.Now;
-            while (true)
+        /// <summary>
+        /// Updates the state of the program by the given amount of time in seconds. This will call all registered
+        /// update callbacks.
+        /// </summary>
+        public static void Update(double Time)
+        {
+            foreach (Action<double> update in _Update)
             {
-                DateTime curtime = DateTime.Now;
-                double updatetime = (curtime - lasttime).Milliseconds / 1000.0;
-                lasttime = curtime;
-
-                _AutoTimedSignalFeed.Update(updatetime);
-                audiout.Update(updatetime);
-                Application.DoEvents();
+                update(Time);
             }
         }
     }

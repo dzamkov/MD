@@ -326,7 +326,7 @@ namespace MD.UI.Audio
             AL.SourceQueueBuffer(this._ID, ID);
         }
 
-        public override bool LinkPitch(Feed<double> Feed)
+        public override bool LinkPitch(SignalFeed<double> Feed)
         {
             this._Pitch = Feed;
             return true;
@@ -341,6 +341,6 @@ namespace MD.UI.Audio
         private ALFormat _Format;
         private byte[] _Buffer;
 
-        private Feed<double> _Pitch;
+        private SignalFeed<double> _Pitch;
     }
 }

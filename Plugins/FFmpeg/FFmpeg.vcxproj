@@ -67,25 +67,25 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>plugin_$(PlatformArchitecture)_$(ProjectName)</TargetName>
+    <TargetName>Plugin$(PlatformArchitecture)_$(ProjectName)</TargetName>
     <OutDir>$(SolutionDir)bin\$(Configuration)\$(PlatformArchitecture)\</OutDir>
     <IntDir>$(SolutionDir)obj\$(Configuration)\$(PlatformArchitecture)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>plugin_$(PlatformArchitecture)_$(ProjectName)</TargetName>
+    <TargetName>Plugin$(PlatformArchitecture)_$(ProjectName)</TargetName>
     <OutDir>$(SolutionDir)bin\$(Configuration)\$(PlatformArchitecture)\</OutDir>
     <IntDir>$(SolutionDir)obj\$(Configuration)\$(PlatformArchitecture)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>plugin_$(PlatformArchitecture)_$(ProjectName)</TargetName>
+    <TargetName>Plugin$(PlatformArchitecture)_$(ProjectName)</TargetName>
     <OutDir>$(SolutionDir)bin\$(Configuration)\$(PlatformArchitecture)\</OutDir>
     <IntDir>$(SolutionDir)obj\$(Configuration)\$(PlatformArchitecture)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>plugin_$(PlatformArchitecture)_$(ProjectName)</TargetName>
+    <TargetName>Plugin$(PlatformArchitecture)_$(ProjectName)</TargetName>
     <OutDir>$(SolutionDir)bin\$(Configuration)\$(PlatformArchitecture)\</OutDir>
     <IntDir>$(SolutionDir)obj\$(Configuration)\$(PlatformArchitecture)\</IntDir>
   </PropertyGroup>
@@ -107,7 +107,7 @@
       </DelayLoadDLLs>
     </Link>
     <PostBuildEvent>
-      <Command>XCOPY /Y "$(TargetPath)" "$(SolutionDir)..\..\Output\Plugins\$(PlatformArchitecture)\"</Command>
+      <Command>XCOPY /Y /D "$(TargetPath)" "$(SolutionDir)..\..\Output\Plugins\x$(PlatformArchitecture)\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -128,7 +128,7 @@
       </DelayLoadDLLs>
     </Link>
     <PostBuildEvent>
-      <Command>XCOPY /Y "$(TargetPath)" "$(SolutionDir)..\..\Output\Plugins\$(PlatformArchitecture)\"</Command>
+      <Command>XCOPY /Y /D "$(TargetPath)" "$(SolutionDir)..\..\Output\Plugins\x$(PlatformArchitecture)\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -145,7 +145,7 @@
       <DelayLoadDLLs>avcodec-53.dll;avdevice-53.dll;avfilter-2.dll;avformat-53.dll;avutil-51.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
     <PostBuildEvent>
-      <Command>XCOPY /Y "$(TargetPath)" "$(SolutionDir)..\..\Output\Plugins\$(PlatformArchitecture)\"</Command>
+      <Command>XCOPY /Y /D "$(TargetPath)" "$(SolutionDir)..\..\Output\Plugins\x$(PlatformArchitecture)\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -162,7 +162,7 @@
       <DelayLoadDLLs>avcodec-53.dll;avdevice-53.dll;avfilter-2.dll;avformat-53.dll;avutil-51.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
     </Link>
     <PostBuildEvent>
-      <Command>XCOPY /Y "$(TargetPath)" "$(SolutionDir)..\..\Output\Plugins\$(PlatformArchitecture)\"</Command>
+      <Command>XCOPY /Y /D "$(TargetPath)" "$(SolutionDir)..\..\Output\Plugins\x$(PlatformArchitecture)\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

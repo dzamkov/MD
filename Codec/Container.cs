@@ -40,7 +40,7 @@ namespace MD.Codec
         /// <summary>
         /// Registers a container format.
         /// </summary>
-        public static RetractHandler Register(Container Container)
+        public static RetractAction Register(Container Container)
         {
             List<Container> cs;
             if (!_Registered.TryGetValue(Container.Name, out cs))
@@ -59,16 +59,18 @@ namespace MD.Codec
         /// <summary>
         /// Loads a container context from the given file, or returns null if not possible.
         /// </summary>
-        public static Context Load(Path File)
+        public static Disposable<Context> Load(Path File)
         {
-            Stream<byte> str = File.Open();
             string ext = File.Extension;
-            foreach (Container container in WithName(ext))
+            using (Disposable<Stream<byte>> str = File.Open())
             {
-                Context context = container.Decode(str);
-                if (context != null)
+                foreach (Container container in WithName(ext))
                 {
-                    return context;
+                    Disposable<Context> context = container.Decode(str);
+                    if (!context.IsNull)
+                    {
+                        return context;
+                    }
                 }
             }
             return null;

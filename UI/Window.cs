@@ -6,6 +6,9 @@ using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
 
+using MD.Data;
+using MD.UI.Audio;
+
 namespace MD.UI
 {
     /// <summary>

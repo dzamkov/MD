@@ -10,7 +10,7 @@ namespace MD
     /// </summary>
     public class Plugin
     {
-        public Plugin(Type Type, string Name, Func<RetractHandler> Load)
+        public Plugin(Type Type, string Name, Func<RetractAction> Load)
         {
             this.Type = Type;
             this.Name = Name;
@@ -53,7 +53,7 @@ namespace MD
         /// <summary>
         /// Loads this plugin, if it hisn't loaded already.
         /// </summary>
-        public RetractHandler Load()
+        public RetractAction Load()
         {
             if (this._Retract != null)
             {
@@ -94,9 +94,9 @@ namespace MD
                 if (plugin != null)
                 {
                     string name = null;
-                    Func<RetractHandler> load = null;
+                    Func<RetractAction> load = null;
                     if (Reflection.Get<string>(plugin, "Name", ref name) &&
-                        Reflection.Get<Func<RetractHandler>>(plugin, "Load", ref load))
+                        Reflection.Get<Func<RetractAction>>(plugin, "Load", ref load))
                     {
                         return new Plugin(plugin, name, load);
                     }
@@ -132,25 +132,24 @@ namespace MD
                 if (f.FileExists && f.Extension == "dll")
                 {
                     string name = f.Name;
-                    string[] parts = name.Split('_');
-
-                    if (parts.Length > 0 && parts[0] == "plugin")
+                    int lindex = name.IndexOf('_');
+                    if (lindex != -1)
                     {
-                        string platform = null;
-                        if (parts.Length > 1)
-                            platform = parts[1];
-
-                        bool shouldload = false;
-                        switch (platform)
+                        bool shouldload;
+                        string directive = name.Substring(0, lindex);
+                        switch (directive)
                         {
-                            case "32":
+                            case "Plugin":
+                                shouldload = true;
+                                break;
+                            case "Plugin32":
                                 shouldload = !Environment.Is64BitProcess;
                                 break;
-                            case "64":
+                            case "Plugin64":
                                 shouldload = Environment.Is64BitProcess;
                                 break;
                             default:
-                                shouldload = true;
+                                shouldload = false;
                                 break;
                         }
 
@@ -173,7 +172,7 @@ namespace MD
             }
         }
 
-        private RetractHandler _Retract;
-        private Func<RetractHandler> _Load;
+        private RetractAction _Retract;
+        private Func<RetractAction> _Load;
     }
 }

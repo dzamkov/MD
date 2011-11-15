@@ -8,65 +8,26 @@ namespace MD.Data
     /// <summary>
     /// A reader for data from a certain source.
     /// </summary>
-    public abstract class Stream<T>
+    public interface Stream<T>
     {
         /// <summary>
         /// Tries reading an item from the stream. If the end of the stream was reached, false is returned and Data
         /// will be left unchanged.
         /// </summary>
-        public virtual bool Read(ref T Data)
-        {
-            T[] buf = new T[1];
-            if (this.Read(buf, 1, 0) > 0)
-            {
-                Data = buf[0];
-                return true;
-            }
-            return false;
-        }
+        bool Read(ref T Data);
 
         /// <summary>
         /// Reads the next items from the stream into the given buffer and returns the amount of items read.
         /// </summary>
         /// <param name="Size">The maximum amount of items to read.</param>
         /// <param name="Offset">The offset in the buffer to begin writing.</param>
-        public virtual int Read(T[] Buffer, int Size, int Offset)
-        {
-            int ar = 0;
-            while (Size > 0)
-            {
-                if (!this.Read(ref Buffer[Offset]))
-                    break;
-                ar++;
-                Offset++;
-                Size--;
-            }
-            return ar;
-        }
+        int Read(T[] Buffer, int Size, int Offset);
 
         /// <summary>
         /// Reads the next items from the stream into the given memory location. This should only be used when the stream contains
         /// value types.
         /// </summary>
-        public virtual unsafe int Read(byte* Destination, int Size)
-        {
-            T[] buf = new T[1];
-            int size = Unsafe.SizeOf<T>();
-            var handle = Unsafe.Pin<T>(buf);
-            byte* source = (byte*)handle.AddrOfPinnedObject().ToPointer();
-            int ar = 0;
-            while (Size > 0)
-            {
-                if (!this.Read(ref buf[0]))
-                    break;
-                Unsafe.Copy(source, Destination, size);
-                Destination += size;
-                ar++;
-                Size--;
-            }
-            Unsafe.Unpin(handle);
-            return ar;
-        }
+        unsafe int Read(byte* Destination, int Size);
     }
 
     /// <summary>
@@ -84,12 +45,17 @@ namespace MD.Data
         /// </summary>
         public readonly Disposable<Stream> Source;
 
-        public override int Read(byte[] Buffer, int Size, int Offset)
+        public bool Read(ref byte Data)
+        {
+            throw new NotImplementedException();
+        }
+
+        public int Read(byte[] Buffer, int Size, int Offset)
         {
             return (~this.Source).Read(Buffer, Offset, Size);
         }
 
-        public override unsafe int Read(byte* Destination, int Size)
+        public unsafe int Read(byte* Destination, int Size)
         {
             fixed (byte* ptr = _ReadBuffer)
             {
@@ -153,7 +119,7 @@ namespace MD.Data
         /// </summary>
         public int Offset;
 
-        public override bool Read(ref T Data)
+        public bool Read(ref T Data)
         {
             if (this.Offset < this.Source.Length)
             {
@@ -164,7 +130,7 @@ namespace MD.Data
             return false;
         }
 
-        public override int Read(T[] Buffer, int Size, int Offset)
+        public int Read(T[] Buffer, int Size, int Offset)
         {
             Size = Math.Min(this.Source.Length - this.Offset, Size);
             int of = this.Offset;
@@ -177,7 +143,7 @@ namespace MD.Data
             return Size;
         }
 
-        public override unsafe int Read(byte* Destination, int Size)
+        public unsafe int Read(byte* Destination, int Size)
         {
             int size = Unsafe.SizeOf<T>();
             var handle = Unsafe.Pin<T>(Source);
@@ -212,7 +178,7 @@ namespace MD.Data
         /// </summary>
         public readonly Func<TSource, T> Map;
 
-        public override bool Read(ref T Data)
+        public bool Read(ref T Data)
         {
             TSource source = default(TSource);
             if (this.Source.Read(ref source))
@@ -222,78 +188,15 @@ namespace MD.Data
             }
             return false;
         }
-    }
 
-    /// <summary>
-    /// A stream that splits compounds from a source stream into items.
-    /// </summary>
-    public sealed class SplitStream<TSource, T, TCompound> : Stream<T>
-        where TCompound : ICompound<TSource, T>
-    {
-        public SplitStream(Stream<TSource> Source)
+        public int Read(T[] Buffer, int Size, int Offset)
         {
-            this.Source = Source;
-            this.Buffer = new T[default(TCompound).Size];
-            this.Offset = this.Buffer.Length;
+            throw new NotImplementedException();
         }
 
-        public SplitStream(Stream<TSource> Source, T[] Buffer, int Offset)
+        public unsafe int Read(byte* Destination, int Size)
         {
-            this.Source = Source;
-            this.Buffer = Buffer;
-            this.Offset = Offset;
-        }
-
-        /// <summary>
-        /// The source stream for this stream.
-        /// </summary>
-        public readonly Stream<TSource> Source;
-
-        /// <summary>
-        /// A buffer for the next items to be read (with a size of the compound being split).
-        /// </summary>
-        public readonly T[] Buffer;
-
-        /// <summary>
-        /// The current offset of the stream in the item buffer.
-        /// </summary>
-        public int Offset;
-
-        public override bool Read(ref T Data)
-        {
-            if (this.Offset < this.Buffer.Length)
-            {
-                Data = this.Buffer[this.Offset];
-                this.Offset++;
-                return true;
-            }
-            if (this.AdvanceBuffer())
-            {
-                Data = this.Buffer[0];
-                this.Offset++;
-                return true;
-            }
-            return false;
-        }
-
-        public override int Read(T[] Buffer, int Size, int Offset)
-        {
-            return base.Read(Buffer, Size, Offset);
-        }
-
-        /// <summary>
-        /// Fills the buffer with the next items to be read. Returns false if there is no more source data.
-        /// </summary>
-        public bool AdvanceBuffer()
-        {
-            TSource src = default(TSource);
-            if (this.Source.Read(ref src))
-            {
-                default(TCompound).Split(src, this.Buffer, 0);
-                this.Offset = 0;
-                return true;
-            }
-            return false;
+            throw new NotImplementedException();
         }
     }
 
@@ -323,7 +226,7 @@ namespace MD.Data
         /// </summary>
         public unsafe byte* End;
 
-        public override unsafe bool Read(ref byte Data)
+        public unsafe bool Read(ref byte Data)
         {
             if (this.Current < this.End)
             {
@@ -334,7 +237,7 @@ namespace MD.Data
             return false;
         }
 
-        public override unsafe int Read(byte* Destination, int Size)
+        public unsafe int Read(byte* Destination, int Size)
         {
             int ar = Math.Min((int)(this.End - this.Current), Size);
             Unsafe.Copy(this.Current, Destination, ar);
@@ -342,7 +245,7 @@ namespace MD.Data
             return ar;
         }
 
-        public override unsafe int Read(byte[] Buffer, int Size, int Offset)
+        public unsafe int Read(byte[] Buffer, int Size, int Offset)
         {
             fixed (byte* ptr = Buffer)
             {

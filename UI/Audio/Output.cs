@@ -58,7 +58,7 @@ namespace MD.UI.Audio
         /// <summary>
         /// Links a feed to control the pitch (sample rate multiplier) of the output, or returns false if not possible.
         /// </summary>
-        public virtual bool LinkPitch(Feed<double> Feed)
+        public virtual bool LinkPitch(SignalFeed<double> Feed)
         {
             return false;
         }

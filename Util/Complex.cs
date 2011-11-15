@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace MD.Data
+namespace MD
 {
     /// <summary>
     /// Represents a double-precision complex number.

@@ -7,78 +7,49 @@ using System.Text;
 namespace MD.Data
 {
     /// <summary>
-    /// A continous collection of data indexed by an integer. Unless stated otherwise, an array can be
-    /// assumed to be mutable.
+    /// Contains array related functions.
     /// </summary>
-    public abstract class Array<T>
+    public static class Array
     {
         /// <summary>
-        /// Gets the size of the array.
+        /// Creates a stream to read this array starting at the given index.
         /// </summary>
-        public abstract int Size { get; }
+        public static Stream<T> Read<T>(this Array<T> Array, int Index)
+        {
+            return Array.Read(Index, Array.Size - Index);
+        }
+
+        /// <summary>
+        /// Constructs a mapped form of this array based on the given mapping function.
+        /// </summary>
+        public static Array<T> Map<TSource, T>(this Array<TSource> Source, Func<TSource, T> Map)
+        {
+            return new MapArray<TSource, T>(Source, Map);
+        }
+    }
+
+    /// <summary>
+    /// A collection of data indexed by an integer. Unless stated otherwise, an array can be
+    /// assumed to be mutable.
+    /// </summary>
+    public interface Array<T>
+    {
+        /// <summary>
+        /// Gets the current size of the array.
+        /// </summary>
+        int Size { get; }
 
         /// <summary>
         /// Gets the current value of the array at the given index.
         /// </summary>
-        public virtual T this[int Index]
-        {
-            get
-            {
-                Stream<T> str = this.Read(Index, 1);
-                T val = default(T);
-                str.Read(ref val);
-                return val;
-            }
-        }
+        T this[int Index] { get; }
 
         /// <summary>
         /// Creates a stream to read this array starting at the given index. Note that the returned stream may be larger than the requested
         /// Size (or even the size of the array).
         /// </summary>
         /// <param name="Size">The maximum amount of data that will be read from the stream.</param>
-        public abstract Stream<T> Read(int Index, int Size);
-
-        /// <summary>
-        /// Creates a stream to read this array starting at the given index.
-        /// </summary>
-        public Disposable<Stream<T>> Read(int Index)
-        {
-            return this.Read(Index, this.Size - Index);
-        }
-
-        /// <summary>
-        /// Constructs a mapped version of this array using the given mapping function.
-        /// </summary>
-        public Array<F> Map<F>(Expression<Func<T, F>> Map)
-        {
-            return new MapArray<T, F>(this, Map.Compile());
-        }
-
-        /// <summary>
-        /// Combines items in this array to form an array of compounds.
-        /// </summary>
-        public Array<F> Combine<F, TCompound>()
-            where TCompound : ICompound<F, T>
-        {
-            SplitArray<F, T, TCompound> sa = this as SplitArray<F, T, TCompound>;
-            if (sa != null)
-                return sa.Source;
-
-            return new CombineArray<T, F, TCompound>(this);
-        }
-
-        /// <summary>
-        /// Splits compounds in this array to form an array of source items.
-        /// </summary>
-        public Array<F> Split<F, TCompound>()
-            where TCompound : ICompound<T, F>
-        {
-            CombineArray<F, T, TCompound> ca = this as CombineArray<F, T, TCompound>;
-            if (ca != null)
-                return ca.Source;
-
-            return new SplitArray<T, F, TCompound>(this);
-        }
+        Stream<T> Read(int Index, int Size);
     }
 
     /// <summary>
@@ -102,7 +73,7 @@ namespace MD.Data
         /// </summary>
         public readonly Func<TSource, T> Map;
 
-        public override int Size
+        public int Size
         {
             get
             {
@@ -110,7 +81,15 @@ namespace MD.Data
             }
         }
 
-        public override Stream<T> Read(int Index, int Size)
+        public T this[int Index]
+        {
+            get
+            {
+                return this.Map(this.Source[Index]);
+            }
+        }
+
+        public Stream<T> Read(int Index, int Size)
         {
             return new MapStream<TSource, T>(this.Source.Read(Index, Size), this.Map);
         }
@@ -145,7 +124,7 @@ namespace MD.Data
         /// </summary>
         public readonly int Offset;
 
-        public override int Size
+        public int Size
         {
             get
             {
@@ -153,15 +132,19 @@ namespace MD.Data
             }
         }
 
-        public override T this[int Index]
+        public T this[int Index]
         {
             get
             {
                 return this.Source[this.Offset + Index];
             }
+            set
+            {
+                this.Source[this.Offset + Index] = value;
+            }
         }
 
-        public override Stream<T> Read(int Index, int Size)
+        public Stream<T> Read(int Index, int Size)
         {
             return new BufferStream<T>(this.Source, this.Offset + Index);
         }
@@ -204,7 +187,7 @@ namespace MD.Data
             this._Size = 0;
         }
 
-        public override int Size
+        public int Size
         {
             get
             {
@@ -212,7 +195,17 @@ namespace MD.Data
             }
         }
 
-        public override Stream<T> Read(int Index, int Size)
+        public T this[int Index]
+        {
+            get
+            {
+                Chunk chunk = default(Chunk);
+                int ci = this._FindChunk(Index, ref chunk);
+                return chunk.Source[Index - chunk.Position];
+            }
+        }
+
+        public Stream<T> Read(int Index, int Size)
         {
             Chunk chunk = default(Chunk);
             int ci = this._FindChunk(Index, ref chunk);
@@ -274,77 +267,6 @@ namespace MD.Data
     }
 
     /// <summary>
-    /// An array that combines items from a source array to make an array of compounds.
-    /// </summary>
-    public sealed class CombineArray<TSource, T, TCompound> : Array<T>
-        where TCompound : ICompound<T, TSource>
-    {
-        public CombineArray(Array<TSource> Source)
-        {
-            this.Source = Source;
-        }
-        
-        /// <summary>
-        /// The source data array for the compound array.
-        /// </summary>
-        public readonly Array<TSource> Source;
-
-        public override int Size
-        {
-            get
-            {
-                return this.Source.Size / default(TCompound).Size;
-            }
-        }
-
-        public override Stream<T> Read(int Index, int Size)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    /// <summary>
-    /// An array that splits items from a source array of compounds to make an array of base items.
-    /// </summary>
-    public sealed class SplitArray<TSource, T, TCompound> : Array<T>
-        where TCompound : ICompound<TSource, T>
-    {
-        public SplitArray(Array<TSource> Source)
-        {
-            this.Source = Source;
-        }
-
-        /// <summary>
-        /// The source data array for the compound array.
-        /// </summary>
-        public readonly Array<TSource> Source;
-
-        public override int Size
-        {
-            get
-            {
-                return this.Source.Size * default(TCompound).Size;
-            }
-        }
-
-        public override Stream<T> Read(int Index, int Size)
-        {
-            TCompound compound = default(TCompound);
-            int compoundsize = compound.Size;
-            SplitStream<TSource, T, TCompound> str = new SplitStream<TSource, T, TCompound>(this.Source.Read(Index / compoundsize, (Size + compoundsize - 1) / compoundsize));
-            int r = Index % compoundsize;
-            if (r != 0)
-            {
-                if (str.AdvanceBuffer())
-                {
-                    str.Offset = r;
-                }
-            }
-            return str;
-        }
-    }
-
-    /// <summary>
     /// An array that reads raw data from a pointer location.
     /// </summary>
     public sealed class UnsafeArray : Array<byte>
@@ -370,7 +292,7 @@ namespace MD.Data
         /// </summary>
         public unsafe byte* End;
 
-        public unsafe override int Size
+        public unsafe int Size
         {
             get
             {
@@ -378,30 +300,21 @@ namespace MD.Data
             }
         }
 
-        public override unsafe Stream<byte> Read(int Index, int Size)
+        public unsafe byte this[int Index]
+        {
+            get
+            {
+                return this.Start[Index];
+            }
+            set
+            {
+                this.Start[Index] = value;
+            }
+        }
+
+        public unsafe Stream<byte> Read(int Index, int Size)
         {
             return new UnsafeStream(this.Start + Index, this.End);
         }
-    }
-
-    /// <summary>
-    /// Combines items of a certain type into a compound of another type.
-    /// </summary>
-    public interface ICompound<TCompound, TItem>
-    {
-        /// <summary>
-        /// The amount of base items in a compound.
-        /// </summary>
-        int Size { get; }
-
-        /// <summary>
-        /// Combines items from the given array (starting at the given offset) into a compound.
-        /// </summary>
-        TCompound Combine(TItem[] Buffer, int Offset);
-
-        /// <summary>
-        /// Splits a compound and places the base items in the given buffer.
-        /// </summary>
-        void Split(TCompound Compound, TItem[] Buffer, int Offset);
     }
 }

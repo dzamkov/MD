@@ -42,12 +42,12 @@ namespace MD
         /// <summary>
         /// Registers a callback to be called periodically with the time since the last update.
         /// </summary>
-        public static RetractHandler RegisterUpdate(Action<double> Callback)
+        public static RetractAction RegisterUpdate(Action<double> Callback)
         {
-            _Update.Add(Callback);
-            return delegate { _Update.Remove(Callback); };
+            _Update += Callback;
+            return delegate { _Update -= Callback; };
         }
-        private static List<Action<double>> _Update = new List<Action<double>>();
+        private static Action<double> _Update = null;
 
         /// <summary>
         /// Updates the state of the program by the given amount of time in seconds. This will call all registered
@@ -55,9 +55,9 @@ namespace MD
         /// </summary>
         public static void Update(double Time)
         {
-            foreach (Action<double> update in _Update)
+            if (_Update != null)
             {
-                update(Time);
+                _Update(Time);
             }
         }
     }

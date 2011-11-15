@@ -189,8 +189,8 @@ public:
 	static String^ Name = "FFmpeg Codecs";
 	static bool Initialized = false;
 
-	static RetractHandler^ Load() {
-		RetractHandler^ retract = nullptr;
+	static RetractAction^ Load() {
+		RetractAction^ retract = nullptr;
 
 		if (!Initialized)
 		{

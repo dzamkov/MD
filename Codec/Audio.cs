@@ -102,7 +102,7 @@ namespace MD.Codec
         /// </summary>
         public Stream<byte> Frame;
 
-        public override int Read(byte[] Buffer, int Size, int Offset)
+        public int Read(byte[] Buffer, int Size, int Offset)
         {
             if (this.Frame == null)
                 if (!this._AdvanceFrame())
@@ -121,7 +121,12 @@ namespace MD.Codec
             return ar;
         }
 
-        public override unsafe int Read(byte* Destination, int Size)
+        public bool Read(ref byte Data)
+        {
+            throw new NotImplementedException();
+        }
+
+        public unsafe int Read(byte* Destination, int Size)
         {
             if (this.Frame == null)
                 if (!this._AdvanceFrame())

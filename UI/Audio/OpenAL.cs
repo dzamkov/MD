@@ -13,18 +13,26 @@ namespace MD.UI.Audio
     /// <summary>
     /// Audio output with OpenAL.
     /// </summary>
-    public class OpenALOutput : AudioOutput
+    public class OpenALOutput : AudioOutput, IDisposable
     {
         public OpenALOutput()
         {
             this._Context = new AudioContext();
-            this._Active = new HashSet<OpenALOutputSource>();
+            this._Active = new HashSet<_Source>();
+            this._Retract = Program.RegisterUpdate(this._Update);
         }
 
         public OpenALOutput(string Device)
         {
             this._Context = new AudioContext(Device);
-            this._Active = new HashSet<OpenALOutputSource>();
+            this._Active = new HashSet<_Source>();
+            this._Retract = Program.RegisterUpdate(this._Update);
+        }
+
+        public void Dispose()
+        {
+            this._Context.Dispose();
+            this._Retract();
         }
 
         /// <summary>
@@ -179,168 +187,232 @@ namespace MD.UI.Audio
             },
         };
 
-        public override AudioOutputSource Begin(Stream<byte> Stream, int SampleRate, int Channels, AudioFormat Format)
+        public bool Begin(
+            Stream<byte> Stream, 
+            int SampleRate, int Channels, AudioFormat Format, 
+            EventFeed<AudioOutputControl> Control, 
+            SignalFeed<double> Pitch, 
+            out SignalFeed<long> Position)
         {
             ALFormat format;
-            if (this.GetFormat(Channels, Format, out format))
+            if (GetFormat(Channels, Format, out format))
             {
-                return new OpenALOutputSource(this, Stream, SampleRate, format, 1024 * 16, 4);
+                _Source source = new _Source(Stream, SampleRate, format, 4096 * 4, 3, Pitch);
+                new _SourceListener(source, this).Link(Control);
+                Position = source.Position;
+                return true;
             }
-            return null;
+            Position = null;
+            return false;
         }
 
-        public override void Update(double Time)
+        /// <summary>
+        /// Updates the state of the audio output and all sources by the given amount of time in seconds.
+        /// </summary>
+        private void _Update(double Time)
         {
             this._Context.MakeCurrent();
-            foreach (OpenALOutputSource source in this._Active)
+            foreach (_Source source in this._Active)
             {
                 source.Update();
             }
         }
 
-        internal AudioContext _Context;
-        internal HashSet<OpenALOutputSource> _Active;
-    }
-
-    /// <summary>
-    /// An audio output source for OpenAL.
-    /// </summary>
-    public class OpenALOutputSource : AudioOutputSource
-    {
-        public OpenALOutputSource(OpenALOutput Output, Stream<byte> Stream, int SampleRate, ALFormat Format, int BufferSize, int BufferCount)
-        {
-            Output._Context.MakeCurrent();
-            this._Output = Output;
-
-            this._ID = AL.GenSource();
-            this._Stream = Stream;
-            this._SampleRate = SampleRate;
-            this._Format = Format;
-            this._Buffer = new byte[BufferSize];
-           
-            // Initialize buffers
-            for (int t = 0; t < BufferCount; t++)
-            {
-                this._Write(AL.GenBuffer());
-            }
-        }
-
         /// <summary>
-        /// Gets the size of the buffer (in bytes) for this source.
+        /// A listener to a control event feed for a source.
         /// </summary>
-        public int BufferSize
+        private class _SourceListener
         {
-            get
+            public _SourceListener(_Source Source, OpenALOutput Output)
             {
-                return this._Buffer.Length;
+                this.Source = Source;
+                this.Output = Output;
             }
-        }
 
-        public override int Position
-        {
-            get
+            /// <summary>
+            /// The callback for this listener.
+            /// </summary>
+            public void Callback(AudioOutputControl Control)
             {
-                return this._Position;
-            }
-            set
-            {
-                this._StartPosition += value - this._Position;
-                this._Position = value;
-            }
-        }
-
-        public override void Play()
-        {
-            this._Output._Context.MakeCurrent();
-            AL.SourcePlay(this._ID);
-            this._Output._Active.Add(this);
-        }
-
-        public override void Pause()
-        {
-            this._Output._Context.MakeCurrent();
-            AL.SourcePause(this._ID);
-            this._Output._Active.Remove(this);
-        }
-
-        public override void Stop()
-        {
-            this._Output._Context.MakeCurrent();
-            AL.SourceStop(this._ID);
-            this._Output._Active.Remove(this);
-
-            int bufferamount;
-            AL.GetSource(this._ID, ALGetSourcei.BuffersQueued, out bufferamount);
-
-            int[] buffers = new int[bufferamount];
-            AL.SourceUnqueueBuffers(this._ID, bufferamount, buffers);
-            AL.DeleteBuffers(buffers);
-            AL.DeleteSource(this._ID);
-        }
-
-        /// <summary>
-        /// Updates the audio source.
-        /// </summary>
-        public void Update()
-        {
-            int bufferprocessed;
-            AL.GetSource(this._ID, ALGetSourcei.BuffersProcessed, out bufferprocessed);
-
-            if (bufferprocessed > 0)
-            {
-                this._StartPosition += this.BufferSize * bufferprocessed;
-
-                int[] buffers = new int[bufferprocessed];
-                AL.SourceUnqueueBuffers(this._ID, bufferprocessed, buffers);
-                for (int t = 0; t < buffers.Length; t++)
+                this.Output._Context.MakeCurrent();
+                switch (Control)
                 {
-                    this._Write(buffers[t]);
-                }
-
-                if (AL.GetSourceState(this._ID) != ALSourceState.Playing)
-                {
-                    AL.SourcePlay(this._ID);
+                    case AudioOutputControl.Play:
+                        this.Source.Play();
+                        this.Output._Active.Add(this.Source);
+                        break;
+                    case AudioOutputControl.Pause:
+                        this.Source.Pause();
+                        this.Output._Active.Remove(this.Source);
+                        break;
+                    case AudioOutputControl.Stop:
+                        this.Source.Stop();
+                        this.Source.Dispose();
+                        this.Output._Active.Remove(this.Source);
+                        this.Retract();
+                        this.Output._Retract -= this.Retract;
+                        break;
                 }
             }
 
-            // Update play position
-            int sampleoffset;
-            AL.GetSource(this._ID, ALGetSourcei.SampleOffset, out sampleoffset);
-            this._Position = this._StartPosition + sampleoffset;
-
-            // Update pitch (if needed).
-            if (this._Pitch != null)
+            /// <summary>
+            /// Links this listener to the given event feed.
+            /// </summary>
+            public void Link(EventFeed<AudioOutputControl> Feed)
             {
-                double nrate = this._Pitch.Current;
-                AL.Source(this._ID, ALSourcef.Pitch, (float)nrate);
+                this.Retract = Feed.Register(this.Callback);
+                this.Output._Retract += this.Retract;
             }
+
+            /// <summary>
+            /// The source this listener is for.
+            /// </summary>
+            public readonly _Source Source;
+
+            /// <summary>
+            /// The output this listener is for.
+            /// </summary>
+            public readonly OpenALOutput Output;
+
+            /// <summary>
+            /// The retract action for the callback of this listener.
+            /// </summary>
+            public RetractAction Retract;
         }
 
         /// <summary>
-        /// Writes the next set of data to the buffer with the given ID.
+        /// An audio output source for OpenAL.
         /// </summary>
-        private void _Write(int ID)
+        private class _Source : IDisposable
         {
-            this._Stream.Read(this._Buffer, this._Buffer.Length, 0);
-            AL.BufferData<byte>(ID, this._Format, this._Buffer, this._Buffer.Length, this._SampleRate);
-            AL.SourceQueueBuffer(this._ID, ID);
+            public _Source(Stream<byte> Stream, int SampleRate, ALFormat Format, int BufferSize, int BufferCount, SignalFeed<double> Pitch)
+            {
+                this.Position = new ControlSignalFeed<long>(0);
+
+                this._ID = AL.GenSource();
+                this._Stream = Stream;
+                this._SampleRate = SampleRate;
+                this._Format = Format;
+                this._Pitch = Pitch;
+                this._Buffer = new byte[BufferSize];
+
+                // Initialize buffers
+                for (int t = 0; t < BufferCount; t++)
+                {
+                    this._Write(AL.GenBuffer());
+                }
+            }
+
+            public void Dispose()
+            {
+                int bufferamount;
+                AL.GetSource(this._ID, ALGetSourcei.BuffersQueued, out bufferamount);
+
+                int[] buffers = new int[bufferamount];
+                AL.SourceUnqueueBuffers(this._ID, bufferamount, buffers);
+                AL.DeleteBuffers(buffers);
+                AL.DeleteSource(this._ID);
+            }
+
+            /// <summary>
+            /// Gets the size of the buffer (in bytes) for this source.
+            /// </summary>
+            public int BufferSize
+            {
+                get
+                {
+                    return this._Buffer.Length;
+                }
+            }
+
+            /// <summary>
+            /// Plays this source.
+            /// </summary>
+            public void Play()
+            {
+                AL.SourcePlay(this._ID);
+            }
+
+            /// <summary>
+            /// Pauses this source.
+            /// </summary>
+            public void Pause()
+            {
+                AL.SourcePause(this._ID);
+            }
+
+            /// <summary>
+            /// Stops this source.
+            /// </summary>
+            public void Stop()
+            {
+                AL.SourceStop(this._ID);
+            }
+
+            /// <summary>
+            /// The position of the source.
+            /// </summary>
+            public readonly ControlSignalFeed<long> Position;
+
+            /// <summary>
+            /// Updates the audio source.
+            /// </summary>
+            public void Update()
+            {
+                int bufferprocessed;
+                AL.GetSource(this._ID, ALGetSourcei.BuffersProcessed, out bufferprocessed);
+
+                if (bufferprocessed > 0)
+                {
+                    this._StartPosition += this.BufferSize * bufferprocessed;
+
+                    int[] buffers = new int[bufferprocessed];
+                    AL.SourceUnqueueBuffers(this._ID, bufferprocessed, buffers);
+                    for (int t = 0; t < buffers.Length; t++)
+                    {
+                        this._Write(buffers[t]);
+                    }
+
+                    if (AL.GetSourceState(this._ID) != ALSourceState.Playing)
+                    {
+                        AL.SourcePlay(this._ID);
+                    }
+                }
+
+                // Update play position
+                int sampleoffset;
+                AL.GetSource(this._ID, ALGetSourcei.SampleOffset, out sampleoffset);
+                this.Position.Current = this._StartPosition + sampleoffset;
+
+                // Update pitch (if needed).
+                if (this._Pitch != null)
+                {
+                    double nrate = this._Pitch.Current;
+                    AL.Source(this._ID, ALSourcef.Pitch, (float)nrate);
+                }
+            }
+
+            /// <summary>
+            /// Writes the next set of data to the buffer with the given ID.
+            /// </summary>
+            private void _Write(int ID)
+            {
+                this._Stream.Read(this._Buffer, this._Buffer.Length, 0);
+                AL.BufferData<byte>(ID, this._Format, this._Buffer, this._Buffer.Length, this._SampleRate);
+                AL.SourceQueueBuffer(this._ID, ID);
+            }
+
+            private int _ID;
+            private Stream<byte> _Stream;
+            private int _SampleRate;
+            private int _StartPosition;
+            private ALFormat _Format;
+            private byte[] _Buffer;
+            private SignalFeed<double> _Pitch;
         }
 
-        public override bool LinkPitch(SignalFeed<double> Feed)
-        {
-            this._Pitch = Feed;
-            return true;
-        }
-
-        private int _ID;
-        private OpenALOutput _Output;
-        private Stream<byte> _Stream;
-        private int _SampleRate;
-        private int _StartPosition;
-        private int _Position;
-        private ALFormat _Format;
-        private byte[] _Buffer;
-
-        private SignalFeed<double> _Pitch;
+        private AudioContext _Context;
+        private HashSet<_Source> _Active;
+        private RetractAction _Retract;
     }
 }

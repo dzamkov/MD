@@ -12,9 +12,25 @@ namespace MD.UI
     public static class Feed
     {
         /// <summary>
+        /// Gets an event feed that never fires.
+        /// </summary>
+        public static EventFeed<T> Null<T>()
+        {
+            return NullEventFeed<T>.Instance;
+        }
+
+        /// <summary>
         /// Maps events in this event feed based on the given mapping function.
         /// </summary>
         public static EventFeed<T> Map<TSource, T>(this EventFeed<TSource> Source, Func<TSource, T> Map)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Maps values in a signal feed based on the given mapping function.
+        /// </summary>
+        public static SignalFeed<T> Map<TSource, T>(this SignalFeed<TSource> Source, Func<TSource, T> Map)
         {
             throw new NotImplementedException();
         }
@@ -143,4 +159,100 @@ namespace MD.UI
     /// </summary>
     /// <returns>An action that will unregister the item, or null if not required.</returns>
     public delegate RetractAction RegisterItemAction<T>(T Item);
+
+    /// <summary>
+    /// An event feed that never fires.
+    /// </summary>
+    public sealed class NullEventFeed<T> : EventFeed<T>
+    {
+        private NullEventFeed()
+        {
+
+        }
+
+        /// <summary>
+        /// The only instance of this class.
+        /// </summary>
+        public static readonly NullEventFeed<T> Instance = new NullEventFeed<T>();
+
+        public RetractAction Register(Action<T> Callback)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// A signal feed that maintains a manually-set value.
+    /// </summary>
+    public sealed class ControlSignalFeed<T> : SignalFeed<T>
+    {
+        public ControlSignalFeed(T Initial)
+        {
+            this._Current = Initial;
+        }
+
+        /// <summary>
+        /// Gets or sets the current value of this controlled signal feed.
+        /// </summary>
+        public T Current
+        {
+            get
+            {
+                return this._Current;
+            }
+            set
+            {
+                T old = this._Current;
+                if (this._Delta != null)
+                {
+                    this._Delta.Fire(new Change<T>(old, value));
+                }
+                this._Current = value;
+            }
+        }
+
+        public EventFeed<Change<T>> Delta
+        {
+            get
+            {
+                // Do not create a delta feed until requested.
+                if (this._Delta == null)
+                    this._Delta = new ControlEventFeed<Change<T>>();
+                return this._Delta;
+            }
+        }
+
+        private T _Current;
+        private ControlEventFeed<Change<T>> _Delta;
+    }
+
+    /// <summary>
+    /// A signal feed that gives manually-fired events.
+    /// </summary>
+    public sealed class ControlEventFeed<T> : EventFeed<T>
+    {
+        public ControlEventFeed()
+        {
+
+        }
+
+        /// <summary>
+        /// Causes this event feed to fire an event with the given value.
+        /// </summary>
+        public void Fire(T Value)
+        {
+            if (this._Callback != null)
+            {
+                this._Callback(Value);
+            }
+        }
+
+        public RetractAction Register(Action<T> Callback)
+        {
+            this._Callback += Callback;
+            return delegate { this._Callback -= Callback; };
+        }
+
+        private Action<T> _Callback;
+    }
 }

@@ -62,15 +62,17 @@ namespace MD.Codec
         public static Disposable<Context> Load(Path File)
         {
             string ext = File.Extension;
-            using (Disposable<Stream<byte>> str = File.Open())
+            foreach (Container container in WithName(ext))
             {
-                foreach (Container container in WithName(ext))
+                Disposable<Stream<byte>> str = File.Open();
+                Disposable<Context> context = container.Decode(str);
+                if (!context.IsNull)
                 {
-                    Disposable<Context> context = container.Decode(str);
-                    if (!context.IsNull)
-                    {
-                        return context;
-                    }
+                    return context;
+                }
+                else
+                {
+                    str.Dispose();
                 }
             }
             return null;

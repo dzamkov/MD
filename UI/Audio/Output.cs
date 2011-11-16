@@ -11,56 +11,46 @@ using MD.Codec;
 namespace MD.UI.Audio
 {
     /// <summary>
-    /// An audio output method.
+    /// A method of providing real-time audio output to the user.
     /// </summary>
-    public abstract class AudioOutput
+    public interface AudioOutput
     {
         /// <summary>
-        /// Creates an audio source to play the given stream. Returns null if this is not possible (the stream is unsupported).
+        /// Tries creating an audio output source with the given parameters.
         /// </summary>
-        public abstract AudioOutputSource Begin(Stream<byte> Stream, int SampleRate, int Channels, AudioFormat Format);
-
-        /// <summary>
-        /// Updates the state of the audio output by the given amount of time in seconds.
-        /// </summary>
-        public virtual void Update(double Time)
-        {
-
-        }
+        /// <param name="Stream">The data stream used to retrieve audio data. The stream must support multithreading and must not end
+        /// before the audio source stops playing.</param>
+        /// <param name="Control">The event feed to receive control events from.</param>
+        /// <param name="Pitch">A signal feed that provides a play-rate multiplier for the audio output source, or null if that 
+        /// functionality is not needed.</param>
+        /// <param name="Position">A signal feed that provides the current position (in samples) of the audio output source with 0 being the start
+        /// of the data stream.</param>
+        bool Begin(
+            Stream<byte> Stream, 
+            int SampleRate, int Channels, AudioFormat Format,
+            EventFeed<AudioOutputControl> Control, 
+            SignalFeed<double> Pitch, 
+            out SignalFeed<long> Position);
     }
 
     /// <summary>
-    /// An interface to an audio output source.
+    /// Identifies a control event for an audio output source.
     /// </summary>
-    public abstract class AudioOutputSource
+    public enum AudioOutputControl
     {
         /// <summary>
-        /// Gets or sets current position of the source (in samples) in its source stream.
+        /// Resumes playing the audio source after it is paused.
         /// </summary>
-        public abstract int Position { get; set; }
-
-        /// <summary>
-        /// Begins playing the source.
-        /// </summary>
-        public abstract void Play();
+        Play,
 
         /// <summary>
         /// Temporarily stops the audio source.
         /// </summary>
-        public abstract void Pause();
+        Pause,
 
         /// <summary>
-        /// Permanently stops the audio source. Note that this will release the audio source and will prevent it
-        /// from being used again.
+        /// Permanently stops the audio source.
         /// </summary>
-        public abstract void Stop();
-
-        /// <summary>
-        /// Links a feed to control the pitch (sample rate multiplier) of the output, or returns false if not possible.
-        /// </summary>
-        public virtual bool LinkPitch(SignalFeed<double> Feed)
-        {
-            return false;
-        }
+        Stop,
     }
 }

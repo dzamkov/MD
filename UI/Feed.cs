@@ -87,7 +87,7 @@ namespace MD.UI
     }
 
     /// <summary>
-    /// A source of dynamic, time-dependant information of a certain type.
+    /// A source of dynamic, time-dependant information of a certain type. Note that feeds can be queried by any thread.
     /// </summary>
     public interface Feed<T>
     {
@@ -140,9 +140,10 @@ namespace MD.UI
     public interface EventFeed<T> : Feed<T>
     {
         /// <summary>
-        /// Registers a callback to be called whenever an event occurs in this feed.
+        /// Registers a callback to be called whenever an event occurs in this feed. Unless otherwise noted, the callback may be called by any thread.
         /// </summary>
-        /// <returns>An action that will unregister the callback, or null if the callback will never be called.</returns>
+        /// <returns>An action that will unregister the callback, or null if the callback will never be called. Note that this is not guranteed to
+        /// stop the callback from being called; it only serves to inform the feed that it no longer needs to call the callback.</returns>
         RetractAction Register(Action<T> Callback);
     }
 
@@ -174,7 +175,6 @@ namespace MD.UI
     public interface SetFeed<T, TEquality> : SignalFeed<Set<T, TEquality>>
         where TEquality : Equality<T>
     {
-
         /// <summary>
         /// Registers a callback to be called for every item currently in the set, and all future items that enter the set. When an item is removed from
         /// a set, the unregister action returned from the callback will be called.
@@ -228,16 +228,25 @@ namespace MD.UI
         {
             get
             {
-                return this._Current;
+                lock (this)
+                {
+                    return this._Current;
+                }
             }
             set
             {
-                T old = this._Current;
-                if (this._Delta != null)
+                ControlEventFeed<Change<T>> delta;
+                Change<T> change;
+                lock (this)
                 {
-                    this._Delta.Fire(new Change<T>(old, value));
+                    change = new Change<T>(this._Current, value);
+                    delta = this._Delta;
+                    this._Current = value;
                 }
-                this._Current = value;
+                if (delta != null)
+                {
+                    delta.Fire(change);
+                }
             }
         }
 
@@ -247,13 +256,22 @@ namespace MD.UI
             {
                 // Do not create a delta feed until requested.
                 if (this._Delta == null)
-                    this._Delta = new ControlEventFeed<Change<T>>();
+                {
+                    // Use a locked section to ensure only one delta feed is created with multithreaded code.
+                    lock (this)
+                    {
+                        if (this._Delta == null)
+                        {
+                            this._Delta = new ControlEventFeed<Change<T>>();
+                        }
+                    }
+                }
                 return this._Delta;
             }
         }
 
         private T _Current;
-        private ControlEventFeed<Change<T>> _Delta;
+        private volatile ControlEventFeed<Change<T>> _Delta;
     }
 
     /// <summary>
@@ -271,19 +289,29 @@ namespace MD.UI
         /// </summary>
         public void Fire(T Value)
         {
-            if (this._Callback != null)
+            Action<T> callback = this._Callback; // Copying the callback ensures it is not changed by another thread.
+            if (callback != null)
             {
-                this._Callback(Value);
+                callback(Value);
             }
         }
 
         public RetractAction Register(Action<T> Callback)
         {
-            this._Callback += Callback;
-            return delegate { this._Callback -= Callback; };
+            lock (this)
+            {
+                this._Callback += Callback;
+            }
+            return delegate 
+            {
+                lock (this)
+                {
+                    this._Callback -= Callback;
+                }
+            };
         }
 
-        private Action<T> _Callback;
+        private volatile Action<T> _Callback;
     }
 
     /// <summary>
@@ -309,18 +337,24 @@ namespace MD.UI
 
         public RetractAction Register(Action<Tagged<TTag, T>> Callback)
         {
-            if (this._Callback == null)
+            lock (this)
             {
-                this._RetractSource = this.Source.Register(this._Listen);
-            }
-            this._Callback += Callback;
-            return delegate 
-            { 
-                this._Callback -= Callback;
-                if (this._Callback == null && this._RetractSource != null)
+                if (this._Callback == null)
                 {
-                    this._RetractSource();
-                    this._RetractSource = null;
+                    this._RetractSource = this.Source.Register(this._Listen);
+                }
+                this._Callback += Callback;
+            }
+            return delegate 
+            {
+                lock (this)
+                {
+                    this._Callback -= Callback;
+                    if (this._Callback == null && this._RetractSource != null)
+                    {
+                        this._RetractSource();
+                        this._RetractSource = null;
+                    }
                 }
             };
         }
@@ -330,9 +364,10 @@ namespace MD.UI
         /// </summary>
         private void _Listen(T Source)
         {
-            if (this._Callback != null)
+            Action<Tagged<TTag, T>> callback = this._Callback;
+            if (callback != null)
             {
-                this._Callback(new Tagged<TTag, T>(this.Tag, Source));
+                callback(new Tagged<TTag, T>(this.Tag, Source));
             }
         }
 

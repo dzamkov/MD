@@ -211,14 +211,20 @@ namespace MD.UI.Audio
             ALFormat format;
             if (GetFormat(Channels, Format, out format))
             {
-                lock (this)
+                if (AudioContext.CurrentContext != this._Context)
+                    this._Context.MakeCurrent();
+
+                _Source source = new _Source(Stream, SampleRate, format, 4096 * 8, 3, Pitch);
+                source.RetractListener = Control.Tag(source).Register(delegate(Tagged<_Source, AudioOutputControl> item)
                 {
-                    _Source source = new _Source(Stream, SampleRate, format, 4096 * 8, 3, Pitch);
-                    source.RetractListener = Control.Tag(source).Register(x => this._ControlMessages.Enqueue(x));
-                    this._Retract += source.RetractListener;
-                    Position = source.Position;
-                    return true;
-                }
+                    lock (this._ControlMessages)
+                    {
+                        this._ControlMessages.Enqueue(item);
+                    }
+                });
+                this._Retract += source.RetractListener;
+                Position = source.Position;
+                return true;
             }
             Position = null;
             return false;
@@ -250,30 +256,39 @@ namespace MD.UI.Audio
             this._Context.MakeCurrent();
             while(true)
             {
-                // Read messages
-                lock (this)
+                // Process messages
+                lock (this._ControlMessages)
                 {
                     while (this._ControlMessages.Count > 0)
                     {
                         Tagged<_Source, AudioOutputControl> message = this._ControlMessages.Dequeue();
                         _Source source = message.Tag;
-                        switch (message.Event)
+                        RetractAction retractlistener = source.RetractListener;
+                        if (retractlistener != null)
                         {
-                            case AudioOutputControl.Play:
-                                source.Play();
-                                this._Active.Add(source);
-                                break;
-                            case AudioOutputControl.Pause:
-                                source.Pause();
-                                this._Active.Remove(source);
-                                break;
-                            case AudioOutputControl.Stop:
-                                source.Stop();
-                                source.Dispose();
-                                this._Active.Remove(source);
-                                source.RetractListener();
-                                this._Retract -= source.RetractListener;
-                                break;
+                            switch (message.Event)
+                            {
+                                case AudioOutputControl.Play:
+                                    source.Play();
+                                    this._Active.Add(source);
+                                    break;
+                                case AudioOutputControl.Pause:
+                                    source.Pause();
+                                    this._Active.Remove(source);
+                                    break;
+                                case AudioOutputControl.Stop:
+                                    source.Stop();
+                                    source.Dispose();
+                                    this._Active.Remove(source);
+
+                                    retractlistener();
+                                    this._Retract -= retractlistener;
+
+                                    // Set the retract listener callback of the source to null to indicate that no more
+                                    // messages should be processed for it.
+                                    source.RetractListener = null;
+                                    break;
+                            }
                         }
                     }
                 }

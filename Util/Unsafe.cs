@@ -75,6 +75,22 @@ namespace MD
         }
 
         /// <summary>
+        /// Allocates unmanaged memory with the given size in bytes.
+        /// </summary>
+        public static unsafe byte* Allocate(int Size)
+        {
+            return (byte*)Marshal.AllocHGlobal(Size).ToPointer();
+        }
+
+        /// <summary>
+        /// Frees the given unmanaged memory previously allocated with Allocate.
+        /// </summary>
+        public static unsafe void Free(byte* Memory)
+        {
+            Marshal.FreeHGlobal(new IntPtr(Memory));
+        }
+
+        /// <summary>
         /// Gets the size in bytes of an instance of the given type.
         /// </summary>
         public static int SizeOf<T>()

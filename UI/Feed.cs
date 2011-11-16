@@ -52,6 +52,14 @@ namespace MD.UI
         }
 
         /// <summary>
+        /// Tags all events from an event feed with a certain value.
+        /// </summary>
+        public static EventFeed<Tagged<TTag, T>> Tag<TTag, T>(this EventFeed<T> Source, TTag Tag)
+        {
+            return new TaggedEventFeed<TTag, T>(Source, Tag);
+        }
+
+        /// <summary>
         /// Gets an event feed that fires an event whenever this feed rises (changes from false to true), or returns null if the feed varies continuously.
         /// </summary>
         public static EventFeed<Void> Rising(this SignalFeed<bool> Feed)
@@ -136,6 +144,28 @@ namespace MD.UI
         /// </summary>
         /// <returns>An action that will unregister the callback, or null if the callback will never be called.</returns>
         RetractAction Register(Action<T> Callback);
+    }
+
+    /// <summary>
+    /// A tagged event in an event feed.
+    /// </summary>
+    public struct Tagged<TTag, T>
+    {
+        public Tagged(TTag Tag, T Event)
+        {
+            this.Tag = Tag;
+            this.Event = Event;
+        }
+
+        /// <summary>
+        /// TThe tag for the event.
+        /// </summary>
+        public TTag Tag;
+
+        /// <summary>
+        /// The value of the event.
+        /// </summary>
+        public T Event;
     }
 
     /// <summary>
@@ -254,5 +284,59 @@ namespace MD.UI
         }
 
         private Action<T> _Callback;
+    }
+
+    /// <summary>
+    /// An event feed that produces tags events from a source feed.
+    /// </summary>
+    public sealed class TaggedEventFeed<TTag, T> : EventFeed<Tagged<TTag, T>>
+    {
+        public TaggedEventFeed(EventFeed<T> Source, TTag Tag)
+        {
+            this.Source = Source;
+            this.Tag = Tag;
+        }
+
+        /// <summary>
+        /// The source event feed for this event feed.
+        /// </summary>
+        public readonly EventFeed<T> Source;
+
+        /// <summary>
+        /// The tag applied by this event feed.
+        /// </summary>
+        public readonly TTag Tag;
+
+        public RetractAction Register(Action<Tagged<TTag, T>> Callback)
+        {
+            if (this._Callback == null)
+            {
+                this._RetractSource = this.Source.Register(this._Listen);
+            }
+            this._Callback += Callback;
+            return delegate 
+            { 
+                this._Callback -= Callback;
+                if (this._Callback == null && this._RetractSource != null)
+                {
+                    this._RetractSource();
+                    this._RetractSource = null;
+                }
+            };
+        }
+
+        /// <summary>
+        /// The listener for the source feed.
+        /// </summary>
+        private void _Listen(T Source)
+        {
+            if (this._Callback != null)
+            {
+                this._Callback(new Tagged<TTag, T>(this.Tag, Source));
+            }
+        }
+
+        private RetractAction _RetractSource;
+        private Action<Tagged<TTag, T>> _Callback;
     }
 }

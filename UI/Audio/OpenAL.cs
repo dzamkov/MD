@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 using OpenTK.Audio;
 using OpenTK.Audio.OpenAL;
@@ -15,24 +16,37 @@ namespace MD.UI.Audio
     /// </summary>
     public class OpenALOutput : AudioOutput, IDisposable
     {
-        public OpenALOutput()
+        private OpenALOutput(AudioContext Context)
         {
-            this._Context = new AudioContext();
+            this._Context = Context;
             this._Active = new HashSet<_Source>();
-            this._Retract = Program.RegisterUpdate(this._Update);
+            this._ControlMessages = new Queue<Tagged<_Source, AudioOutputControl>>();
+            this._StartUpdate();
         }
 
         public OpenALOutput(string Device)
+            : this(new AudioContext(Device))
         {
-            this._Context = new AudioContext(Device);
-            this._Active = new HashSet<_Source>();
-            this._Retract = Program.RegisterUpdate(this._Update);
+
+        }
+
+        public OpenALOutput()
+            : this(new AudioContext())
+        {
+
         }
 
         public void Dispose()
         {
-            this._Context.Dispose();
-            this._Retract();
+            this._StopUpdate();
+            lock (this)
+            {
+                this._Context.Dispose();
+            }
+            if (this._Retract != null)
+            {
+                this._Retract();
+            }
         }
 
         /// <summary>
@@ -197,87 +211,79 @@ namespace MD.UI.Audio
             ALFormat format;
             if (GetFormat(Channels, Format, out format))
             {
-                _Source source = new _Source(Stream, SampleRate, format, 4096 * 4, 3, Pitch);
-                new _SourceListener(source, this).Link(Control);
-                Position = source.Position;
-                return true;
+                lock (this)
+                {
+                    _Source source = new _Source(Stream, SampleRate, format, 4096 * 8, 3, Pitch);
+                    source.RetractListener = Control.Tag(source).Register(x => this._ControlMessages.Enqueue(x));
+                    this._Retract += source.RetractListener;
+                    Position = source.Position;
+                    return true;
+                }
             }
             Position = null;
             return false;
         }
 
         /// <summary>
-        /// Updates the state of the audio output and all sources by the given amount of time in seconds.
+        /// Starts the update thread of the audio output.
         /// </summary>
-        private void _Update(double Time)
+        private void _StartUpdate()
         {
-            this._Context.MakeCurrent();
-            foreach (_Source source in this._Active)
-            {
-                source.Update();
-            }
+            this._UpdateThread = new Thread(this._Update);
+            this._UpdateThread.IsBackground = true;
+            this._UpdateThread.Start();
         }
 
         /// <summary>
-        /// A listener to a control event feed for a source.
+        /// Stops the update thread of the audio output.
         /// </summary>
-        private class _SourceListener
+        private void _StopUpdate()
         {
-            public _SourceListener(_Source Source, OpenALOutput Output)
-            {
-                this.Source = Source;
-                this.Output = Output;
-            }
+            this._UpdateThread.Abort();
+        }
 
-            /// <summary>
-            /// The callback for this listener.
-            /// </summary>
-            public void Callback(AudioOutputControl Control)
+        /// <summary>
+        /// Handles updating of the sources for this audio output.
+        /// </summary>
+        private void _Update()
+        {
+            this._Context.MakeCurrent();
+            while(true)
             {
-                this.Output._Context.MakeCurrent();
-                switch (Control)
+                // Read messages
+                lock (this)
                 {
-                    case AudioOutputControl.Play:
-                        this.Source.Play();
-                        this.Output._Active.Add(this.Source);
-                        break;
-                    case AudioOutputControl.Pause:
-                        this.Source.Pause();
-                        this.Output._Active.Remove(this.Source);
-                        break;
-                    case AudioOutputControl.Stop:
-                        this.Source.Stop();
-                        this.Source.Dispose();
-                        this.Output._Active.Remove(this.Source);
-                        this.Retract();
-                        this.Output._Retract -= this.Retract;
-                        break;
+                    while (this._ControlMessages.Count > 0)
+                    {
+                        Tagged<_Source, AudioOutputControl> message = this._ControlMessages.Dequeue();
+                        _Source source = message.Tag;
+                        switch (message.Event)
+                        {
+                            case AudioOutputControl.Play:
+                                source.Play();
+                                this._Active.Add(source);
+                                break;
+                            case AudioOutputControl.Pause:
+                                source.Pause();
+                                this._Active.Remove(source);
+                                break;
+                            case AudioOutputControl.Stop:
+                                source.Stop();
+                                source.Dispose();
+                                this._Active.Remove(source);
+                                source.RetractListener();
+                                this._Retract -= source.RetractListener;
+                                break;
+                        }
+                    }
+                }
+
+                // Update sources
+                foreach (_Source source in this._Active)
+                {
+                    source.Update();
                 }
             }
-
-            /// <summary>
-            /// Links this listener to the given event feed.
-            /// </summary>
-            public void Link(EventFeed<AudioOutputControl> Feed)
-            {
-                this.Retract = Feed.Register(this.Callback);
-                this.Output._Retract += this.Retract;
-            }
-
-            /// <summary>
-            /// The source this listener is for.
-            /// </summary>
-            public readonly _Source Source;
-
-            /// <summary>
-            /// The output this listener is for.
-            /// </summary>
-            public readonly OpenALOutput Output;
-
-            /// <summary>
-            /// The retract action for the callback of this listener.
-            /// </summary>
-            public RetractAction Retract;
         }
 
         /// <summary>
@@ -313,6 +319,11 @@ namespace MD.UI.Audio
                 AL.DeleteBuffers(buffers);
                 AL.DeleteSource(this._ID);
             }
+
+            /// <summary>
+            /// Retracts the message listener for this source.
+            /// </summary>
+            public RetractAction RetractListener;
 
             /// <summary>
             /// Gets the size of the buffer (in bytes) for this source.
@@ -411,6 +422,8 @@ namespace MD.UI.Audio
             private SignalFeed<double> _Pitch;
         }
 
+        private Queue<Tagged<_Source, AudioOutputControl>> _ControlMessages;
+        private Thread _UpdateThread;
         private AudioContext _Context;
         private HashSet<_Source> _Active;
         private RetractAction _Retract;

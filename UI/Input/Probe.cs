@@ -2,24 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace MD.UI
+namespace MD.UI.Input
 {
-    /// <summary>
-    /// An interface for user input.
-    /// </summary>
-    public sealed class Interface
-    {
-        public Interface(SetFeed<Probe, ReferenceEquality<Probe>> Probes)
-        {
-            this.Probes = Probes;
-        }
-
-        /// <summary>
-        /// The currently-accessible probes of the interface.
-        /// </summary>
-        public readonly SetFeed<Probe, ReferenceEquality<Probe>> Probes;
-    }
-
     /// <summary>
     /// Represents mouse-like input in a two-dimensional coordinate space.
     /// </summary>

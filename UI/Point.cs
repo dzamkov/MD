@@ -61,7 +61,7 @@ namespace MD.UI
         }
 
         /// <summary>
-        /// Creates a unit vector (point offset) for the specified angle.
+        /// Creates a unit vector (point offset) for the specified angle in radians.
         /// </summary>
         public static Point Unit(double Angle)
         {
@@ -77,7 +77,7 @@ namespace MD.UI
         }
 
         /// <summary>
-        /// Gets the angle of this point (representing an offset).
+        /// Gets the angle of this point (representing an offset) in radians.
         /// </summary>
         public double Angle
         {

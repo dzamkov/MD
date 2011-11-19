@@ -4,13 +4,8 @@ open System
 open System.IO
 
 /// A path on the filesystem.
-type public Path =
+type public Path (source : string) =
     struct
-        
-        /// The source string that defines this path.
-        val public Source : string
-
-        new (source : string) = { Source = source }
 
         /// Gets or sets the current working directory for the application.
         static member WorkingDirectory
@@ -20,12 +15,15 @@ type public Path =
         /// Gets the path for a sub-file within this path.
         static member (+) (x : Path, file : string) = Path.Combine (x.Source, file)
 
+        /// Gets the source string that defines this path.
+        member this.Source : string = source
+
         /// Gets the name of the file or directory at this path.
-        member this.Name = Path.GetFileName this.Source
+        member this.Name = Path.GetFileName source
 
         /// Gets the path for the parent directory of this path, or returns this path if it is a root path.
         member this.Parent = 
-            match Path.GetDirectoryName this.Source with
+            match Path.GetDirectoryName source with
             | null -> this
             | x -> new Path (x)
 
@@ -33,29 +31,29 @@ type public Path =
         member this.Extension =
             match this.Source.LastIndexOf '.' with
             | -1 -> null
-            | x -> this.Source.Substring x
+            | x -> source.Substring x
 
         /// Gets wether this path exists on the file system as a directory.
-        member this.DirectoryExists = Directory.Exists this.Source
+        member this.DirectoryExists = Directory.Exists source
 
         /// Gets wether this path exists on the file system as a file.
-        member this.FileExists = File.Exists this.Source
+        member this.FileExists = File.Exists source
 
         /// Gets wether this path exists on the file system.
         member this.Exists = this.DirectoryExists || this.FileExists
 
         /// Gets the paths for the files and folders in the directory at this path.
-        member this.Subfiles = Directory.EnumerateFileSystemEntries this.Source |> Seq.map (fun x -> new Path (x))
+        member this.Subfiles = Directory.EnumerateFileSystemEntries source |> Seq.map (fun x -> new Path (x))
 
         /// Ensures a directory exists at this path by deleting files and creating directories as needed. Returns wether any
         /// file system modifications were made.
         member this.MakeDirectory () =
             if this.DirectoryExists then false
             else
-                if this.FileExists then File.Delete this.Source
+                if this.FileExists then File.Delete source
                 this.Parent.MakeDirectory () |> ignore
-                Directory.CreateDirectory this.Source |> ignore
+                Directory.CreateDirectory source |> ignore
                 true
 
-        override this.ToString () = this.Source
+        override this.ToString () = source
     end

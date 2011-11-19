@@ -173,6 +173,7 @@
     <ClInclude Include="plugin.h" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="FSharp.Core" />
     <Reference Include="MD, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
       <HintPath>..\..\bin\Release\MD.exe</HintPath>
       <Private>false</Private>

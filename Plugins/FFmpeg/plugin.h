@@ -5,6 +5,7 @@ using namespace System::Collections::Generic;
 using namespace MD;
 using namespace MD::Data;
 using namespace MD::Codec;
+using namespace Microsoft::FSharp::Core;
 
 typedef Stream<Byte> ByteStream;
 
@@ -69,14 +70,7 @@ public:
 
 						// Decode audio
 						if (avcodec_decode_audio3(codeccontext, (int16_t*)this->Buffer, &framesize, this->_Packet) >= 0) {
-							UnsafeArray^ data = dynamic_cast<UnsafeArray^>(audio->Data);
-							if (data == nullptr) {
-								data = gcnew UnsafeArray(this->Buffer, this->Buffer + framesize);
-								audio->Data = data;
-							} else {
-								data->Start = this->Buffer;
-								data->End = this->Buffer + framesize;
-							}
+							audio->Data = FSharpOption<MD::Data::Data<Byte>^>::Some(gcnew UnsafeData(this->Buffer, this->Buffer + framesize));
 							return true;
 						}
 
@@ -90,7 +84,7 @@ public:
 		return false;
 	}
 
-	Disposable<Stream<Byte>^> Stream;
+	Stream<Byte>^ Stream;
 	int* StreamContent;
 	AVIOContext* IOContext;
 	AVFormatContext* FormatContext;
@@ -110,7 +104,7 @@ public:
 
 	}
 
-    virtual Disposable<Context^> Decode(Disposable<Stream<Byte>^> Stream) override {
+    virtual Context^ Decode(Stream<Byte>^ Stream) override {
 		AVIOContext* io = InitStreamContext(Stream, 65536 + FF_INPUT_BUFFER_PADDING_SIZE);
 		
 		// Find stream format information

@@ -19,7 +19,7 @@ int read_packet(void* opaque, uint8_t* buf, int buf_size);
 /// <summary>
 /// Initializes an AVIOContext for a stream.
 /// </summary>
-AVIOContext* InitStreamContext(ByteStream^ Stream, int BufferSize);
+AVIOContext* InitStreamContext(ByteStream^ Stream);
 
 /// <summary>
 /// Closes an AVIOContext for a stream.
@@ -36,7 +36,6 @@ public:
 	}
 
 	~_Context() {
-		delete this->Stream;
 		this->!_Context();
 	}
 
@@ -49,6 +48,55 @@ public:
 			av_free_packet(this->_Packet);
 			delete this->_Packet;
 		}
+	}
+
+	/// <summary>
+	/// Initializes a context.
+	/// </summary>
+	static _Context^ Initialize(AVIOContext* IOContext, AVFormatContext* FormatContext) {
+
+		// Initialize content streams
+		List<Codec::Content^>^ contents = gcnew List<Codec::Content^>(FormatContext->nb_streams);
+		int* streamcontent = new int[FormatContext->nb_streams];
+		int buffersize = 0;
+
+		for (unsigned int t = 0; t < FormatContext->nb_streams; t++) {
+			streamcontent[t] = -1;
+			AVCodecContext* codeccontext = FormatContext->streams[t]->codec;
+			AVCodec* codec = avcodec_find_decoder(codeccontext->codec_id);
+			if (codec != NULL) {
+				if (avcodec_open(codeccontext, codec) >= 0) {
+					switch (codeccontext->codec_type) {
+
+					// Audio content
+					case AVMEDIA_TYPE_AUDIO: {
+						AudioFormat format = (AudioFormat)codeccontext->sample_fmt;
+						int samplerate = codeccontext->sample_rate;
+						int channels = codeccontext->channels;
+						int bps = AudioContent::BytesPerSample(format);
+
+						streamcontent[t] = contents->Count;
+						contents->Add(gcnew AudioContent(samplerate, channels, format));
+						} break;
+					default:
+						break;
+					}
+				}
+			}
+		}
+
+		// Set lower bound on buffer size.
+		buffersize = Math::Max(buffersize, AVCODEC_MAX_AUDIO_FRAME_SIZE);
+
+		// Create output context
+		_Context^ context = gcnew _Context(contents->ToArray());
+		context->StreamContent = streamcontent;
+		context->IOContext = IOContext;
+		context->FormatContext = FormatContext;
+		context->Buffer = (Byte*)av_malloc(buffersize);
+		context->BufferSize = buffersize;
+
+		return context;
 	}
 
 	virtual bool NextFrame(int% ContentIndex) override {
@@ -84,7 +132,6 @@ public:
 		return false;
 	}
 
-	Stream<Byte>^ Stream;
 	int* StreamContent;
 	AVIOContext* IOContext;
 	AVFormatContext* FormatContext;
@@ -101,11 +148,15 @@ private:
 ref class _Container : Container {
 public:
 	_Container(String^ Name) : Container(Name) {
-
+		this->Input = NULL;
+		this->Output = NULL;
 	}
 
-    virtual Context^ Decode(Stream<Byte>^ Stream) override {
-		AVIOContext* io = InitStreamContext(Stream, 65536 + FF_INPUT_BUFFER_PADDING_SIZE);
+    virtual FSharpOption<Context^>^ Decode(Stream<Byte>^ Stream) override {
+		if (this->Input == NULL)
+			return FSharpOption<Context^>::None;
+
+		AVIOContext* io = InitStreamContext(Stream);
 		
 		// Find stream format information
 		AVFormatContext* formatcontext;
@@ -113,7 +164,7 @@ public:
 		if (err != 0)
 		{
 			CloseStreamContext(io);
-			return nullptr;
+			return FSharpOption<Context^>::None;
 		}
 
 		err = av_find_stream_info(formatcontext);
@@ -121,69 +172,29 @@ public:
 		{
 			av_close_input_stream(formatcontext);
 			CloseStreamContext(io);
-			return nullptr;
+			return FSharpOption<Context^>::None;
 		}
 
-		// Initialize content streams
-		List<Content^>^ contents = gcnew List<Content^>(formatcontext->nb_streams);
-		int* streamcontent = new int[formatcontext->nb_streams];
-		int buffersize = 0;
-
-		for (unsigned int t = 0; t < formatcontext->nb_streams; t++) {
-			streamcontent[t] = -1;
-			AVCodecContext* codeccontext = formatcontext->streams[t]->codec;
-			AVCodec* codec = avcodec_find_decoder(codeccontext->codec_id);
-			if (codec != NULL) {
-				if (avcodec_open(codeccontext, codec) >= 0) {
-					switch (codeccontext->codec_type) {
-
-					// Audio content
-					case AVMEDIA_TYPE_AUDIO: {
-						AudioFormat format = (AudioFormat)codeccontext->sample_fmt;
-						int samplerate = codeccontext->sample_rate;
-						int channels = codeccontext->channels;
-						int bps = AudioContent::BytesPerSample(format);
-
-						streamcontent[t] = contents->Count;
-						contents->Add(gcnew AudioContent(samplerate, channels, format));
-						} break;
-					default:
-						break;
-					}
-				}
-			}
-		}
-
-		// Set lower bound on buffer size.
-		buffersize = Math::Max(buffersize, AVCODEC_MAX_AUDIO_FRAME_SIZE);
-
-		// Create output context
-		_Context^ context = gcnew _Context(contents->ToArray());
-		context->Stream = Stream;
-		context->StreamContent = streamcontent;
-		context->IOContext = io;
-		context->FormatContext = formatcontext;
-		context->Buffer = (Byte*)av_malloc(buffersize);
-		context->BufferSize = buffersize;
-
-		return context;
+		return FSharpOption<Context^>::Some(_Context::Initialize(io, formatcontext));
 	}
 
-    virtual Disposable<Stream<Byte>^> Encode(Disposable<Context^> Context) override {
-		return nullptr;
+    virtual FSharpOption<Stream<Byte>^>^ Encode(Context^ Context) override {
+		return FSharpOption<Stream<Byte>^>::None;
 	}
 
 	AVInputFormat* Input;
 	AVOutputFormat* Output;
 };
 
-public ref class Plugin {
+public ref class Plugin : MD::Plugin {
 public:
+	Plugin() : MD::Plugin("FFmpeg Codecs") {
 
-	static String^ Name = "FFmpeg Codecs";
+	}
+
 	static bool Initialized = false;
 
-	static RetractAction^ Load() {
+	virtual RetractAction^ Load() override {
 		RetractAction^ retract = nullptr;
 
 		if (!Initialized)
@@ -191,39 +202,101 @@ public:
 			Initialized = true;
 			avcodec_init();
 			av_register_all();
-		}
 
-		// Input formats
-		AVInputFormat* iformat = av_iformat_next(NULL);
-		while (iformat != NULL) {
-			_Container^ container = gcnew _Container(gcnew String(iformat->name));
-			container->Input = iformat;
-			retract += Container::Register(container);
-			iformat = av_iformat_next(iformat);
-		}
+			// Create containers
+			_Containers = gcnew Dictionary<String^, _Container^>();
 
-		// Output formats
-		AVOutputFormat* oformat = av_oformat_next(NULL);
-		while (oformat != NULL) {
-			String^ name = gcnew String(oformat->name);
-			bool hascontainer = false;
-			for each(Container^ container in Container::WithName(name)) {
-				_Container^ ncontainer = dynamic_cast<_Container^>(container);
-				if (ncontainer != nullptr) {
-					ncontainer->Output = oformat;
-					hascontainer = true;
-					break;
+			// Add input formats
+			AVInputFormat* iformat = av_iformat_next(NULL);
+			while (iformat != NULL) {
+				String^ name = gcnew String(iformat->name);
+				_Container^ container = gcnew _Container(name);
+				container->Input = iformat;
+				_Containers[name] = container;
+				iformat = av_iformat_next(iformat);
+			}
+
+			// Add output formats
+			AVOutputFormat* oformat = av_oformat_next(NULL);
+			while (oformat != NULL) {
+				String^ name = gcnew String(oformat->name);
+				_Container^ container;
+				if (!_Containers->TryGetValue(name, container)) {
+					container = gcnew _Container(name);
+					_Containers->Add(name, container);
 				}
+				container->Output = oformat;
+				oformat = av_oformat_next(oformat);
 			}
-			if (!hascontainer) {
-				_Container^ ncontainer = gcnew _Container(name);
-				ncontainer->Output = oformat;
-				retract += Container::Register(ncontainer);
+
+			// Register containers
+			for each(_Container^ container in _Containers->Values) {
+				retract += Codec::Container::Register(container);
 			}
-			oformat = av_oformat_next(oformat);
+
+			// Register load container
+			retract += Codec::Container::RegisterLoad(gcnew LoadContainerAction(_LoadContainer));
 		}
 
 		return retract;
+	}
+
+private:
+	static Dictionary<String^, _Container^>^ _Containers = nullptr;
+
+	static FSharpOption<Tuple<Container^, Context^>^>^ _LoadContainer(MD::Data::Data<Byte>^ Data, String^ Filename) {
+		using namespace Runtime::InteropServices;
+
+		Stream<Byte>^ stream = Data->Read(0, Data->Size);
+		AVIOContext* io = InitStreamContext(stream);
+
+		// Get file name if possible
+		char* filename = NULL;
+		if (Filename != nullptr) {
+			filename = static_cast<char*>(Marshal::StringToHGlobalAnsi(Filename).ToPointer());
+		}
+
+		// Determine format
+		AVInputFormat* iformat;
+		int err = av_probe_input_buffer(io, &iformat, filename, NULL, 0, 0);
+		if (err != 0)
+		{
+			CloseStreamContext(io);
+			return FSharpOption<Tuple<Container^, Context^>^>::None;
+		}
+
+		// Free file name
+		if (filename != NULL) {
+			Marshal::FreeHGlobal(IntPtr(static_cast<void*>(filename)));
+		}
+		
+		// Find stream format information
+		AVFormatContext* formatcontext;
+		err = av_open_input_stream(&formatcontext, io, "", iformat, NULL);
+		if (err != 0)
+		{
+			CloseStreamContext(io);
+			return FSharpOption<Tuple<Container^, Context^>^>::None;
+		}
+
+		err = av_find_stream_info(formatcontext);
+		if (err < 0)
+		{
+			av_close_input_stream(formatcontext);
+			CloseStreamContext(io);
+			return FSharpOption<Tuple<Container^, Context^>^>::None;
+		}
+
+		// Find corresponding managed container
+		_Container^ container = nullptr;
+		for each(_Container^ it in _Containers->Values) {
+			if (it->Input == iformat) {
+				container = it;
+				break;
+			}
+		}
+
+		return FSharpOption<Tuple<Container^, Context^>^>::Some(Tuple::Create<Container^, Context^>(container, _Context::Initialize(io, formatcontext)));
 	}
 };
 

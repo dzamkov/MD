@@ -13,7 +13,7 @@ type public Path (source : string) =
             and set (x : Path) = (Environment.CurrentDirectory <- x.Source)
 
         /// Gets the path for a sub-file within this path.
-        static member (+) (x : Path, file : string) = Path.Combine (x.Source, file)
+        static member (+) (x : Path, file : string) = new Path (Path.Combine (x.Source, file))
 
         /// Gets the source string that defines this path.
         member this.Source : string = source
@@ -31,7 +31,7 @@ type public Path (source : string) =
         member this.Extension =
             match this.Source.LastIndexOf '.' with
             | -1 -> null
-            | x -> source.Substring x
+            | x -> source.Substring (x + 1)
 
         /// Gets wether this path exists on the file system as a directory.
         member this.DirectoryExists = Directory.Exists source

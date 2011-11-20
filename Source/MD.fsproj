@@ -26,6 +26,7 @@
     <Compile Include="Plugin.fs" />
     <Compile Include="Data\Data.fs" />
     <Compile Include="Data\Unsafe.fs" />
+    <Compile Include="Data\IO.fs" />
     <Compile Include="Codec\Content.fs" />
     <Compile Include="Codec\Container.fs" />
     <Compile Include="Codec\Audio.fs" />

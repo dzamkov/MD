@@ -17,6 +17,10 @@ let main args =
         plugin.Load () |> ignore
 
     let testfile = new Path (@"N:\\Music\\Me\\57.mp3")
-
-    Console.ReadKey() |> ignore
+    match Container.Load testfile with
+    | Some (container, context) -> 
+        let contentID = ref 0
+        context.NextFrame contentID |> ignore
+        Console.ReadKey() |> ignore
+    | _ -> ()
     0

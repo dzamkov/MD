@@ -24,6 +24,11 @@ type Container (name : string) =
     static member Load (data : Data<byte>, filename : string) = 
         loadRegistry |> Seq.tryPick (fun load -> load.Invoke (data, filename))
 
+    /// Tries loading a context from the given file using a previously-registered load
+    /// action. If no action is able to load the data, None is returned. 
+    static member Load (file : Path) =
+        Container.Load (new IOData (file), file.Name)
+
     /// Gets the user-friendly name of this container format.
     member this.Name = name
 

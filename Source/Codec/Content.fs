@@ -23,3 +23,7 @@ type Context (content : Content[]) =
     /// set to false). The parameter of this function will be set to the index (in the Content array of this file) of the content read.
     /// Returns false if there are no more frames in the container.
     abstract member NextFrame : contentIndex : int byref -> bool
+
+    /// Indicates that the context will no longer be used. This should not have an effect on the current content of the context, it will
+    /// only prevent future calls to NextFrame.
+    abstract member Finish : unit -> unit

@@ -34,8 +34,10 @@ type UnsafeStream (regionStart : nativeptr<byte>, regionEnd : nativeptr<byte>) =
 
         member this.Read (destination, size) =
             let readsize = min size this.Size
-            Unsafe.copy (NativePtr.toNativeInt cur) destination readsize
+            Unsafe.copypp (NativePtr.toNativeInt cur) destination readsize
             readsize
+
+        member this.Finish () = ()
 
 /// Byte data whose source is a region of memory.
 type UnsafeData (regionStart : nativeptr<byte>, regionEnd : nativeptr<byte>) =

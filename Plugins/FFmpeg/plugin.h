@@ -132,6 +132,10 @@ public:
 		return false;
 	}
 
+	virtual void Finish() override {
+		delete this;
+	}
+
 	int* StreamContent;
 	AVIOContext* IOContext;
 	AVFormatContext* FormatContext;

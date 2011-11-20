@@ -20,6 +20,9 @@ type Stream<'a> =
     /// the stream has been reached. This should only be used for streams of value types.
     abstract member Read : destination : nativeint * size : int -> int
 
+    /// Indicates that the stream will no longer be used.
+    abstract member Finish : unit -> unit
+
 /// A mutable collection of items indexed by an integer.
 type Data<'a> = 
 

@@ -9,7 +9,9 @@ AVIOContext* InitStreamContext(ByteStream^ Context) {
 }
 
 void CloseStreamContext(AVIOContext* Context) {
-	delete (gcroot<ByteStream^>*)Context->opaque;
+	gcroot<ByteStream^>* bytestream = (gcroot<ByteStream^>*)Context->opaque;
+	(*bytestream)->Finish();
+	delete bytestream;
 	av_free(Context->buffer);
 	av_free(Context);
 }

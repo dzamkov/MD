@@ -1,6 +1,5 @@
 ﻿module public MD.Program
 
-open MD.Codec
 open System
 
 // Ensure System.Core is loaded for debugging
@@ -16,11 +15,7 @@ let main args =
     for plugin in plugins do
         plugin.Load () |> ignore
 
-    let testfile = new Path (@"N:\\Music\\Me\\57.mp3")
-    match Container.Load testfile with
-    | Some (container, context) -> 
-        let contentID = ref 0
-        context.NextFrame contentID |> ignore
-        Console.ReadKey() |> ignore
-    | _ -> ()
+    let win = new Window ()
+    win.Run ()
+
     0

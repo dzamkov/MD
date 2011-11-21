@@ -3,8 +3,6 @@
 using namespace System;
 using namespace System::Collections::Generic;
 using namespace MD;
-using namespace MD::Data;
-using namespace MD::Codec;
 using namespace Microsoft::FSharp::Core;
 
 typedef Stream<Byte> ByteStream;
@@ -31,7 +29,7 @@ void CloseStreamContext(AVIOContext* Context);
 /// </summary>
 ref class _Context : Context, IDisposable {
 public:
-	_Context(array<Codec::Content^>^ Content) : Context(Content) {
+	_Context(array<MD::Content^>^ Content) : Context(Content) {
 		this->_Packet = NULL;
 	}
 
@@ -56,7 +54,7 @@ public:
 	static _Context^ Initialize(AVIOContext* IOContext, AVFormatContext* FormatContext) {
 
 		// Initialize content streams
-		List<Codec::Content^>^ contents = gcnew List<Codec::Content^>(FormatContext->nb_streams);
+		List<MD::Content^>^ contents = gcnew List<MD::Content^>(FormatContext->nb_streams);
 		int* streamcontent = new int[FormatContext->nb_streams];
 		int buffersize = 0;
 
@@ -108,7 +106,7 @@ public:
 			int streamindex = this->_Packet->stream_index;
 			ContentIndex = this->StreamContent[streamindex];
 			if (ContentIndex != -1) {
-				Codec::Content^ content = this->Content[ContentIndex];
+				MD::Content^ content = this->Content[ContentIndex];
 				if (!content->Ignore) {
 					AVCodecContext* codeccontext = this->FormatContext->streams[streamindex]->codec;
 					int framesize = this->BufferSize;
@@ -118,7 +116,7 @@ public:
 
 						// Decode audio
 						if (avcodec_decode_audio3(codeccontext, (int16_t*)this->Buffer, &framesize, this->_Packet) >= 0) {
-							audio->Data = FSharpOption<MD::Data::Data<Byte>^>::Some(gcnew UnsafeData(this->Buffer, this->Buffer + framesize));
+							audio->Data = FSharpOption<MD::Data<Byte>^>::Some(gcnew UnsafeData(this->Buffer, this->Buffer + framesize));
 							return true;
 						}
 
@@ -235,11 +233,11 @@ public:
 
 			// Register containers
 			for each(_Container^ container in _Containers->Values) {
-				retract += Codec::Container::Register(container);
+				retract += MD::Container::Register(container);
 			}
 
 			// Register load container
-			retract += Codec::Container::RegisterLoad(gcnew LoadContainerAction(_LoadContainer));
+			retract += MD::Container::RegisterLoad(gcnew LoadContainerAction(_LoadContainer));
 		}
 
 		return retract;
@@ -248,7 +246,7 @@ public:
 private:
 	static Dictionary<String^, _Container^>^ _Containers = nullptr;
 
-	static FSharpOption<Tuple<Container^, Context^>^>^ _LoadContainer(MD::Data::Data<Byte>^ Data, String^ Filename) {
+	static FSharpOption<Tuple<Container^, Context^>^>^ _LoadContainer(MD::Data<Byte>^ Data, String^ Filename) {
 		using namespace Runtime::InteropServices;
 
 		Stream<Byte>^ stream = Data->Read(0, Data->Size);

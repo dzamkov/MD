@@ -6,7 +6,7 @@
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{0bb4a5f7-5cba-4cc0-ab96-aad6b826f482}</ProjectGuid>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <RootNamespace>MD</RootNamespace>
     <AssemblyName>MD</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
@@ -24,19 +24,20 @@
     <Compile Include="Retract.fs" />
     <Compile Include="Path.fs" />
     <Compile Include="Plugin.fs" />
-    <Compile Include="Data\Data.fs" />
-    <Compile Include="Data\Unsafe.fs" />
-    <Compile Include="Data\IO.fs" />
-    <Compile Include="Codec\Content.fs" />
-    <Compile Include="Codec\Container.fs" />
-    <Compile Include="Codec\Audio.fs" />
+    <Compile Include="Data.fs" />
+    <Compile Include="Container.fs" />
+    <Compile Include="Window.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
     <Reference Include="FSharp.Core" />
+    <Reference Include="OpenTK">
+      <HintPath>..\..\SDK\OpenTK\1.0\Binaries\OpenTK\Release\OpenTK.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <PropertyGroup>

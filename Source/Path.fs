@@ -4,7 +4,7 @@ open System
 open System.IO
 
 /// A path on the filesystem.
-type public Path (source : string) =
+type Path (source : string) =
     struct
 
         /// Gets or sets the current working directory for the application.

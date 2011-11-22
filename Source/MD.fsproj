@@ -26,6 +26,8 @@
     <Compile Include="Plugin.fs" />
     <Compile Include="Data.fs" />
     <Compile Include="Container.fs" />
+    <Compile Include="Feed.fs" />
+    <Compile Include="Audio.fs" />
     <Compile Include="Window.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

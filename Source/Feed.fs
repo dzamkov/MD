@@ -27,7 +27,8 @@ type SignalFeed<'a> =
 
     /// Gets an event feed that fires an event whenever a change occurs in this signal feed, or
     /// None if this feed does not change at discrete moments. During an event fired by the returned
-    /// feed, this signal will use the new value as the current value.
+    /// feed, this signal will use the new value as the current value. Note that this feed may be fired
+    /// even when there is no change, in which case, New and Old on the given change will be the same.
     abstract member Delta : EventFeed<Change<'a>> option
 
 /// An action that registers callbacks and objects on an item and returns a retract action
@@ -152,8 +153,32 @@ type ControlCollectionFeed<'a> () =
 
     interface CollectionFeed<'a> with
         member this.Register callback = this.Register callback
-        
-    
+
+/// An event feed that applies a mapping and filter to all events from a source feed.
+type MapFilterEventFeed<'a, 'b> (source : EventFeed<'b>, map : 'b -> 'a option) =
+    interface EventFeed<'a> with
+        member this.Register callback = source.Register (fun x -> 
+            match map x with
+            | Some y -> callback.Invoke y
+            | None -> ())
+
+/// A signal feed that applies a mapping to values from a source feed.
+type MapSignalFeed<'a, 'b> (source : SignalFeed<'b>, map : 'b -> 'a) =
+    interface SignalFeed<'a> with
+        member this.Current = map source.Current
+        member this.Delta = 
+            let mapchange (x : Change<'b>) = Some { Old = map x.Old; New = map x.New }
+            match source.Delta with
+            | Some sourcedelta -> Some (new MapFilterEventFeed<Change<'a>, Change<'b>> (sourcedelta, mapchange) :> EventFeed<Change<'a>>)
+            | None -> None
+
+/// A collection feed that applies a mapping and filter to all items from a source feed.
+type MapFilterCollectionFeed<'a, 'b> (source : CollectionFeed<'b>, map : 'b -> 'a option) =
+    interface CollectionFeed<'a> with
+        member this.Register callback = source.Register (fun x ->
+            match map x with
+            | Some y -> callback.Invoke y
+            | None -> null)
 
 /// Contains functions for constructing and manipulating feeds.
 module Feed =
@@ -163,3 +188,45 @@ module Feed =
 
     /// Constructs a signal feed with a constant value.
     let ``const`` value = new ConstSignalFeed<'a> (value)
+
+    /// Constructs a mapped event feed.
+    let mape map source = new MapFilterEventFeed<'a, 'b> (source, map >> Some) :> EventFeed<'a>
+
+    /// Constructs a mapped signal feed.
+    let maps map source = new MapSignalFeed<'a, 'b> (source, map) :> SignalFeed<'a>
+
+    /// Constructs a mapped collection feed.
+    let mapc map source = new MapFilterCollectionFeed<'a, 'b> (source, map >> Some) :> CollectionFeed<'a>
+
+    /// Constructs a filtered event feed.
+    let filtere pred source = new MapFilterEventFeed<'a, 'a> (source, fun x -> if pred x then (Some x) else None) :> EventFeed<'a>
+
+    /// Constructs a filtered collection feed.
+    let filterc pred source = new MapFilterCollectionFeed<'a, 'a> (source, fun x -> if pred x then (Some x) else None) :> CollectionFeed<'a>
+
+    /// Constructs a mapped and filtered event feed.
+    let mapfiltere map source = new MapFilterEventFeed<'a, 'b> (source, map) :> EventFeed<'a>
+
+    /// Constructs a mapped and filtered collection feed.
+    let mapfilterc map source = new MapFilterCollectionFeed<'a, 'b> (source, map) :> CollectionFeed<'a>
+
+    /// Stips event information from an event feed.
+    let strip source = new MapFilterEventFeed<unit, 'a> (source, fun x -> Some ()) :> EventFeed<unit>
+
+    /// Constructs an event feed that fires whenever the source signal changes, giving its the new value.
+    let change (source : SignalFeed<'a>) =
+        match source.Delta with
+        | Some sourcedelta -> Some (mapfiltere (fun x -> if x.New <> x.Old then Some x.New else None) sourcedelta)
+        | None -> None
+
+    /// Constructs an event feed that fires whenever the source signal changes from false to true.
+    let rising (source : SignalFeed<bool>) =
+        match source.Delta with
+        | Some sourcedelta -> Some (mapfiltere (fun x -> if x.Old = false && x.New = true then Some () else None) sourcedelta)
+        | None -> None
+
+    /// Constructs an event feed that fires whenever the source signal changes from true to false.
+    let falling (source : SignalFeed<bool>) =
+        match source.Delta with
+        | Some sourcedelta -> Some (mapfiltere (fun x -> if x.Old = true && x.New = false then Some () else None) sourcedelta)
+        | None -> None

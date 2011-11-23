@@ -112,16 +112,14 @@ type UnsafeStream (regionStart : nativeptr<byte>, regionEnd : nativeptr<byte>) =
 
         member this.Read (buffer, size, offset) =
             let readsize = min size this.Size
-            let mutable t = 0
-            while t < readsize do
-                buffer.[offset + t] <- NativePtr.get cur t
-                t <- t + 1
+            Unsafe.copypa (NativePtr.toNativeInt cur) (buffer, size, offset)
             cur <- NativePtr.add cur readsize
             readsize
 
         member this.Read (destination, size) =
             let readsize = min size this.Size
             Unsafe.copypp (NativePtr.toNativeInt cur) destination readsize
+            cur <- NativePtr.add cur readsize
             readsize
 
         member this.Finish () = ()

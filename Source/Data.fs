@@ -62,7 +62,7 @@ type ChunkStream<'a, 'b> (initialState : 'b, retrieve : 'b -> (Stream<'a> * 'b) 
             if readsize < size then
                 stream.Finish ()
                 current <- retrieve state
-                readtobuf (buffer, size, offset) (totalreadsize + readsize)
+                readtobuf (buffer, size - readsize, offset + readsize) (totalreadsize + readsize)
             else totalreadsize + size
         | None -> totalreadsize
 
@@ -112,8 +112,10 @@ type UnsafeStream (regionStart : nativeptr<byte>, regionEnd : nativeptr<byte>) =
 
         member this.Read (buffer, size, offset) =
             let readsize = min size this.Size
-            for t = 0 to readsize do
+            let mutable t = 0
+            while t < readsize do
                 buffer.[offset + t] <- NativePtr.get cur t
+                t <- t + 1
             cur <- NativePtr.add cur readsize
             readsize
 

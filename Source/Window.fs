@@ -7,7 +7,7 @@ open OpenTK.Graphics.OpenGL
 open OpenTK.Input
 
 /// Main program window
-type Window () as this =
+type Window () =
     inherit GameWindow (640, 480, GraphicsMode.Default, "MD")
 
     let audiooutput = new OpenALOutput ()

@@ -1,6 +1,7 @@
 ﻿namespace MD
 
 open System
+open System.Collections.Generic
 
 /// An interface to a source of discrete events of a certain type.
 type EventFeed<'a> =
@@ -94,6 +95,64 @@ type ControlSignalFeed<'a> (initial : 'a) =
     interface SignalFeed<'a> with
         member this.Current = this.Current
         member this.Delta = Some (delta :> EventFeed<Change<'a>>)
+
+/// A collection feed that allows items to be manually added or removed.
+type ControlCollectionFeed<'a> () =
+    let items = new LinkedList<'a> ()
+    let callbacks = new LinkedList<RegisterItemAction<'a>> ()
+    let relations = new LinkedList<LinkedListNode<'a> * LinkedListNode<RegisterItemAction<'a>> * RetractAction> ()
+
+    /// Adds an item to this collection feed and returns a retract handler to later remove it.
+    member this.Add (item : 'a) = 
+        let itemnode = items.AddFirst item
+        let mutable callbacknode = callbacks.First
+        while callbacknode <> null do
+            let retract = callbacknode.Value.Invoke itemnode.Value
+            if retract <> null then relations.AddFirst ((itemnode, callbacknode, retract)) |> ignore
+            callbacknode <- callbacknode.Next
+        let remove () =
+            items.Remove itemnode
+
+            // Remove and retract all relations with itemnode.
+            let mutable relationnode = relations.First
+            while relationnode <> null do
+                let relation = relationnode.Value
+                match relation with
+                | (x, _, retract) when x = itemnode ->
+                    let nextnode = relationnode.Next
+                    relations.Remove relationnode
+                    relationnode <- nextnode
+                    retract.Invoke ()
+                | _ -> relationnode <- relationnode.Next
+        RetractAction remove
+
+    /// Registers a callback for this feed.
+    member this.Register (callback : RegisterItemAction<'a>) =
+        let callbacknode = callbacks.AddFirst callback
+        let mutable itemnode = items.First
+        while itemnode <> null do
+            let retract = callbacknode.Value.Invoke itemnode.Value
+            if retract <> null then relations.AddFirst ((itemnode, callbacknode, retract)) |> ignore
+            itemnode <- itemnode.Next
+        let remove () =
+            callbacks.Remove callbacknode
+
+            // Remove and retract all relations with itemnode.
+            let mutable relationnode = relations.First
+            while relationnode <> null do
+                let relation = relationnode.Value
+                match relation with
+                | (_, x, retract) when x = callbacknode ->
+                    let nextnode = relationnode.Next
+                    relations.Remove relationnode
+                    relationnode <- nextnode
+                    retract.Invoke ()
+                | _ -> relationnode <- relationnode.Next
+        RetractAction remove
+
+    interface CollectionFeed<'a> with
+        member this.Register callback = this.Register callback
+        
     
 
 /// Contains functions for constructing and manipulating feeds.

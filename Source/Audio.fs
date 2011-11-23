@@ -79,7 +79,7 @@ type OpenALOutput private (context : AudioContext) =
         member this.Begin p =
             match alformat p.Channels p.Format with
             | Some (format, bps) ->
-                let source = new OpenALOutputSource (p.Stream, p.SampleRate, format, bps, 4096, 4, p.Pitch)
+                let source = new OpenALOutputSource (p.Stream, p.SampleRate, format, bps, 4096 * 4, 4, p.Pitch)
                 sources.Add source |> ignore
                 p.Control.Register (Action<AudioControl> (fun x ->
                     match x with

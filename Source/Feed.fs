@@ -180,6 +180,16 @@ type MapFilterCollectionFeed<'a, 'b> (source : CollectionFeed<'b>, map : 'b -> '
             | Some y -> callback.Invoke y
             | None -> null)
 
+/// An event feed that combines events from two source feeds.
+type UnionEventFeed<'a> (sourceA : EventFeed<'a>, sourceB : EventFeed<'a>) =
+    interface EventFeed<'a> with
+        member this.Register callback = Delegate.Combine (sourceA.Register callback, sourceB.Register callback) :?> RetractAction
+
+/// A collection feed that combines items from two source feeds.
+type UnionCollectionFeed<'a> (sourceA : CollectionFeed<'a>, sourceB : CollectionFeed<'a>) =
+    interface CollectionFeed<'a> with
+        member this.Register callback = Delegate.Combine (sourceA.Register callback, sourceB.Register callback) :?> RetractAction
+
 /// Contains functions for constructing and manipulating feeds.
 module Feed =
     
@@ -188,6 +198,12 @@ module Feed =
 
     /// Constructs a signal feed with a constant value.
     let ``const`` value = new ConstSignalFeed<'a> (value)
+
+    /// Constructs an event feed for a native event source.
+    let native (source : IEvent<'a, 'b>) =
+        let control = new ControlEventFeed<'b> ()
+        source.Add control.Fire
+        control :> EventFeed<'b>
 
     /// Constructs a mapped event feed.
     let mape map source = new MapFilterEventFeed<'a, 'b> (source, map >> Some) :> EventFeed<'a>
@@ -210,8 +226,17 @@ module Feed =
     /// Constructs a mapped and filtered collection feed.
     let mapfilterc map source = new MapFilterCollectionFeed<'a, 'b> (source, map) :> CollectionFeed<'a>
 
+    /// Replaces the information for events from the given event feed with the given value.
+    let replace value source = new MapFilterEventFeed<'a, 'b> (source, fun x -> Some value) :> EventFeed<'a>
+
     /// Stips event information from an event feed.
-    let strip source = new MapFilterEventFeed<unit, 'a> (source, fun x -> Some ()) :> EventFeed<unit>
+    let strip source = replace () source
+
+    /// Combines two event feeds.
+    let unione a b = new UnionEventFeed<'a> (a, b)
+
+    /// Combines two collection feeds.
+    let unionc a b = new UnionCollectionFeed<'a> (a, b)
 
     /// Constructs an event feed that fires whenever the source signal changes, giving its the new value.
     let change (source : SignalFeed<'a>) =

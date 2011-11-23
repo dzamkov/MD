@@ -36,26 +36,26 @@ type OpenALOutput private (context : AudioContext) =
     /// Gets the OpenAL format for an audio stream with the given format and channel count.
     static let alformat channels format =
         match (channels, format) with
-        | (1, AudioFormat.PCM8) -> Some (ALFormat.Mono8)
-        | (1, AudioFormat.PCM16) -> Some (ALFormat.Mono16)
-        | (1, AudioFormat.Float) -> Some (ALFormat.MonoFloat32Ext)
-        | (1, AudioFormat.Double) -> Some (ALFormat.MonoDoubleExt)
-        | (2, AudioFormat.PCM8) -> Some (ALFormat.Stereo8)
-        | (2, AudioFormat.PCM16) -> Some (ALFormat.Stereo16)
-        | (2, AudioFormat.Float) -> Some (ALFormat.StereoFloat32Ext)
-        | (2, AudioFormat.Double) -> Some (ALFormat.StereoDoubleExt)
-        | (4, AudioFormat.PCM8) -> Some (ALFormat.MultiQuad8Ext)
-        | (4, AudioFormat.PCM16) -> Some (ALFormat.MultiQuad16Ext)
-        | (4, AudioFormat.PCM32) -> Some (ALFormat.MultiQuad32Ext)
-        | (5, AudioFormat.PCM8) -> Some (ALFormat.Multi51Chn8Ext)
-        | (5, AudioFormat.PCM16) -> Some (ALFormat.Multi51Chn16Ext)
-        | (5, AudioFormat.PCM32) -> Some (ALFormat.Multi51Chn32Ext)
-        | (6, AudioFormat.PCM8) -> Some (ALFormat.Multi61Chn8Ext)
-        | (6, AudioFormat.PCM16) -> Some (ALFormat.Multi61Chn16Ext)
-        | (6, AudioFormat.PCM32) -> Some (ALFormat.Multi61Chn32Ext)
-        | (7, AudioFormat.PCM8) -> Some (ALFormat.Multi71Chn8Ext)
-        | (7, AudioFormat.PCM16) -> Some (ALFormat.Multi71Chn16Ext)
-        | (7, AudioFormat.PCM32) -> Some (ALFormat.Multi71Chn32Ext)
+        | (1, AudioFormat.PCM8) -> Some (ALFormat.Mono8, 1)
+        | (1, AudioFormat.PCM16) -> Some (ALFormat.Mono16, 2)
+        | (1, AudioFormat.Float) -> Some (ALFormat.MonoFloat32Ext, 4)
+        | (1, AudioFormat.Double) -> Some (ALFormat.MonoDoubleExt, 8)
+        | (2, AudioFormat.PCM8) -> Some (ALFormat.Stereo8, 2)
+        | (2, AudioFormat.PCM16) -> Some (ALFormat.Stereo16, 4)
+        | (2, AudioFormat.Float) -> Some (ALFormat.StereoFloat32Ext, 8)
+        | (2, AudioFormat.Double) -> Some (ALFormat.StereoDoubleExt, 16)
+        | (4, AudioFormat.PCM8) -> Some (ALFormat.MultiQuad8Ext, 4)
+        | (4, AudioFormat.PCM16) -> Some (ALFormat.MultiQuad16Ext, 8)
+        | (4, AudioFormat.PCM32) -> Some (ALFormat.MultiQuad32Ext, 16)
+        | (5, AudioFormat.PCM8) -> Some (ALFormat.Multi51Chn8Ext, 5)
+        | (5, AudioFormat.PCM16) -> Some (ALFormat.Multi51Chn16Ext, 10)
+        | (5, AudioFormat.PCM32) -> Some (ALFormat.Multi51Chn32Ext, 20)
+        | (6, AudioFormat.PCM8) -> Some (ALFormat.Multi61Chn8Ext, 6)
+        | (6, AudioFormat.PCM16) -> Some (ALFormat.Multi61Chn16Ext, 12)
+        | (6, AudioFormat.PCM32) -> Some (ALFormat.Multi61Chn32Ext, 24)
+        | (7, AudioFormat.PCM8) -> Some (ALFormat.Multi71Chn8Ext, 7)
+        | (7, AudioFormat.PCM16) -> Some (ALFormat.Multi71Chn16Ext, 14)
+        | (7, AudioFormat.PCM32) -> Some (ALFormat.Multi71Chn32Ext, 28)
         | _ -> None
     
     new () = new OpenALOutput (new AudioContext ())
@@ -78,8 +78,8 @@ type OpenALOutput private (context : AudioContext) =
     interface AudioOutput with
         member this.Begin p =
             match alformat p.Channels p.Format with
-            | Some format ->
-                let source = new OpenALOutputSource (p.Stream, p.SampleRate, format, 4096, 4, p.Pitch)
+            | Some (format, bps) ->
+                let source = new OpenALOutputSource (p.Stream, p.SampleRate, format, bps, 4096, 4, p.Pitch)
                 sources.Add source |> ignore
                 p.Control.Register (Action<AudioControl> (fun x ->
                     match x with
@@ -92,7 +92,7 @@ type OpenALOutput private (context : AudioContext) =
             | _ -> None
 
 /// An interface to an OpenAL audio output source.
-and private OpenALOutputSource (stream : Stream<byte>, sampleRate : int, format : ALFormat, bufferSize : int, bufferCount : int, pitch : SignalFeed<double>) =
+and private OpenALOutputSource (stream : Stream<byte>, sampleRate : int, format : ALFormat, bytesPerSample : int, bufferSize : int,  bufferCount : int, pitch : SignalFeed<double>) =
     let mutable startPosition = 0
     let mutable playing = false
     let position = new ControlSignalFeed<int> (0)
@@ -147,13 +147,19 @@ and private OpenALOutputSource (stream : Stream<byte>, sampleRate : int, format 
 
         // Refill processed buffers
         if buffersprocessed > 0 then
+            startPosition <- startPosition + buffersprocessed * bufferSize / bytesPerSample
+
             let buffers = AL.SourceUnqueueBuffers (sid, buffersprocessed)
             for buffer in buffers do
                 write buffer
+
         if playing && AL.GetSourceState sid <> ALSourceState.Playing then
             AL.SourcePlay sid
 
-        // TODO: Update play position
+        // pdate play position
+        let mutable sampleoffset = 0
+        AL.GetSource (sid, ALGetSourcei.SampleOffset, &sampleoffset)
+        position.Current <- startPosition + sampleoffset
 
         // Update pitch
         let nrate = pitch.Current

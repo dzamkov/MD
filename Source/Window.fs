@@ -7,7 +7,7 @@ open OpenTK.Graphics.OpenGL
 open OpenTK.Input
 
 /// Main program window
-type Window () =
+type Window () as this =
     inherit GameWindow (640, 480, GraphicsMode.Default, "MD")
 
     let audiooutput = new OpenALOutput ()
@@ -25,7 +25,7 @@ type Window () =
         Control = controlfeed :> EventFeed<AudioControl>
         Pitch = pitchfeed :> SignalFeed<double>
         }
-    do 
+    do
         (audiooutput :> AudioOutput).Begin audioparam |> ignore
         controlfeed.Fire AudioControl.Play
 

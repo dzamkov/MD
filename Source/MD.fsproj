@@ -29,6 +29,7 @@
     <Compile Include="Feed.fs" />
     <Compile Include="Audio.fs" />
     <Compile Include="Geometry.fs" />
+    <Compile Include="Color.fs" />
     <Compile Include="Input.fs" />
     <Compile Include="Window.fs" />
     <Compile Include="Program.fs" />

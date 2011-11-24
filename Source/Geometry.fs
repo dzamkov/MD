@@ -120,19 +120,3 @@ type Transform (offset : Point, x : Point, y : Point) =
                 new Point (y.Y * idet, x.Y * -idet),
                 new Point (y.X * -idet, x.X * idet))
     end
-
-/// A continuous open or closed curve in two-dimensional space.
-type Curve =
-    | Line of Point * Point
-    | Ellipse of Rectangle
-    | Rectangle of Rectangle
-    | Transform of Transform * Curve
-
-/// A shape in two-dimensional space.
-type Shape =
-    | Ellipse of Rectangle
-    | Rectangle of Rectangle
-    | Curve of Curve * double
-    | Transform of Transform * Shape
-    | Union of Shape * Shape
-    | Intersection of Shape * Shape

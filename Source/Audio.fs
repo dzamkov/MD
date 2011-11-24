@@ -107,6 +107,11 @@ type OpenALOutput private (context : AudioContext) =
                 Some source.Position
             | _ -> None
 
+    interface IDisposable with
+        member this.Dispose () =
+            for source in sources do
+                source.Stop ()
+
 /// An interface to an OpenAL audio output source.
 and private OpenALOutputSource (parameters : AudioOutputParameters, format : ALFormat, bytesPerSample : int, bufferSize : int,  bufferCount : int) =
     let stream = parameters.Stream
@@ -155,6 +160,7 @@ and private OpenALOutputSource (parameters : AudioOutputParameters, format : ALF
 
     /// Stops and disposes this source.
     member this.Stop () = 
+        stream.Finish ()
         AL.SourceStop sid
 
         let mutable bufferamount = 0

@@ -22,7 +22,8 @@ type Window () as this =
             let play = (Feed.falling probe.Primary).Value |> Feed.replace AudioControl.Play
             let pause = (Feed.falling probe.Secondary).Value |> Feed.replace AudioControl.Pause
             Feed.unione play pause
-        let pitch = probe.Position |> Feed.maps (fun x -> Math.Exp(x.X / 100.0 - 3.0))
+        let volume = probe.Position |> Feed.maps (fun x -> x.Y / 300.0)
+        let pitch = probe.Position |> Feed.maps (fun x -> Math.Exp(x.X / 300.0 - 1.0))
 
         let audioparam = {
             Stream = audiostream
@@ -30,6 +31,7 @@ type Window () as this =
             Channels = audiocontent.Channels
             Format = audiocontent.Format
             Control = control
+            Volume = volume
             Pitch = pitch
             }
         (audiooutput :> AudioOutput).Begin audioparam |> ignore

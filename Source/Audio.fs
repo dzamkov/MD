@@ -13,11 +13,27 @@ type AudioControl =
 
 /// Contains parameters for an audio output source.
 type AudioOutputParameters = {
+
+    /// The stream from which the raw audio data is read. Note that multichannel samples should be interleaved
+    /// in this stream.
     Stream : Stream<byte>
+
+    /// The sample rate, in samples per second for the audio output.
     SampleRate : int
+
+    /// The amount of channels in the audio output.
     Channels : int
+
+    /// The format to use for the audio output.
     Format : AudioFormat
+
+    /// An event feed giving control signals for the audio output.
     Control : EventFeed<AudioControl>
+
+    /// A feed giving the volume multiplier of the audio output.
+    Volume : SignalFeed<double>
+
+    /// A feed giving pitch (sample rate multiplier) of the audio output.
     Pitch : SignalFeed<double>
     }
 
@@ -79,7 +95,7 @@ type OpenALOutput private (context : AudioContext) =
         member this.Begin p =
             match alformat p.Channels p.Format with
             | Some (format, bps) ->
-                let source = new OpenALOutputSource (p.Stream, p.SampleRate, format, bps, 4096 * 4, 4, p.Pitch)
+                let source = new OpenALOutputSource (p, format, bps, 4096 * 4, 4)
                 sources.Add source |> ignore
                 p.Control.Register (Action<AudioControl> (fun x ->
                     match x with
@@ -92,7 +108,12 @@ type OpenALOutput private (context : AudioContext) =
             | _ -> None
 
 /// An interface to an OpenAL audio output source.
-and private OpenALOutputSource (stream : Stream<byte>, sampleRate : int, format : ALFormat, bytesPerSample : int, bufferSize : int,  bufferCount : int, pitch : SignalFeed<double>) =
+and private OpenALOutputSource (parameters : AudioOutputParameters, format : ALFormat, bytesPerSample : int, bufferSize : int,  bufferCount : int) =
+    let stream = parameters.Stream
+    let sampleRate = parameters.SampleRate
+    let pitch = parameters.Pitch
+    let volume = parameters.Volume
+
     let mutable startPosition = 0
     let mutable playing = false
     let position = new ControlSignalFeed<int> (0)
@@ -160,6 +181,10 @@ and private OpenALOutputSource (stream : Stream<byte>, sampleRate : int, format 
         let mutable sampleoffset = 0
         AL.GetSource (sid, ALGetSourcei.SampleOffset, &sampleoffset)
         position.Current <- startPosition + sampleoffset
+
+        // Update gain
+        let nvol = volume.Current
+        AL.Source (sid, ALSourcef.Gain, float32 nvol)
 
         // Update pitch
         let nrate = pitch.Current

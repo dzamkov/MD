@@ -12,7 +12,7 @@ type Window () as this =
     let audiooutput = new OpenALOutput ()
 
     do
-        let song = new Path (@"N:\Music\Me\41.mp3")
+        let song = new Path (@"N:\Music\Me\19.mp3")
         let container, context = (Container.Load song).Value
         let audiocontent = context.Content.[0] :?> AudioContent
         let audiostream = Stream.chunk () (fun () -> if context.NextFrame (ref 0) then Some (Data.read audiocontent.Data.Value, ()) else None)

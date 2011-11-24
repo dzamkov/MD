@@ -36,13 +36,33 @@ module OpenTKInput =
     
     /// Gets a feed for the position of a mouse.
     let position (mouse : MouseDevice) = new MousePositionFeed (mouse)
+    
+    /// Encapsulates the complete button state for a mouse device.
+    type MouseButtonState (mouse : MouseDevice) =
+        let buttonCount = int MouseButton.LastButton
+        let buttonFeeds : ControlSignalFeed<bool> option [] = Array.create buttonCount None
 
-    /// Gets a feed for the state of a button on a mouse.
-    let button (mouse : MouseDevice) (button : MouseButton) =
-        let control = new ControlSignalFeed<bool> (mouse.[button])
-        mouse.ButtonDown.Add (fun args -> if args.Button = button then control.Current <- true)
-        mouse.ButtonUp.Add (fun args -> if args.Button = button then control.Current <- false)
-        control :> SignalFeed<bool>
+        // Register events
+        let buttonChange (args : MouseButtonEventArgs) =
+            match buttonFeeds.[int args.Button] with
+            | Some feed -> feed.Current <- args.IsPressed
+            | None -> ()
+
+        do
+            mouse.ButtonDown.Add buttonChange
+            mouse.ButtonUp.Add buttonChange
+
+        /// Gets the signal feed for the given mouse button.
+        member this.GetFeed (button : MouseButton) =
+            match buttonFeeds.[int button] with
+            | Some feed -> feed :> SignalFeed<bool>
+            | None ->
+                let newfeed = new ControlSignalFeed<bool> (mouse.[button])
+                buttonFeeds.[int button] <- Some newfeed
+                newfeed :> SignalFeed<bool>
+
+    /// Gets an interface to the button state of a mouse. This contains feeds for each button of the mouse.
+    let buttonState (mouse : MouseDevice) = new MouseButtonState (mouse)
 
     /// Gets a feed for the scroll event on a mouse.
     let scroll (mouse : MouseDevice) =
@@ -50,9 +70,11 @@ module OpenTKInput =
         |> Feed.mape (fun x -> double x.DeltaPrecise)
 
     /// Creates a probe for a mouse device.
-    let probe (mouse : MouseDevice) = {
+    let probe (mouse : MouseDevice) = 
+        let buttonstate = buttonState mouse
+        {   
             Position = position mouse
-            Primary = button mouse MouseButton.Left
-            Secondary = button mouse MouseButton.Right
+            Primary = buttonstate.GetFeed MouseButton.Left
+            Secondary = buttonstate.GetFeed MouseButton.Right
             Scroll = scroll mouse
         }

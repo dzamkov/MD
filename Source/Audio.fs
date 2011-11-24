@@ -120,17 +120,21 @@ and private OpenALOutputSource (parameters : AudioOutputParameters, format : ALF
     let buffer = Array.create bufferSize 0uy
     let sid = AL.GenSource ()
 
-    /// Writes the next set of data from the stream into the OpenAL buffer with the given id.
+    /// Writes the next set of data from the stream into the OpenAL buffer with the given id. Returns false if there is no
+    /// more data to be written.
     let write bid =
-        stream.Read (buffer, bufferSize, 0) |> ignore
-        AL.BufferData (bid, format, buffer, bufferSize, sampleRate)
-        AL.SourceQueueBuffer (sid, bid)
+        let readsize = stream.Read (buffer, bufferSize, 0)
+        if readsize > 0 then
+            AL.BufferData (bid, format, buffer, readsize, sampleRate)
+            AL.SourceQueueBuffer (sid, bid)
+            true
+        else false
 
     /// Write initial buffers.
     do
         let mutable t = 0
         while t < bufferCount do
-            write (AL.GenBuffer ())
+            write (AL.GenBuffer ()) |> ignore
             t <- t + 1
 
     /// Gets a signal feed that maintains the position of this source in its input stream.
@@ -161,7 +165,8 @@ and private OpenALOutputSource (parameters : AudioOutputParameters, format : ALF
         AL.DeleteSource sid
         playing <- false
 
-    /// Updates the state of this source and ensures play buffers are queued.
+    /// Updates the state of this source and ensures play buffers are queued. Returns false if the stream for the source is finished
+    /// and the source can be stopped.
     member this.Update () =
         let mutable buffersprocessed = 0
         AL.GetSource (sid, ALGetSourcei.BuffersProcessed, &buffersprocessed)
@@ -172,7 +177,7 @@ and private OpenALOutputSource (parameters : AudioOutputParameters, format : ALF
 
             let buffers = AL.SourceUnqueueBuffers (sid, buffersprocessed)
             for buffer in buffers do
-                write buffer
+                write buffer |> ignore
 
         if playing && AL.GetSourceState sid <> ALSourceState.Playing then
             AL.SourcePlay sid

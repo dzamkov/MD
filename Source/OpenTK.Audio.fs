@@ -3,12 +3,70 @@
 open MD
 open System
 open System.Collections.Generic
+open System.Threading
 open OpenTK.Audio
 open OpenTK.Audio.OpenAL
 
 /// An interface to an audio output device managed by OpenAL.
 type AudioOutput private (context : AudioContext) =
-    let sources = new HashSet<AudioOutputSource> ()
+    let sources = new Dictionary<AudioOutputSource, RetractAction> ()
+    let messages = new Queue<AudioOutputMessage> ()
+    let wait = new ManualResetEvent (false)
+    let mutable exit = false
+
+    // Updates all sources for this audio output interface.
+    let update () =
+        context.MakeCurrent ()
+
+        // Time to wait between update cycles
+        let mutable waittime = 0
+        
+        // Process messages and update sources.
+        while not exit do
+            wait.WaitOne (waittime) |> ignore
+            wait.Reset () |> ignore
+
+            // Process messages
+            Monitor.Enter messages
+            while messages.Count > 0 do
+                let message = messages.Dequeue ()
+                match message with
+                | New (source, retract) -> sources.Add (source, retract)
+                | Control (source, AudioControl.Play) -> source.Play ()
+                | Control (source, AudioControl.Pause) -> source.Pause ()
+                | Control (source, AudioControl.Stop) ->
+                    source.Stop ()
+                    (sources.[source]).Invoke ()
+                    sources.Remove source |> ignore
+                | _ -> ()
+            Monitor.Exit messages
+
+            // Update sources (keep track of buffers processed and amount of active sources).
+            let mutable activecount = 0
+            let mutable buffercount = 0
+            for source in sources.Keys do
+                if source.Playing then activecount <- activecount + 1
+                buffercount <- buffercount + source.Update ()
+
+            // Adjust wait time
+            waittime <- 
+            match (waittime, activecount, buffercount) with
+            | (x, 0, _) -> -1
+            | (-1, _, _) -> 0
+            | (x, _, 0) -> min 500 (x + 5)
+            | (x, _, _) -> max 0 (x - 1)
+
+        // Clean up on exit
+        for kvp in sources do
+            kvp.Key.Stop ()
+            kvp.Value.Invoke ()
+        context.Dispose()
+        wait.Close ()
+
+    let updateThread = new Thread (update)
+    do 
+        updateThread.IsBackground <- true
+        updateThread.Start ()
 
     /// Gets the OpenAL format for an audio stream with the given format and channel count.
     static let alformat channels format =
@@ -56,33 +114,35 @@ type AudioOutput private (context : AudioContext) =
     member private this.MakeCurrent () =
         if AudioContext.CurrentContext <> context then
             context.MakeCurrent ()
-    
-    /// Updates all sources for this audio output.
-    member this.Update () =
-        this.MakeCurrent ()
-        for source in sources do
-            source.Update ()
 
     interface MD.AudioOutput with
         member this.Begin p =
             match alformat p.Channels p.Format with
             | Some (format, bps) ->
+                // Create source
+                this.MakeCurrent ()
                 let source = new AudioOutputSource (p, format, bps, 4096 * 4, 4)
-                sources.Add source |> ignore
-                p.Control.Register (Action<AudioControl> (fun x ->
-                    match x with
-                    | AudioControl.Play -> source.Play ()
-                    | AudioControl.Pause -> source.Pause ()
-                    | AudioControl.Stop -> source.Stop (); sources.Remove source |> ignore
-                    | _ -> ()
-                )) |> ignore
+
+                // Register control callback for message queue.
+                let retract = p.Control.Register (Action<AudioControl> (fun x ->
+                    Monitor.Enter messages
+                    messages.Enqueue (Control (source, x))
+                    Monitor.Exit messages
+                    wait.Set() |> ignore
+                ))
+
+                // Add source and signal update thread
+                Monitor.Enter messages
+                messages.Enqueue (New (source, retract))
+                Monitor.Exit messages
+                wait.Set () |> ignore
+
                 Some source.Position
             | _ -> None
 
         member this.Finish () =
-            for source in sources do
-                source.Stop ()
-            context.Dispose ()
+            wait.Set () |> ignore
+            exit <- true
 
 /// An interface to an OpenAL audio output source.
 and private AudioOutputSource (parameters : AudioOutputParameters, format : ALFormat, bytesPerSample : int, bufferSize : int,  bufferCount : int) =
@@ -143,8 +203,8 @@ and private AudioOutputSource (parameters : AudioOutputParameters, format : ALFo
         AL.DeleteSource sid
         playing <- false
 
-    /// Updates the state of this source and ensures play buffers are queued. Returns false if the stream for the source is finished
-    /// and the source can be stopped.
+    /// Updates the state of this source and ensures play buffers are queued. Returns the amount of buffers processed since the last
+    /// update.
     member this.Update () =
         let mutable buffersprocessed = 0
         AL.GetSource (sid, ALGetSourcei.BuffersProcessed, &buffersprocessed)
@@ -160,7 +220,7 @@ and private AudioOutputSource (parameters : AudioOutputParameters, format : ALFo
         if playing && AL.GetSourceState sid <> ALSourceState.Playing then
             AL.SourcePlay sid
 
-        // pdate play position
+        // Update play position
         let mutable sampleoffset = 0
         AL.GetSource (sid, ALGetSourcei.SampleOffset, &sampleoffset)
         position.Current <- startPosition + sampleoffset
@@ -172,3 +232,11 @@ and private AudioOutputSource (parameters : AudioOutputParameters, format : ALFo
         // Update pitch
         let nrate = pitch.Current
         AL.Source (sid, ALSourcef.Pitch, float32 nrate)
+
+        // Return amount of buffers processed.
+        buffersprocessed
+
+/// A message for audio output.
+and private AudioOutputMessage =
+    | New of AudioOutputSource * RetractAction
+    | Control of AudioOutputSource * AudioControl

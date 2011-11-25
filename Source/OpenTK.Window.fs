@@ -13,7 +13,7 @@ type Window () as this =
     let audiooutput = AudioOutput.Create () |> Option.get
 
     do
-        let song = new Path (@"N:\Music\Me\19.mp3")
+        let song = new Path (@"N:\Music\Me\57.mp3")
         let container, context = (Container.Load song).Value
         let audiocontent = context.Content.[0] :?> AudioContent
         let audiostream = Stream.chunk () (fun () -> if context.NextFrame (ref 0) then Some (Data.read audiocontent.Data.Value, ()) else None)
@@ -24,7 +24,7 @@ type Window () as this =
             let pause = (Feed.falling probe.Secondary).Value |> Feed.replace AudioControl.Pause
             Feed.unione play pause
         let volume = probe.Position |> Feed.maps (fun x -> x.Y / 300.0)
-        let pitch = probe.Position |> Feed.maps (fun x -> Math.Exp(x.X / 300.0 - 1.0))
+        let pitch = probe.Position |> Feed.maps (fun x -> Math.Exp(x.X / 100.0 - 3.0))
 
         let audioparam = {
             Stream = audiostream
@@ -46,7 +46,6 @@ type Window () as this =
 
     override this.OnUpdateFrame args =
         let updatetime = args.Time
-        audiooutput.Update ()
         ()
 
     override this.OnResize args =

@@ -2,6 +2,7 @@
 
 using namespace System;
 using namespace System::Collections::Generic;
+using namespace System::Text;
 using namespace MD;
 using namespace Microsoft::FSharp::Core;
 
@@ -190,11 +191,31 @@ public:
 
 public ref class Plugin : MD::Plugin {
 public:
-	Plugin() : MD::Plugin("FFmpeg Codecs") {
+	Plugin() {
 
 	}
 
 	static bool Initialized = false;
+
+	virtual property String^ Name {
+		String^ get() override {
+			return "FFmpeg";
+		}
+	}
+
+	virtual property String^ Description {
+		String^ get() override {
+			int vers = avcodec_version();
+			return "Interface to the FFmpeg audio/video codec collection (version " + vers.ToString() + ").";
+		}
+	}
+
+	virtual property String^ About {
+		String^ get() override {
+			const char* license = avcodec_license();
+			return "This plugin uses libraries from the FFmpeg project, licensed under " + gcnew String(license) + ".";
+		}
+	}
 
 	virtual RetractAction^ Load() override {
 		RetractAction^ retract = nullptr;

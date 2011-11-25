@@ -45,6 +45,9 @@ type AudioOutput =
     /// The audio source will begin in the paused state and requires a Play control event to start.
     abstract member Begin : AudioOutputParameters -> SignalFeed<int> option
 
+    /// Stops all currently-playing sources and indicates the output will no longer be used.
+    abstract member Finish : unit -> unit
+
 /// An interface to an audio output device managed by OpenAL.
 type OpenALOutput private (context : AudioContext) =
     let sources = new HashSet<OpenALOutputSource> ()
@@ -74,9 +77,20 @@ type OpenALOutput private (context : AudioContext) =
         | (7, AudioFormat.PCM32) -> Some (ALFormat.Multi71Chn32Ext, 28)
         | _ -> None
     
-    new () = new OpenALOutput (new AudioContext ())
-    new (device : string) = new OpenALOutput (new AudioContext (device))
+    /// Tries creating a new audio output context for the default device.
+    static member Create () =
+        try
+            Some (new OpenALOutput (new AudioContext ()))
+        with
+        | x -> None
 
+    /// Tries creating a new audio output context for the given device.
+    static member Create (device : string) =
+        try
+            Some (new OpenALOutput (new AudioContext (device)))
+        with
+        | x -> None
+            
     /// Gets the names of the available devices on the current machine.
     static member AvailableDevices = AudioContext.AvailableDevices
 
@@ -107,10 +121,10 @@ type OpenALOutput private (context : AudioContext) =
                 Some source.Position
             | _ -> None
 
-    interface IDisposable with
-        member this.Dispose () =
+        member this.Finish () =
             for source in sources do
                 source.Stop ()
+            context.Dispose ()
 
 /// An interface to an OpenAL audio output source.
 and private OpenALOutputSource (parameters : AudioOutputParameters, format : ALFormat, bytesPerSample : int, bufferSize : int,  bufferCount : int) =

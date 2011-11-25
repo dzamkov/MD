@@ -5,7 +5,7 @@ open System.Reflection
 
 /// An interface to an application plugin. Contains functions for loading plugins.
 [<AbstractClass>]
-type Plugin (name : string) =
+type Plugin () =
 
     /// Tries loading a plugin from the given assembly.
     static member Load (assembly : Assembly) =
@@ -42,8 +42,15 @@ type Plugin (name : string) =
                     |> Option.toList |> seq
             else Seq.empty)
 
-    /// Gets the name of this plugin.
-    member this.Name = name
+    /// Gets the user-friendly name of this plugin.
+    abstract member Name : string
+
+    /// Gets a description of this plugin.
+    abstract member Description : string
+
+    /// Gets the about box information for this plugin, or null if not applicable.
+    abstract member About : string
+    default this.About = null
 
     /// Attaches this plugin to the program. Returns a retract action to later unload
     /// the plugin.

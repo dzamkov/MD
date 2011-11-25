@@ -76,6 +76,7 @@ type Rectangle (left : double, top : double, right : double, bottom : double) =
         member this.TopRight = new Point (right, top)
 
         /// Gets the position of the bottom-left corner of this rectangle.
+        member this.BottomLeft = new Point (left, bottom)
 
         /// Gets the position of the bottom-right corner of this rectangle.
         member this.BottomRight = new Point (right, bottom)

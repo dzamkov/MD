@@ -9,7 +9,7 @@ open OpenTK.Input
 /// Main program window
 type Window () as this =
     inherit GameWindow (640, 480, GraphicsMode.Default, "MD")
-    let audiooutput = new OpenALOutput ()
+    let audiooutput = OpenALOutput.Create () |> Option.get
 
     do
         let song = new Path (@"N:\Music\Me\19.mp3")

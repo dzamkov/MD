@@ -30,6 +30,7 @@
     <Compile Include="Audio.fs" />
     <Compile Include="Geometry.fs" />
     <Compile Include="Color.fs" />
+    <Compile Include="Figure.fs" />
     <Compile Include="Input.fs" />
     <Compile Include="Window.fs" />
     <Compile Include="Program.fs" />
@@ -38,7 +39,9 @@
     <Reference Include="mscorlib" />
     <Reference Include="FSharp.Core" />
     <Reference Include="OpenTK">
-      <HintPath>..\..\SDK\OpenTK\1.0\Binaries\OpenTK\Release\OpenTK.dll</HintPath>
+	  <HintPath>F:\SDK\OpenTK\1.0\Binaries\OpenTK\Release\OpenTK.dll</HintPath>
+	  <HintPath>C:\SDK\OpenTK\1.0\Binaries\OpenTK\Release\OpenTK.dll</HintPath>
+      <HintPath>N:\SDK\OpenTK\1.0\Binaries\OpenTK\Release\OpenTK.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />

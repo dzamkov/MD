@@ -32,15 +32,17 @@
     <Compile Include="Color.fs" />
     <Compile Include="Figure.fs" />
     <Compile Include="Input.fs" />
-    <Compile Include="Window.fs" />
+    <Compile Include="OpenTK.Audio.fs" />
+    <Compile Include="OpenTK.Input.fs" />
+    <Compile Include="OpenTK.Window.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
     <Reference Include="FSharp.Core" />
     <Reference Include="OpenTK">
-	  <HintPath>F:\SDK\OpenTK\1.0\Binaries\OpenTK\Release\OpenTK.dll</HintPath>
-	  <HintPath>C:\SDK\OpenTK\1.0\Binaries\OpenTK\Release\OpenTK.dll</HintPath>
+      <HintPath>F:\SDK\OpenTK\1.0\Binaries\OpenTK\Release\OpenTK.dll</HintPath>
+      <HintPath>C:\SDK\OpenTK\1.0\Binaries\OpenTK\Release\OpenTK.dll</HintPath>
       <HintPath>N:\SDK\OpenTK\1.0\Binaries\OpenTK\Release\OpenTK.dll</HintPath>
     </Reference>
     <Reference Include="System" />

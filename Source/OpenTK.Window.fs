@@ -1,7 +1,8 @@
-﻿namespace MD
+﻿namespace MD.OpenTK
 
+open MD
 open System
-open OpenTK
+open global.OpenTK
 open OpenTK.Graphics
 open OpenTK.Graphics.OpenGL
 open OpenTK.Input
@@ -9,7 +10,7 @@ open OpenTK.Input
 /// Main program window
 type Window () as this =
     inherit GameWindow (640, 480, GraphicsMode.Default, "MD")
-    let audiooutput = OpenALOutput.Create () |> Option.get
+    let audiooutput = AudioOutput.Create () |> Option.get
 
     do
         let song = new Path (@"N:\Music\Me\19.mp3")
@@ -17,7 +18,7 @@ type Window () as this =
         let audiocontent = context.Content.[0] :?> AudioContent
         let audiostream = Stream.chunk () (fun () -> if context.NextFrame (ref 0) then Some (Data.read audiocontent.Data.Value, ()) else None)
 
-        let probe = OpenTKInput.probe this.Mouse
+        let probe = Input.probe this.Mouse
         let control =
             let play = (Feed.falling probe.Primary).Value |> Feed.replace AudioControl.Play
             let pause = (Feed.falling probe.Secondary).Value |> Feed.replace AudioControl.Pause

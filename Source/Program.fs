@@ -1,5 +1,6 @@
 ﻿module public MD.Program
 
+open MD.OpenTK
 open System
 
 // Ensure System.Core is loaded for debugging

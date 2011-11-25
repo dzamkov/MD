@@ -34,6 +34,9 @@ type Point (x : double, y : double) =
         /// Gets the length of this offset.
         member this.Length = sqrt (x * x + y * y)
 
+        /// Gets the normalized form of this offset.
+        member this.Normal = this / this.Length
+
         /// Gets the angle of this offset.
         member this.Angle = atan2 y x
 
@@ -94,6 +97,22 @@ type Transform (offset : Point, x : Point, y : Point) =
         /// Composes two transforms to be applied in the order they are given.
         static member (*) (a : Transform, b : Transform) =
             new Transform (b.Apply a.Offset, b.ApplyDirection a.X, b.ApplyDirection a.Y)
+
+        /// Creates a rotation transform for a certain angle in radians.
+        static member Rotate (angle : double) =
+            new Transform (new Point (0.0, 0.0), new Point (cos angle, sin angle), new Point (-(sin angle), cos angle))
+
+        /// Creates a scale transform with independant scale factors for each axis.
+        static member Scale (horizontal : double, vertical : double) =
+            new Transform (new Point (0.0, 0.0), new Point (horizontal, 0.0), new Point (0.0, vertical))
+
+        /// Creates a scale transform with the given scale factor.
+        static member Scale (amount : double) =
+            new Transform (new Point (0.0, 0.0), new Point (amount, 0.0), new Point (0.0, amount))
+
+        /// Creates a tranlation transform with the given offset.
+        static member Translate (offset : Point) =
+            new Transform (offset, new Point (1.0, 0.0), new Point (0.0, 1.0))
 
         /// Gets the offset of this transform (the position of the origin when transformed).
         member this.Offset = offset

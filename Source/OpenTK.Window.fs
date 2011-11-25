@@ -11,45 +11,28 @@ open OpenTK.Input
 type Window () as this =
     inherit GameWindow (640, 480, GraphicsMode.Default, "MD")
     let audiooutput = AudioOutput.Create () |> Option.get
+    let graphics = Graphics.Create ()
+    let mutable delta = 0.0
 
-    do
-        let song = new Path (@"N:\Music\Me\57.mp3")
-        let container, context = (Container.Load song).Value
-        let audiocontent = context.Content.[0] :?> AudioContent
-        let audiostream = Stream.chunk () (fun () -> if context.NextFrame (ref 0) then Some (Data.read audiocontent.Data.Value, ()) else None)
-
-        let probe = Input.probe this.Mouse
-        let control =
-            let play = (Feed.falling probe.Primary).Value |> Feed.replace AudioControl.Play
-            let pause = (Feed.falling probe.Secondary).Value |> Feed.replace AudioControl.Pause
-            Feed.unione play pause
-        let volume = probe.Position |> Feed.maps (fun x -> x.Y / 300.0)
-        let pitch = probe.Position |> Feed.maps (fun x -> Math.Exp(x.X / 100.0 - 3.0))
-
-        let audioparam = {
-            Stream = audiostream
-            SampleRate = int audiocontent.SampleRate;
-            Channels = audiocontent.Channels
-            Format = audiocontent.Format
-            Control = control
-            Volume = volume
-            Pitch = pitch
-            }
-        (audiooutput :> AudioOutput).Begin audioparam |> ignore
-        
-    override this.OnRenderFrame args =
+    do 
         this.MakeCurrent ()
-        GL.ClearColor (0.5f, 0.5f, 0.5f, 1.0f)
-        GL.Clear ClearBufferMask.ColorBufferBit
+        this.VSync <- VSyncMode.On
+        Graphics.Initialize ()
+
+    override this.OnRenderFrame args =
+        Graphics.Setup (Transform.Identity, this.Width, this.Height, false)
+        Graphics.Clear (Color.RGB (1.0, 1.0, 1.0))
+
+        let fig = 
+            Figure.Line (new Point (-0.5, -0.5), new Point (0.5, 0.5), 0.1, Paint.ARGB (1.0, 0.0, 0.0, 0.5))
+            |> Figure.transform (Transform.Rotate delta)
+            |> Figure.transform (Transform.Scale (cos (delta * 3.7) * 0.3 + 0.7))
+            |> Figure.transform (Transform.Translate (new Point (delta * 0.05, 0.0)))
+        graphics.Render fig
 
         this.SwapBuffers ()
 
     override this.OnUpdateFrame args =
         let updatetime = args.Time
-        ()
-
-    override this.OnResize args =
-        this.MakeCurrent ()
-        GL.Viewport (0, 0, this.Width, this.Height)
-
+        delta <- delta + updatetime
         ()

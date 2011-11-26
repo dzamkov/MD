@@ -25,10 +25,11 @@ type SignalFeed<'a> =
     /// at the current moment.
     abstract member Current : 'a
 
-    /// Gets an event feed that fires an event whenever a change occurs in this signal feed, or
-    /// None if this feed does not change at discrete moments. During an event fired by the returned
-    /// feed, this signal will use the new value as the current value. Note that this feed may be fired
-    /// even when there is no change, in which case, New and Old on the given change will be the same.
+    /// Gets an event feed that fires an event for every change that occurs in this signal feed, or None 
+    /// if not possible (the signal changes continuously or it is derived from another signal with unknown properties).
+    /// During an event fired by the returned feed, this signal will use the new value as the current value. Note that 
+    /// this feed may be fired even when there is no change, in which case, 
+    /// New and Old on the given change will be the same.
     abstract member Delta : EventFeed<Change<'a>> option
 
 /// An action that registers callbacks and objects on an item and returns a retract action
@@ -190,17 +191,42 @@ type UnionCollectionFeed<'a> (sourceA : CollectionFeed<'a>, sourceB : Collection
     interface CollectionFeed<'a> with
         member this.Register callback = Delegate.Combine (sourceA.Register callback, sourceB.Register callback) :?> RetractAction
 
-/// A feed that tracks real-world time in seconds.
-type TimerFeed private (offset : double) =
-    static let mutable programTime = 0.0
-    static do Time.register (Action<double> (fun x -> programTime <- programTime + x))
+/// An event feed that polls changes in a source feed on program updates.
+type ChangePollEventFeed<'a when 'a : equality> (source : SignalFeed<'a>) =
+    let mutable last = source.Current
+    let mutable callback : Action<Change<'a>> = null
+    let mutable retractUpdate : RetractAction = null
 
-    /// Creates a new timer with 0.0 defined as the moment this was called.
-    static member Create () = new TimerFeed (programTime)
+    // Polling function
+    let poll time =
+        let cur = source.Current
+        if last <> cur && callback <> null then callback.Invoke { Old = last; New = cur }
+        last <- cur
+
+    interface EventFeed<Change<'a>> with
+        member this.Register x =
+            if callback = null then retractUpdate <- Update.register poll
+            callback <- Delegate.Combine (callback, x) :?> Action<Change<'a>>
+            let retract () = 
+                callback <- Delegate.Remove (callback, x) :?> Action<Change<'a>>
+                if callback = null then retractUpdate.Invoke ()
+            RetractAction retract
+
+/// A signal feed that gives the current time in seconds.
+type TimeSignalFeed private () =
+    static let instance = new TimeSignalFeed ()
+    let mutable time = 0.0
+    let update x = time <- time + x
+    do Update.register update |> ignore
+
+    /// Gets the only instance of this type.
+    static member Instance = instance
 
     interface SignalFeed<double> with
-        member this.Current = programTime - offset
+        member this.Current = time
         member this.Delta = None
+
+            
 
 /// Contains functions for constructing and manipulating feeds.
 module Feed =
@@ -210,6 +236,10 @@ module Feed =
 
     /// Constructs a signal feed with a constant value.
     let ``const`` value = new ConstSignalFeed<'a> (value)
+
+    /// A signal feed that gives the amount of real-world time, in seconds, that has
+    /// elapsed since the start of the program.
+    let time = TimeSignalFeed.Instance
 
     /// Constructs an event feed for a native event source.
     let native (source : IEvent<'a, 'b>) =
@@ -250,23 +280,20 @@ module Feed =
     /// Combines two collection feeds.
     let unionc a b = new UnionCollectionFeed<'a> (a, b)
 
-    /// Creates a timer that tracks the amount of real-world seconds that have passed since it was created.
-    let timer () = TimerFeed.Create ()
-
-    /// Constructs an event feed that fires whenever the source signal changes, giving its the new value.
-    let change (source : SignalFeed<'a>) =
+    /// Gets an event feed that fires when a change occurs in the source signal feed. If it is not possible to determine
+    /// exactly when a change occurs, the source will be polled on every program-wide update, and an event will be fired
+    /// when a change occurs. Note that this may allow some changes to slip through, if the signal changes and returns to
+    /// its original value in-between program updates.
+    let delta (source : SignalFeed<'a>) =
         match source.Delta with
-        | Some sourcedelta -> Some (mapfiltere (fun x -> if x.New <> x.Old then Some x.New else None) sourcedelta)
-        | None -> None
+        | Some sourcedelta -> mapfiltere (fun x -> if x.Old <> x.New then Some x else None) sourcedelta
+        | None -> new ChangePollEventFeed<'a> (source) :> EventFeed<Change<'a>>
+
+    /// Constructs an event feed that fires whenever the source signal changes, giving the new value.
+    let change source = mape (fun x -> x.New) (delta source)
 
     /// Constructs an event feed that fires whenever the source signal changes from false to true.
-    let rising (source : SignalFeed<bool>) =
-        match source.Delta with
-        | Some sourcedelta -> Some (mapfiltere (fun x -> if x.Old = false && x.New = true then Some () else None) sourcedelta)
-        | None -> None
+    let rising source = mapfiltere (fun x -> if x.New = true then Some () else None) (delta source)
 
     /// Constructs an event feed that fires whenever the source signal changes from true to false.
-    let falling (source : SignalFeed<bool>) =
-        match source.Delta with
-        | Some sourcedelta -> Some (mapfiltere (fun x -> if x.Old = true && x.New = false then Some () else None) sourcedelta)
-        | None -> None
+    let falling source = mapfiltere (fun x -> if x.New = false then Some () else None) (delta source)

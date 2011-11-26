@@ -13,10 +13,10 @@ type Window () as this =
     let audiooutput = AudioOutput.Create () |> Option.get
     let graphics = Graphics.Create ()
     let size = new ControlSignalFeed<Point> (new Point (double this.Width, double this.Height))
-    let programTime = Feed.timer ()
+    let programTime = Feed.time
 
     let fig = programTime |> Feed.maps (fun time ->
-        Figure.Line (new Point (-0.5, -0.5), new Point (0.5, 0.5), 0.1, Paint.ARGB (1.0, 0.0, 0.0, 0.5))
+        Figure.Line (new Point (-0.5, -0.5), new Point (0.5, 0.5), 0.1, Paint.ARGB (cos time * 0.5 + 0.5, sin time * 0.5 + 0.5, 1.0, 0.5))
         |> Figure.transform (Transform.Rotate time)
         |> Figure.transform (Transform.Scale (cos (time * 3.7) * 0.3 + 0.7))
         |> Figure.transform (Transform.Translate (new Point (time * 0.05, 0.0))))
@@ -42,7 +42,7 @@ type Window () as this =
 
     override this.OnUpdateFrame args =
         // Update program time
-        if Time.update <> null then Time.update.Invoke args.Time
+        Update.invoke args.Time
 
     override this.OnResize args =
         size.Current <- new Point (double this.Width, double this.Height)

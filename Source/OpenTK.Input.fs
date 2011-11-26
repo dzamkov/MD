@@ -13,7 +13,7 @@ module Input =
             member this.Delta = None
     
     /// Gets a feed for the position of a mouse.
-    let position (mouse : MouseDevice) = new MousePositionFeed (mouse)
+    let position (mouse : MouseDevice) = new MousePositionFeed (mouse) :> Point signal
     
     /// Encapsulates the complete button state for a mouse device.
     type MouseButtonState (mouse : MouseDevice) =
@@ -33,11 +33,11 @@ module Input =
         /// Gets the signal feed for the given mouse button.
         member this.GetFeed (button : MouseButton) =
             match buttonFeeds.[int button] with
-            | Some feed -> feed :> SignalFeed<bool>
+            | Some feed -> feed :> bool signal
             | None ->
                 let newfeed = new ControlSignalFeed<bool> (mouse.[button])
                 buttonFeeds.[int button] <- Some newfeed
-                newfeed :> SignalFeed<bool>
+                newfeed :> bool signal
 
     /// Gets an interface to the button state of a mouse. This contains feeds for each button of the mouse.
     let buttonState (mouse : MouseDevice) = new MouseButtonState (mouse)

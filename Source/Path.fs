@@ -6,7 +6,7 @@ open System.IO
 /// A path on the filesystem.
 type Path (source : string) =
     struct
-
+    
         /// Gets or sets the current working directory for the application.
         static member WorkingDirectory
             with get () : Path = new Path (Environment.CurrentDirectory)

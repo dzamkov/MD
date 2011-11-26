@@ -45,6 +45,11 @@ type CollectionFeed<'a> =
     /// the retract action of every registered item will be called.
     abstract member Register : RegisterItemAction<'a> -> RetractAction
 
+// Create type abbreviations
+type 'a change = Change<'a>
+type 'a signal = SignalFeed<'a>
+type 'a event = EventFeed<'a>
+type 'a collection = CollectionFeed<'a>
 
 /// An event feed that never fires an event.
 type NullEventFeed<'a> private () =
@@ -64,7 +69,7 @@ type ConstSignalFeed<'a> (value : 'a) =
     
     interface SignalFeed<'a> with
         member this.Current = value
-        member this.Delta = Some (NullEventFeed<Change<'a>>.Instance :> EventFeed<Change<'a>>)
+        member this.Delta = Some (NullEventFeed<Change<'a>>.Instance :> 'a change event)
 
 /// An event feed that allows events to be manually fired.
 type ControlEventFeed<'a> () =
@@ -84,7 +89,7 @@ type ControlEventFeed<'a> () =
 /// A signal feed that maintains a manually set value.
 type ControlSignalFeed<'a> (initial : 'a) =
     let mutable value : 'a = initial
-    let delta = new ControlEventFeed<Change<'a>> ()
+    let delta = new ControlEventFeed<'a change> ()
 
     /// Gets or sets the current value of this feed.
     member this.Current
@@ -96,7 +101,7 @@ type ControlSignalFeed<'a> (initial : 'a) =
 
     interface SignalFeed<'a> with
         member this.Current = this.Current
-        member this.Delta = Some (delta :> EventFeed<Change<'a>>)
+        member this.Delta = Some (delta :> 'a change event)
 
 /// A collection feed that allows items to be manually added or removed.
 type ControlCollectionFeed<'a> () =
@@ -156,7 +161,7 @@ type ControlCollectionFeed<'a> () =
         member this.Register callback = this.Register callback
 
 /// An event feed that applies a mapping and filter to all events from a source feed.
-type MapFilterEventFeed<'a, 'b> (source : EventFeed<'b>, map : 'b -> 'a option) =
+type MapFilterEventFeed<'a, 'b> (source : 'b event, map : 'b -> 'a option) =
     interface EventFeed<'a> with
         member this.Register callback = source.Register (fun x -> 
             match map x with
@@ -164,17 +169,17 @@ type MapFilterEventFeed<'a, 'b> (source : EventFeed<'b>, map : 'b -> 'a option) 
             | None -> ())
 
 /// A signal feed that applies a mapping to values from a source feed.
-type MapSignalFeed<'a, 'b> (source : SignalFeed<'b>, map : 'b -> 'a) =
+type MapSignalFeed<'a, 'b> (source : 'b signal, map : 'b -> 'a) =
     interface SignalFeed<'a> with
         member this.Current = map source.Current
         member this.Delta = 
             let mapchange (x : Change<'b>) = Some { Old = map x.Old; New = map x.New }
             match source.Delta with
-            | Some sourcedelta -> Some (new MapFilterEventFeed<Change<'a>, Change<'b>> (sourcedelta, mapchange) :> EventFeed<Change<'a>>)
+            | Some sourcedelta -> Some (new MapFilterEventFeed<Change<'a>, Change<'b>> (sourcedelta, mapchange) :> Change<'a> event)
             | None -> None
 
 /// A collection feed that applies a mapping and filter to all items from a source feed.
-type MapFilterCollectionFeed<'a, 'b> (source : CollectionFeed<'b>, map : 'b -> 'a option) =
+type MapFilterCollectionFeed<'a, 'b> (source : 'b collection, map : 'b -> 'a option) =
     interface CollectionFeed<'a> with
         member this.Register callback = source.Register (fun x ->
             match map x with
@@ -182,19 +187,19 @@ type MapFilterCollectionFeed<'a, 'b> (source : CollectionFeed<'b>, map : 'b -> '
             | None -> null)
 
 /// An event feed that combines events from two source feeds.
-type UnionEventFeed<'a> (sourceA : EventFeed<'a>, sourceB : EventFeed<'a>) =
+type UnionEventFeed<'a> (sourceA : 'a event, sourceB : 'a event) =
     interface EventFeed<'a> with
         member this.Register callback = Delegate.Combine (sourceA.Register callback, sourceB.Register callback) :?> RetractAction
 
 /// A collection feed that combines items from two source feeds.
-type UnionCollectionFeed<'a> (sourceA : CollectionFeed<'a>, sourceB : CollectionFeed<'a>) =
+type UnionCollectionFeed<'a> (sourceA : 'a collection, sourceB : 'a collection) =
     interface CollectionFeed<'a> with
         member this.Register callback = Delegate.Combine (sourceA.Register callback, sourceB.Register callback) :?> RetractAction
 
 /// An event feed that polls changes in a source feed on program updates.
-type ChangePollEventFeed<'a when 'a : equality> (source : SignalFeed<'a>) =
+type ChangePollEventFeed<'a when 'a : equality> (source : 'a signal) =
     let mutable last = source.Current
-    let mutable callback : Action<Change<'a>> = null
+    let mutable callback : Action<'a change> = null
     let mutable retractUpdate : RetractAction = null
 
     // Polling function
@@ -206,9 +211,9 @@ type ChangePollEventFeed<'a when 'a : equality> (source : SignalFeed<'a>) =
     interface EventFeed<Change<'a>> with
         member this.Register x =
             if callback = null then retractUpdate <- Update.register poll
-            callback <- Delegate.Combine (callback, x) :?> Action<Change<'a>>
+            callback <- Delegate.Combine (callback, x) :?> Action<'a change>
             let retract () = 
-                callback <- Delegate.Remove (callback, x) :?> Action<Change<'a>>
+                callback <- Delegate.Remove (callback, x) :?> Action<'a change>
                 if callback = null then retractUpdate.Invoke ()
             RetractAction retract
 
@@ -226,68 +231,66 @@ type TimeSignalFeed private () =
         member this.Current = time
         member this.Delta = None
 
-            
-
 /// Contains functions for constructing and manipulating feeds.
 module Feed =
     
     /// An event feed that never fires.
-    let ``null``<'a> = NullEventFeed<'a>.Instance :> EventFeed<'a>
+    let ``null``<'a> = NullEventFeed<'a>.Instance :> 'a event
 
     /// Constructs a signal feed with a constant value.
-    let ``const`` value = new ConstSignalFeed<'a> (value)
+    let ``const`` value = new ConstSignalFeed<'a> (value) :> 'a signal
 
     /// A signal feed that gives the amount of real-world time, in seconds, that has
     /// elapsed since the start of the program.
-    let time = TimeSignalFeed.Instance
+    let time = TimeSignalFeed.Instance :> double signal
 
     /// Constructs an event feed for a native event source.
     let native (source : IEvent<'a, 'b>) =
         let control = new ControlEventFeed<'b> ()
         source.Add control.Fire
-        control :> EventFeed<'b>
+        control :> 'b event
 
     /// Constructs a mapped event feed.
-    let mape map source = new MapFilterEventFeed<'a, 'b> (source, map >> Some) :> EventFeed<'a>
+    let mape map source = new MapFilterEventFeed<'b, 'a> (source, map >> Some) :> 'b event
 
     /// Constructs a mapped signal feed.
-    let maps map source = new MapSignalFeed<'a, 'b> (source, map) :> SignalFeed<'a>
+    let maps map source = new MapSignalFeed<'b, 'a> (source, map) :> 'b signal
 
     /// Constructs a mapped collection feed.
-    let mapc map source = new MapFilterCollectionFeed<'a, 'b> (source, map >> Some) :> CollectionFeed<'a>
+    let mapc map source = new MapFilterCollectionFeed<'b, 'a> (source, map >> Some) :> 'b collection
 
     /// Constructs a filtered event feed.
-    let filtere pred source = new MapFilterEventFeed<'a, 'a> (source, fun x -> if pred x then (Some x) else None) :> EventFeed<'a>
+    let filtere pred source = new MapFilterEventFeed<'a, 'a> (source, fun x -> if pred x then (Some x) else None) :> 'a event
 
     /// Constructs a filtered collection feed.
-    let filterc pred source = new MapFilterCollectionFeed<'a, 'a> (source, fun x -> if pred x then (Some x) else None) :> CollectionFeed<'a>
+    let filterc pred source = new MapFilterCollectionFeed<'a, 'a> (source, fun x -> if pred x then (Some x) else None) :> 'a collection
 
     /// Constructs a mapped and filtered event feed.
-    let mapfiltere map source = new MapFilterEventFeed<'a, 'b> (source, map) :> EventFeed<'a>
+    let mapfiltere map source = new MapFilterEventFeed<'b, 'a> (source, map) :> 'b event
 
     /// Constructs a mapped and filtered collection feed.
-    let mapfilterc map source = new MapFilterCollectionFeed<'a, 'b> (source, map) :> CollectionFeed<'a>
+    let mapfilterc map source = new MapFilterCollectionFeed<'b, 'a> (source, map) :> 'b collection
 
     /// Replaces the information for events from the given event feed with the given value.
-    let replace value source = new MapFilterEventFeed<'a, 'b> (source, fun x -> Some value) :> EventFeed<'a>
+    let replace value source = new MapFilterEventFeed<'a, 'b> (source, fun x -> Some value) :> 'a event
 
     /// Stips event information from an event feed.
     let strip source = replace () source
 
     /// Combines two event feeds.
-    let unione a b = new UnionEventFeed<'a> (a, b)
+    let unione a b = new UnionEventFeed<'a> (a, b) :> 'a event
 
     /// Combines two collection feeds.
-    let unionc a b = new UnionCollectionFeed<'a> (a, b)
+    let unionc a b = new UnionCollectionFeed<'a> (a, b) :> 'a collection
 
     /// Gets an event feed that fires when a change occurs in the source signal feed. If it is not possible to determine
     /// exactly when a change occurs, the source will be polled on every program-wide update, and an event will be fired
     /// when a change occurs. Note that this may allow some changes to slip through, if the signal changes and returns to
     /// its original value in-between program updates.
-    let delta (source : SignalFeed<'a>) =
+    let delta (source : 'a signal) : 'a change event =
         match source.Delta with
         | Some sourcedelta -> mapfiltere (fun x -> if x.Old <> x.New then Some x else None) sourcedelta
-        | None -> new ChangePollEventFeed<'a> (source) :> EventFeed<Change<'a>>
+        | None -> new ChangePollEventFeed<'a> (source) :> 'a change event
 
     /// Constructs an event feed that fires whenever the source signal changes, giving the new value.
     let change source = mape (fun x -> x.New) (delta source)

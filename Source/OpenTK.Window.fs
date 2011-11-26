@@ -29,9 +29,6 @@ type Window () as this =
     /// Gets a feed that gives the size of the client area of this window in pixels.
     member this.Size = size
 
-    /// Gets a feed that gives the amount of time, in seconds, that has elapsed since the start of the program.
-    member this.ProgramTime = programTime
-
     override this.OnRenderFrame args =
         Graphics.Setup (Transform.Identity, this.Width, this.Height, false)
         Graphics.Clear (Color.RGB (1.0, 1.0, 1.0))

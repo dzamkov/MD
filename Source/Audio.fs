@@ -11,7 +11,7 @@ type AudioOutputParameters = {
 
     /// The stream from which the raw audio data is read. Note that multichannel samples should be interleaved
     /// in this stream.
-    Stream : Stream<byte>
+    Stream : byte stream
 
     /// The sample rate, in samples per second for the audio output.
     SampleRate : int
@@ -23,13 +23,13 @@ type AudioOutputParameters = {
     Format : AudioFormat
 
     /// An event feed giving control signals for the audio output.
-    Control : EventFeed<AudioControl>
+    Control : AudioControl event
 
     /// A feed giving the volume multiplier of the audio output.
-    Volume : SignalFeed<double>
+    Volume : double signal
 
     /// A feed giving pitch (sample rate multiplier) of the audio output.
-    Pitch : SignalFeed<double>
+    Pitch : double signal
     }
 
 /// An interface to an audio output device.
@@ -38,7 +38,7 @@ type AudioOutput =
     /// Tries creating an audio output source with the given parameters. If successful, a signal feed
     /// will be returned giving the current play position of the audio source in the input stream.
     /// The audio source will begin in the paused state and requires a Play control event to start.
-    abstract member Begin : AudioOutputParameters -> SignalFeed<int> option
+    abstract member Begin : AudioOutputParameters -> int signal option
 
     /// Stops all currently-playing sources and indicates the output will no longer be used.
     abstract member Finish : unit -> unit

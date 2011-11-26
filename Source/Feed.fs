@@ -190,6 +190,18 @@ type UnionCollectionFeed<'a> (sourceA : CollectionFeed<'a>, sourceB : Collection
     interface CollectionFeed<'a> with
         member this.Register callback = Delegate.Combine (sourceA.Register callback, sourceB.Register callback) :?> RetractAction
 
+/// A feed that tracks real-world time in seconds.
+type TimerFeed private (offset : double) =
+    static let mutable programTime = 0.0
+    static do Time.register (Action<double> (fun x -> programTime <- programTime + x))
+
+    /// Creates a new timer with 0.0 defined as the moment this was called.
+    static member Create () = new TimerFeed (programTime)
+
+    interface SignalFeed<double> with
+        member this.Current = programTime - offset
+        member this.Delta = None
+
 /// Contains functions for constructing and manipulating feeds.
 module Feed =
     
@@ -237,6 +249,9 @@ module Feed =
 
     /// Combines two collection feeds.
     let unionc a b = new UnionCollectionFeed<'a> (a, b)
+
+    /// Creates a timer that tracks the amount of real-world seconds that have passed since it was created.
+    let timer () = TimerFeed.Create ()
 
     /// Constructs an event feed that fires whenever the source signal changes, giving its the new value.
     let change (source : SignalFeed<'a>) =

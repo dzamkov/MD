@@ -19,7 +19,8 @@ type Window () as this =
         Figure.Line (new Point (-0.5, -0.5), new Point (0.5, 0.5), 0.1, Paint.ARGB (cos time * 0.5 + 0.5, sin time * 0.5 + 0.5, 1.0, 0.5))
         |> Figure.transform (Transform.Rotate time)
         |> Figure.transform (Transform.Scale (cos (time * 3.7) * 0.3 + 0.7))
-        |> Figure.transform (Transform.Translate (new Point (time * 0.05, 0.0))))
+        |> Figure.transform (Transform.Translate (new Point (time * 0.05, 0.0)))
+        |> Temp.``static``)
 
     do 
         this.MakeCurrent ()
@@ -33,7 +34,7 @@ type Window () as this =
         Graphics.Setup (Transform.Identity, this.Width, this.Height, false)
         Graphics.Clear (Color.RGB (1.0, 1.0, 1.0))
 
-        graphics.Render fig.Current
+        fig.Current |> Temp.tryUse graphics.Render
 
         this.SwapBuffers ()
 

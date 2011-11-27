@@ -22,10 +22,6 @@ type Context (content : Content[]) =
     /// Returns false if there are no more frames in the container.
     abstract member NextFrame : contentIndex : int byref -> bool
 
-    /// Indicates that the context will no longer be used. This should not have an effect on the current content of the context, it will
-    /// only prevent future calls to NextFrame.
-    abstract member Finish : unit -> unit
-
 /// Describes a multimedia container format that can store content within a stream.
 [<AbstractClass>]
 type Container (name : string) =
@@ -44,26 +40,26 @@ type Container (name : string) =
 
     /// Tries loading a context from data (with an optionally specified filename) using a previously-registered load
     /// action. If no action is able to load the data, None is returned. 
-    static member Load (data : byte data, filename : string) = 
+    static member Load (data : byte data exclusive, filename : string) = 
         loadRegistry |> Seq.tryPick (fun load -> load.Invoke (data, filename))
 
     /// Tries loading a context from the given file using a previously-registered load
     /// action. If no action is able to load the data, None is returned. 
-    static member Load (file : Path) =
+    static member Load (file : Path) = 
         Container.Load (Data.file file, file.Name)
 
     /// Gets the user-friendly name of this container format.
     member this.Name = name
 
     /// Tries decoding content from the given input stream using this format.
-    abstract member Decode : stream : byte stream -> Context option
+    abstract member Decode : stream : byte stream exclusive -> Context exclusive option
 
     /// Tries encoding content to the given stream using this format.
-    abstract member Encode : context : Context -> Stream<byte> option
+    abstract member Encode : context : Context exclusive -> byte stream exclusive option
 
 /// An action that loads a context from data (with an optionally-specified filename) using an unspecified container format. If
 /// the action can not load the container, None is returned.
-and LoadContainerAction = delegate of data : byte data * filename : string -> (Container * Context) option
+and LoadContainerAction = delegate of data : byte data exclusive * filename : string -> (Container * Context exclusive) option
 
 
 /// Identifies an audio format for a sample of a single channel.

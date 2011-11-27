@@ -10,7 +10,7 @@ open OpenTK.Input
 /// Main program window
 type Window () as this =
     inherit GameWindow (640, 480, GraphicsMode.Default, "MD")
-    let audiooutput = AudioOutput.Create () |> Option.get
+    let audiooutput = AudioOutput.Create () |> Option.get :> MD.AudioOutput
     let graphics = Graphics.Create ()
     let size = new ControlSignalFeed<Point> (new Point (double this.Width, double this.Height))
     let programTime = Feed.time
@@ -26,6 +26,28 @@ type Window () as this =
         this.MakeCurrent ()
         this.VSync <- VSyncMode.On
         Graphics.Initialize ()
+
+        let music = new Path (@"N:\Music\Me\57.mp3")
+        let container, context = (Container.Load music).Value
+        let audiocontent = context.Object.Content.[0] :?> AudioContent
+        let control = new ControlEventFeed<AudioControl> ()
+        let audioparams = {
+                Stream = context |> Exclusive.bind (fun context -> 
+                    Stream.chunk () (fun () -> 
+                        let mutable index = 0
+                        if context.NextFrame (&index)
+                        then Some (Data.read audiocontent.Data.Value, ())
+                        else None))
+                SampleRate = int audiocontent.SampleRate
+                Channels = audiocontent.Channels
+                Format = audiocontent.Format
+                Control = control
+                Volume = Feed.``const`` 1.0
+                Pitch = Feed.``const`` 1.0
+            }
+        audiooutput.Begin audioparams |> ignore
+        control.Fire AudioControl.Play
+        
 
     /// Gets a feed that gives the size of the client area of this window in pixels.
     member this.Size = size

@@ -6,7 +6,11 @@ using namespace System::Text;
 using namespace MD;
 using namespace Microsoft::FSharp::Core;
 
+typedef Exclusive<Context^> ExclusiveContext;
 typedef Stream<Byte> ByteStream;
+typedef Exclusive<ByteStream^> ExclusiveByteStream;
+typedef Data<Byte> ByteData;
+typedef Exclusive<ByteData^> ExclusiveByteData;
 
 ref class _Context;
 
@@ -18,7 +22,7 @@ int read_packet(void* opaque, uint8_t* buf, int buf_size);
 /// <summary>
 /// Initializes an AVIOContext for a stream.
 /// </summary>
-AVIOContext* InitStreamContext(ByteStream^ Stream);
+AVIOContext* InitStreamContext(ExclusiveByteStream^ Stream);
 
 /// <summary>
 /// Closes an AVIOContext for a stream.
@@ -32,6 +36,7 @@ ref class _Context : Context, IDisposable {
 public:
 	_Context(array<MD::Content^>^ Content) : Context(Content) {
 		this->_Packet = NULL;
+		this->_Disposed = false;
 	}
 
 	~_Context() {
@@ -39,20 +44,23 @@ public:
 	}
 
 	!_Context() {
-		CloseStreamContext(this->IOContext);
-		delete[] this->StreamContent;
-		av_free(this->Buffer);
-		if (this->_Packet != NULL)
-		{
-			av_free_packet(this->_Packet);
-			delete this->_Packet;
+		if (!this->_Disposed) {
+			this->_Disposed = true;
+			CloseStreamContext(this->IOContext);
+			delete[] this->StreamContent;
+			av_free(this->Buffer);
+			if (this->_Packet != NULL)
+			{
+				av_free_packet(this->_Packet);
+				delete this->_Packet;
+			}
 		}
 	}
 
 	/// <summary>
 	/// Initializes a context.
 	/// </summary>
-	static _Context^ Initialize(AVIOContext* IOContext, AVFormatContext* FormatContext) {
+	static ExclusiveContext^ Initialize(AVIOContext* IOContext, AVFormatContext* FormatContext) {
 
 		// Initialize content streams
 		List<MD::Content^>^ contents = gcnew List<MD::Content^>(FormatContext->nb_streams);
@@ -95,7 +103,7 @@ public:
 		context->Buffer = (Byte*)av_malloc(buffersize);
 		context->BufferSize = buffersize;
 
-		return context;
+		return Exclusive::dispose<Context^>(context);
 	}
 
 	virtual bool NextFrame(int% ContentIndex) override {
@@ -131,10 +139,6 @@ public:
 		return false;
 	}
 
-	virtual void Finish() override {
-		delete this;
-	}
-
 	int* StreamContent;
 	AVIOContext* IOContext;
 	AVFormatContext* FormatContext;
@@ -142,6 +146,7 @@ public:
 	int BufferSize;
 
 private:
+	volatile bool _Disposed;
 	AVPacket* _Packet;
 };
 
@@ -155,9 +160,9 @@ public:
 		this->Output = NULL;
 	}
 
-    virtual FSharpOption<Context^>^ Decode(Stream<Byte>^ Stream) override {
+    virtual FSharpOption<ExclusiveContext^>^ Decode(ExclusiveByteStream^ Stream) override {
 		if (this->Input == NULL)
-			return FSharpOption<Context^>::None;
+			return FSharpOption<ExclusiveContext^>::None;
 
 		AVIOContext* io = InitStreamContext(Stream);
 		
@@ -167,7 +172,7 @@ public:
 		if (err != 0)
 		{
 			CloseStreamContext(io);
-			return FSharpOption<Context^>::None;
+			return FSharpOption<ExclusiveContext^>::None;
 		}
 
 		err = av_find_stream_info(formatcontext);
@@ -175,14 +180,14 @@ public:
 		{
 			av_close_input_stream(formatcontext);
 			CloseStreamContext(io);
-			return FSharpOption<Context^>::None;
+			return FSharpOption<ExclusiveContext^>::None;
 		}
 
-		return FSharpOption<Context^>::Some(_Context::Initialize(io, formatcontext));
+		return FSharpOption<ExclusiveContext^>::Some(_Context::Initialize(io, formatcontext));
 	}
 
-    virtual FSharpOption<Stream<Byte>^>^ Encode(Context^ Context) override {
-		return FSharpOption<Stream<Byte>^>::None;
+    virtual FSharpOption<ExclusiveByteStream^>^ Encode(ExclusiveContext^ Context) override {
+		return FSharpOption<ExclusiveByteStream^>::None;
 	}
 
 	AVInputFormat* Input;
@@ -267,11 +272,10 @@ public:
 private:
 	static Dictionary<String^, _Container^>^ _Containers = nullptr;
 
-	static FSharpOption<Tuple<Container^, Context^>^>^ _LoadContainer(MD::Data<Byte>^ Data, String^ Filename) {
+	static FSharpOption<Tuple<Container^, ExclusiveContext^>^>^ _LoadContainer(ExclusiveByteData^ Data, String^ Filename) {
 		using namespace Runtime::InteropServices;
 
-		Stream<Byte>^ stream = Data->Read(0, Data->Size);
-		AVIOContext* io = InitStreamContext(stream);
+		AVIOContext* io = InitStreamContext(Data::read(Data->Object));
 
 		// Get file name if possible
 		char* filename = NULL;
@@ -285,7 +289,7 @@ private:
 		if (err != 0)
 		{
 			CloseStreamContext(io);
-			return FSharpOption<Tuple<Container^, Context^>^>::None;
+			return FSharpOption<Tuple<Container^, ExclusiveContext^>^>::None;
 		}
 
 		// Free file name
@@ -299,7 +303,7 @@ private:
 		if (err != 0)
 		{
 			CloseStreamContext(io);
-			return FSharpOption<Tuple<Container^, Context^>^>::None;
+			return FSharpOption<Tuple<Container^, ExclusiveContext^>^>::None;
 		}
 
 		err = av_find_stream_info(formatcontext);
@@ -307,7 +311,7 @@ private:
 		{
 			av_close_input_stream(formatcontext);
 			CloseStreamContext(io);
-			return FSharpOption<Tuple<Container^, Context^>^>::None;
+			return FSharpOption<Tuple<Container^, ExclusiveContext^>^>::None;
 		}
 
 		// Find corresponding managed container
@@ -319,7 +323,7 @@ private:
 			}
 		}
 
-		return FSharpOption<Tuple<Container^, Context^>^>::Some(Tuple::Create<Container^, Context^>(container, _Context::Initialize(io, formatcontext)));
+		return FSharpOption<Tuple<Container^, ExclusiveContext^>^>::Some(Tuple::Create<Container^, ExclusiveContext^>(container, _Context::Initialize(io, formatcontext)));
 	}
 };
 

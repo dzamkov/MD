@@ -24,14 +24,16 @@
     <Compile Include="Retract.fs" />
     <Compile Include="Path.fs" />
     <Compile Include="Update.fs" />
-    <Compile Include="Feed.fs" />
+    <Compile Include="Exclusive.fs" />
     <Compile Include="Temporary.fs" />
+    <Compile Include="Feed.fs" />
     <Compile Include="Plugin.fs" />
     <Compile Include="Data.fs" />
     <Compile Include="Container.fs" />
     <Compile Include="Audio.fs" />
     <Compile Include="Geometry.fs" />
     <Compile Include="Color.fs" />
+    <Compile Include="Image.fs" />
     <Compile Include="Figure.fs" />
     <Compile Include="Input.fs" />
     <Compile Include="OpenTK.Audio.fs" />

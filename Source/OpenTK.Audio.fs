@@ -160,7 +160,7 @@ and private AudioOutputSource (parameters : AudioOutputParameters, format : ALFo
     /// Writes the next set of data from the stream into the OpenAL buffer with the given id. Returns false if there is no
     /// more data to be written.
     let write bid =
-        let readsize = stream.Read (buffer, bufferSize, 0)
+        let readsize = stream.Object.Read (buffer, bufferSize, 0)
         if readsize > 0 then
             AL.BufferData (bid, format, buffer, readsize, sampleRate)
             AL.SourceQueueBuffer (sid, bid)
@@ -192,16 +192,18 @@ and private AudioOutputSource (parameters : AudioOutputParameters, format : ALFo
 
     /// Stops and disposes this source.
     member this.Stop () = 
-        stream.Finish ()
+        AL.SourcePause sid // Pausing before stoping makes it stop quicker, strange
         AL.SourceStop sid
-
+        playing <- false
+        
         let mutable bufferamount = 0
         AL.GetSource (sid, ALGetSourcei.BuffersQueued, &bufferamount)
 
         let buffers = AL.SourceUnqueueBuffers (sid, bufferamount)
         AL.DeleteBuffers buffers
         AL.DeleteSource sid
-        playing <- false
+       
+        stream.Finish ()
 
     /// Updates the state of this source and ensures play buffers are queued. Returns the amount of buffers processed since the last
     /// update.

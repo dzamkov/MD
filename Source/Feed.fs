@@ -1,6 +1,7 @@
 ﻿namespace MD
 
 open System
+open System.Threading
 open System.Collections.Generic
 
 /// An interface to a source of discrete events of a certain type.
@@ -230,6 +231,39 @@ type TimeSignalFeed private () =
     interface SignalFeed<double> with
         member this.Current = time
         member this.Delta = None
+
+/// A signal feed that gives values using a series of manually-controlled temporary objects. This is useful
+/// for signals that need to give large, complex values that change often; instead of creating an immutable object
+/// for each value, the signal gives temporary handles to a mutable object that changes with the signal.
+/// Note that a ManualResetEvent must be provided to manage threading.
+type TemporarySignalFeed<'a> (wait : ManualResetEvent) =
+    let mutable cur = Unchecked.defaultof<ControlTemporary<'a>>
+    let delta = new ControlEventFeed<'a temp change> ()
+
+    /// Blocks the current thread until the previous temporary handle is no longer locked, then sets it as
+    /// invalid. This allows changes to be made to the source object(s) of this signal.
+    member this.Invalidate () = cur.Invalidate ()
+
+    /// Publishes the next value for the signal feed. This new value will be available until the next call to
+    /// invalidate. If the value of the feed is requested between calls to Invalidate and Publish, the requesting thread
+    /// will be blocked until Publish is called (this implies that the time between calls to Invalidate and Publish should be 
+    /// minimized). Note that this must be called to set the initial value of the signal.
+    member this.Publish (value : 'a) =
+        let last = cur
+        cur <- new ControlTemporary<'a> (value, wait)
+        wait.Set () |> ignore
+
+        // Fire change event if needed.
+        if last <> Unchecked.defaultof<ControlTemporary<'a>> then
+            delta.Fire { Old = last; New = cur }
+
+    interface SignalFeed<'a temp> with
+        member this.Current =
+            while not cur.Valid do
+                wait.WaitOne () |> ignore
+                wait.Reset() |> ignore
+            cur :> 'a temp
+        member this.Delta = Some (delta :> 'a temp change event)
 
 /// Contains functions for constructing and manipulating feeds.
 module Feed =

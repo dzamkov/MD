@@ -23,12 +23,12 @@
     <Compile Include="Unsafe.fs" />
     <Compile Include="Retract.fs" />
     <Compile Include="Path.fs" />
+    <Compile Include="Update.fs" />
+    <Compile Include="Feed.fs" />
     <Compile Include="Temporary.fs" />
     <Compile Include="Plugin.fs" />
     <Compile Include="Data.fs" />
     <Compile Include="Container.fs" />
-    <Compile Include="Update.fs" />
-    <Compile Include="Feed.fs" />
     <Compile Include="Audio.fs" />
     <Compile Include="Geometry.fs" />
     <Compile Include="Color.fs" />

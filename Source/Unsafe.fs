@@ -33,7 +33,7 @@ let copypp (src : nativeint) (dest : nativeint) (size : int) =
         tsize <- tsize - 1
 
 /// Copies data from the given array to the given destination.
-let copyap (src : 'a[], size : int, offset : int) (dest : nativeint) =
+let copyap (src : 'a[], offset : int) (dest : nativeint) (size : int) =
     let handle = GCHandle.Alloc (src, GCHandleType.Pinned)
     let sizea = sizeof<'a>
     let start = handle.AddrOfPinnedObject () + nativeint (offset * sizea)
@@ -42,7 +42,7 @@ let copyap (src : 'a[], size : int, offset : int) (dest : nativeint) =
     handle.Free ()
 
 /// Copies data from the given memory location to the given destination array.
-let copypa (src : nativeint) (dest : 'a[], size : int, offset : int) =
+let copypa (src : nativeint) (dest : 'a[], offset : int) (size : int) =
     let handle = GCHandle.Alloc (dest, GCHandleType.Pinned)
     let sizea = sizeof<'a>
     let start = handle.AddrOfPinnedObject () + nativeint (offset * sizea)

@@ -39,6 +39,11 @@ type CustomExclusive<'a> (obj : 'a, finish : unit -> unit) =
     inherit Exclusive<'a> (obj)
     override this.Finish () = finish ()
 
+/// An exclusive handle that gives an object while separately managing another exclusive handle.
+type MapExclusive<'a, 'b> (obj : 'a, sub : 'b exclusive) =
+    inherit Exclusive<'a> (obj)
+    override this.Finish () = sub.Finish ()
+
 /// An exclusive handle that manages two others.
 type CombineExclusive<'a, 'b, 'c> (obj : 'a, subA : 'b exclusive, subB : 'c exclusive) =
     inherit Exclusive<'a> (obj)
@@ -58,16 +63,24 @@ module Exclusive =
     /// Creates an exclusive handle that calls the given function upon release.
     let custom finish obj = new CustomExclusive<'a> (obj, finish) :> 'a exclusive
 
+    /// Combines two exclusive handles into one.
+    let combine obj subA subB = new CombineExclusive<'a, 'b, 'c> (obj, subA, subB) :> 'a exclusive
+
     /// Determines wether the given handle is static. If so, there is no need to call Finish on it.
     let isStatic (handle : 'a exclusive) = 
         match handle with
         | :? StaticExclusive<'a> -> true
         | _ -> false
 
+    /// Maps an exclusive handle.
+    let map map (handle : 'a exclusive) =
+        let res : 'b = map handle.Object
+        new MapExclusive<'b, 'a> (res, handle) :> 'b exclusive
+
     /// Monadically binds an exclusive handle.
     let bind map (handle : 'a exclusive) =
         let res : 'b exclusive = map handle.Object
-        new CombineExclusive<'b, 'a, 'b> (res.Object, handle, res) :> 'b exclusive
+        new CombineExclusive<'b, 'b, 'a> (res.Object, res, handle) :> 'b exclusive
 
     /// Calls finish on the given handle.
     let finish (handle : 'a exclusive) = handle.Finish ()

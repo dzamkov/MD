@@ -38,6 +38,7 @@
     <Compile Include="Input.fs" />
     <Compile Include="OpenTK.Audio.fs" />
     <Compile Include="OpenTK.Input.fs" />
+    <Compile Include="OpenTK.Texture.fs" />
     <Compile Include="OpenTK.Graphics.fs" />
     <Compile Include="OpenTK.Window.fs" />
     <Compile Include="Program.fs" />

@@ -15,12 +15,12 @@ type Window () as this =
     let size = new ControlSignalFeed<Point> (new Point (double this.Width, double this.Height))
     let programTime = Feed.time
 
+    let image = Image.load (Path.WorkingDirectory + "Resources" + "Images" + "Test.png") |> Option.get
     let fig = programTime |> Feed.maps (fun time ->
-        Figure.Line (new Point (-0.5, -0.5), new Point (0.5, 0.5), 0.1, Paint.ARGB (cos time * 0.5 + 0.5, sin time * 0.5 + 0.5, 1.0, 0.5))
+        Figure.image image.Object (new Rectangle (-0.5, 0.5, 0.5, -0.5))
         |> Figure.transform (Transform.Rotate time)
         |> Figure.transform (Transform.Scale (cos (time * 3.7) * 0.3 + 0.7))
-        |> Figure.transform (Transform.Translate (new Point (time * 0.05, 0.0)))
-        |> Temp.``static``)
+        |> Figure.transform (Transform.Translate (new Point (time * 0.05, 0.0))))
 
     do 
         this.MakeCurrent ()
@@ -56,7 +56,7 @@ type Window () as this =
         Graphics.Setup (Transform.Identity, this.Width, this.Height, false)
         Graphics.Clear (Color.RGB (1.0, 1.0, 1.0))
 
-        fig.Current |> Temp.tryUse graphics.Render
+        graphics.Render fig.Current
 
         this.SwapBuffers ()
 

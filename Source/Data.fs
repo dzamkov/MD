@@ -65,6 +65,16 @@ type BufferStream<'a> (buffer : 'a[], offset : int) =
 
 /// Data from a buffer (array).
 type BufferData<'a> (buffer : 'a[], offset : int, size : int) =
+    
+    /// Gets the buffer for this data.
+    member this.Buffer = buffer
+
+    /// Gets this data's offset in the source buffer.
+    member this.Offset = offset
+
+    /// Gets the size of this data.
+    member this.Size = size
+
     interface Data<'a> with
         member this.Size = buffer.Length
         member this.Item with get x = buffer.[offset + x]
@@ -122,11 +132,11 @@ type ChunkStream<'a, 'b> (initialState : 'b, retrieve : 'b -> ('a stream exclusi
         member this.Read (destination, size) = readtoptr (destination, size) 0
 
 /// A byte stream whose source is a region of memory.
-type UnsafeStream (regionStart : nativeptr<byte>, regionEnd : nativeptr<byte>) =
+type UnsafeStream (regionStart : nativeint, regionEnd : nativeint) =
     let mutable cur = regionStart
 
     /// Gets the remaining size of the stream.
-    member this.Size = int ((NativePtr.toNativeInt this.End) - (NativePtr.toNativeInt cur))
+    member this.Size = int (regionEnd - cur)
 
     /// Gets the pointer to the current position of the stream.
     member this.Current = cur
@@ -138,27 +148,27 @@ type UnsafeStream (regionStart : nativeptr<byte>, regionEnd : nativeptr<byte>) =
         member this.Read () =
             if this.Current = this.End then None
             else 
-                let item = NativePtr.read cur
-                cur <- NativePtr.add cur 1
+                let item = NativePtr.read (NativePtr.ofNativeInt cur)
+                cur <- cur + nativeint 1
                 Some item
 
         member this.Read (buffer, offset, size) =
             let readsize = min size this.Size
-            Unsafe.copypa (NativePtr.toNativeInt cur) (buffer, offset) size
-            cur <- NativePtr.add cur readsize
+            Unsafe.copypa cur (buffer, offset) size
+            cur <- cur + nativeint readsize
             readsize
 
         member this.Read (destination, size) =
             let readsize = min size this.Size
-            Unsafe.copypp (NativePtr.toNativeInt cur) destination readsize
-            cur <- NativePtr.add cur readsize
+            Unsafe.copypp cur destination readsize
+            cur <- cur + nativeint readsize
             readsize
 
 /// Byte data whose source is a region of memory.
-type UnsafeData (regionStart : nativeptr<byte>, regionEnd : nativeptr<byte>) =
+type UnsafeData (regionStart : nativeint, regionEnd : nativeint) =
 
     /// Gets the size of the data.
-    member this.Size = int ((NativePtr.toNativeInt this.End) - (NativePtr.toNativeInt this.Start))
+    member this.Size = int (regionEnd - regionStart)
     
     /// Gets the start of the memory region referenced by this data.
     member this.Start = regionStart
@@ -168,8 +178,8 @@ type UnsafeData (regionStart : nativeptr<byte>, regionEnd : nativeptr<byte>) =
 
     interface Data<byte> with
         member this.Size = this.Size
-        member this.Item with get x = NativePtr.get this.Start x
-        member this.Read (start, size) = new UnsafeStream (NativePtr.add this.Start start, this.End) :> Stream<byte> |> Exclusive.``static``
+        member this.Item with get x = NativePtr.get (NativePtr.ofNativeInt regionStart) x
+        member this.Read (start, size) = new UnsafeStream (regionStart + nativeint start, regionEnd) :> Stream<byte> |> Exclusive.``static``
 
 /// A byte stream based on a System.IO stream.
 type IOStream (source : Stream) =
@@ -250,3 +260,29 @@ module Data =
 
     /// Constructs a stream to read the entirety of the given data.
     let read (data : 'a data) : 'a stream exclusive = data.Read (0, data.Size)
+
+    /// Gets a complete buffer copy of the given data.
+    let getBuffer (data : 'a data) =
+        let buf = Array.create data.Size Unchecked.defaultof<'a>
+        let str = read data
+        str.Object.Read (buf, 0, buf.Length) |> ignore
+        str.Finish ()
+        buf
+
+    /// Matches data for an unsafe pointer representation, if possible.
+    let (|Unsafe|_|) (data : 'a data) =
+        match data with
+        | :? UnsafeData as x -> Some (x.Start, x.End)
+        | _ -> None
+
+    /// Matches data for a complete (no offset) buffer representation.
+    let (|BufferComplete|) (data : 'a data) =
+        match data with
+        | :? BufferData<'a> as x when x.Offset = 0 && x.Size = x.Buffer.Length -> x.Buffer
+        | x -> getBuffer x
+
+    /// Matches data for a buffer representation.
+    let (|Buffer|) (data : 'a data) =
+        match data with
+        | :? BufferData<'a> as x -> (x.Buffer, x.Offset, x.Size)
+        | x -> (getBuffer x, 0, x.Size)

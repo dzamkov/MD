@@ -8,8 +8,7 @@ open Microsoft.FSharp.NativeInterop
 /// Identifies a possible image format.
 type ImageFormat =
     | BGR24 = 0
-    | BGR24Aligned = 1
-    | BGRA32 = 2
+    | BGRA32 = 1
 
 /// Describes an immutable image, a two-dimensional array of pixels that contain color or paint information.
 type Image = {
@@ -38,13 +37,12 @@ module Image =
         let nformat = bitmap.PixelFormat
         let iformat, rformat = 
             match nformat with
-            | PixelFormat.Format24bppRgb -> (ImageFormat.BGR24Aligned, PixelFormat.Format24bppRgb)
+            | PixelFormat.Format24bppRgb -> (ImageFormat.BGR24, PixelFormat.Format24bppRgb)
             | _ -> (ImageFormat.BGRA32, PixelFormat.Format32bppArgb)
         
         let bd = bitmap.LockBits (new Rectangle (0, 0, width, height), ImageLockMode.ReadOnly, rformat)
         let ds = height * bd.Stride
-        let datastart = NativePtr.ofNativeInt bd.Scan0
-        let data = Data.unsafe datastart (NativePtr.add datastart ds)
+        let data = Data.unsafe bd.Scan0 (bd.Scan0 + nativeint ds)
         let image = { Width = width; Height = height; Format = iformat; Data = data }
         Exclusive.custom (fun () -> bitmap.UnlockBits bd) image
 

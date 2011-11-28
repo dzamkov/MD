@@ -4,6 +4,12 @@
 type Color (r : double, g : double, b : double) =
     struct
 
+        /// Gets a completely white color.
+        static member White = new Color (1.0, 1.0, 1.0)
+
+        /// Gets a completely black color.
+        static member Black = new Color (0.0, 0.0, 0.0)
+
         /// Creates a color based on its RGB representation.
         static member RGB (r : double, g : double, b : double) =
             new Color (r, g, b)
@@ -36,6 +42,15 @@ type Color (r : double, g : double, b : double) =
 type Paint (a : double, pre : Color) =
     struct
 
+        /// Gets a completely white paint.
+        static member White = new Paint (1.0, Color.White)
+
+        /// Gets a completely black paint.
+        static member Black = new Paint (1.0, Color.Black)
+
+        /// Gets a completely transparent paint.
+        static member Transparent = new Paint (0.0, Color.White)
+
         /// Creates a paint based on its post-multiplied argb representation.
         static member ARGB (a : double, source : Color) =
             new Paint (a, source * a)
@@ -66,8 +81,8 @@ type Paint (a : double, pre : Color) =
         member this.Alpha = a
 
         /// Gets wether this paint is fully opaque.
-        member this.Opaque = (a = 1.0)
+        member this.IsOpaque = (a = 1.0)
 
         /// Gets wether this paint is fully transparent.
-        member this.Transparent = (a = 0.0)
+        member this.IsTransparent = (a = 0.0)
     end

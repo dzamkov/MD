@@ -125,7 +125,7 @@ public:
 
 						// Decode audio
 						if (avcodec_decode_audio3(codeccontext, (int16_t*)this->Buffer, &framesize, this->_Packet) >= 0) {
-							audio->Data = FSharpOption<MD::Data<Byte>^>::Some(gcnew UnsafeData(this->Buffer, this->Buffer + framesize));
+							audio->Data = FSharpOption<MD::Data<Byte>^>::Some(gcnew UnsafeData((IntPtr)this->Buffer, (IntPtr)(this->Buffer + framesize)));
 							return true;
 						}
 

@@ -1,12 +1,15 @@
 ﻿namespace MD.OpenTK
 
 open MD
+open System
+open System.Collections.Generic
 open global.OpenTK
 open OpenTK.Graphics
 open OpenTK.Graphics.OpenGL
 
 /// An interface to an OpenGL graphics device that tracks resources and allows rendering.
 type Graphics () =
+    let textures = new Dictionary<Image, Texture> ()
     
     /// Creates a new graphics context.
     static member Create () = 
@@ -14,7 +17,10 @@ type Graphics () =
 
     /// Initializes graphics on the current context.
     static member Initialize () =
+        GL.Enable EnableCap.Texture2D
         GL.Enable EnableCap.CullFace
+        GL.Enable EnableCap.Blend
+        GL.BlendFunc (BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha)
 
     /// Sets up the viewport on the current graphics context.
     static member Setup (view : Transform, width : int, height : int, invertY : bool) =
@@ -88,6 +94,15 @@ type Graphics () =
     static member End () =
         GL.End ()
 
+    /// Gets the texture for the given image.
+    member this.GetTexture image =
+        let mutable texture = Texture.Null
+        if not (textures.TryGetValue (image, &texture)) then
+            texture <- Texture.Create image
+            textures.[image] <- texture
+            Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.Linear, TextureMagFilter.Linear)
+        texture
+
     /// Renders the given figure using this graphics context.
     member this.Render figure =
         match figure with
@@ -101,7 +116,21 @@ type Graphics () =
             Graphics.OutputVertex (b - wo)
             Graphics.OutputVertex (b + wo)
             Graphics.End ()
-        | Transform (fig, trans) ->
+        | Image (image, area) ->
+            let tex = this.GetTexture image
+            tex.Bind2D ()
+            Graphics.SetPaint Paint.White
+            Graphics.Begin BeginMode.Quads
+            Graphics.OutputUV (new Point (0.0, 0.0))
+            Graphics.OutputVertex area.TopLeft
+            Graphics.OutputUV (new Point (0.0, 1.0))
+            Graphics.OutputVertex area.BottomLeft
+            Graphics.OutputUV (new Point (1.0, 1.0))
+            Graphics.OutputVertex area.BottomRight
+            Graphics.OutputUV (new Point (1.0, 0.0))
+            Graphics.OutputVertex area.TopRight
+            Graphics.End ()
+        | Transform (trans, fig) ->
             Graphics.PushTransform ()
             Graphics.Transform trans
             this.Render fig

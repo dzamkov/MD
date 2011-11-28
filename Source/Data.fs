@@ -197,7 +197,7 @@ type IOStream (source : Stream) =
             source.Read (buffer, offset, size)
 
         member this.Read (destination, size) =
-            let readbuffer = Array.create size 0uy
+            let readbuffer = Array.zeroCreate size
             let readsize = source.Read (readbuffer, 0, size)
             Unsafe.copyap (readbuffer, 0) destination readsize
             readsize
@@ -263,7 +263,7 @@ module Data =
 
     /// Gets a complete buffer copy of the given data.
     let getBuffer (data : 'a data) =
-        let buf = Array.create data.Size Unchecked.defaultof<'a>
+        let buf = Array.zeroCreate data.Size
         let str = read data
         str.Object.Read (buf, 0, buf.Length) |> ignore
         str.Finish ()

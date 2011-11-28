@@ -167,7 +167,7 @@ public:
 		AVIOContext* io = InitStreamContext(Stream);
 		
 		// Find stream format information
-		AVFormatContext* formatcontext;
+		AVFormatContext* formatcontext = NULL;
 		int err = av_open_input_stream(&formatcontext, io, "", this->Input, NULL);
 		if (err != 0)
 		{
@@ -284,7 +284,7 @@ private:
 		}
 
 		// Determine format
-		AVInputFormat* iformat;
+		AVInputFormat* iformat = NULL;
 		int err = av_probe_input_buffer(io, &iformat, filename, NULL, 0, 0);
 		if (err != 0)
 		{
@@ -298,7 +298,7 @@ private:
 		}
 		
 		// Find stream format information
-		AVFormatContext* formatcontext;
+		AVFormatContext* formatcontext = NULL;
 		err = av_open_input_stream(&formatcontext, io, "", iformat, NULL);
 		if (err != 0)
 		{

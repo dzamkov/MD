@@ -19,8 +19,7 @@ type Window () as this =
     let fig = programTime |> Feed.maps (fun time ->
         Figure.image image.Object (new Rectangle (-0.5, 0.5, 0.5, -0.5))
         |> Figure.transform (Transform.Rotate time)
-        |> Figure.transform (Transform.Scale (cos (time * 3.7) * 0.3 + 0.7))
-        |> Figure.transform (Transform.Translate (new Point (time * 0.05, 0.0))))
+        |> Figure.transform (Transform.Scale (cos (time * 3.7) * 0.3 + 0.7)))
 
     do 
         this.MakeCurrent ()
@@ -31,13 +30,16 @@ type Window () as this =
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
+
+        let bytestream = context |> Exclusive.bind (fun context -> 
+            Stream.chunk () (fun () -> 
+                let mutable index = 0
+                if context.NextFrame (&index)
+                then Some (Data.read audiocontent.Data.Value, ())
+                else None))
+
         let audioparams = {
-                Stream = context |> Exclusive.bind (fun context -> 
-                    Stream.chunk () (fun () -> 
-                        let mutable index = 0
-                        if context.NextFrame (&index)
-                        then Some (Data.read audiocontent.Data.Value, ())
-                        else None))
+                Stream = bytestream
                 SampleRate = int audiocontent.SampleRate
                 Channels = audiocontent.Channels
                 Format = audiocontent.Format

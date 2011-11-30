@@ -54,7 +54,7 @@ type BufferStream<'a> (buffer : 'a[], offset : int) =
 
         member this.Read (destbuffer, destoffset, size) =
             let readsize = min size (buffer.Length - offset)
-            Array.Copy (buffer, offset, destbuffer, destoffset, readsize)
+            Array.blit buffer offset destbuffer destoffset readsize
             offset <- offset + readsize
             readsize
 
@@ -130,6 +130,33 @@ type ChunkStream<'a, 'b> (initialState : 'b, retrieve : 'b -> ('a stream exclusi
         member this.Read () = read ()
         member this.Read (buffer, offset, size) = readtobuf (buffer, offset, size) 0
         member this.Read (destination, size) = readtoptr (destination, size) 0
+
+/// A stream that combines fixed size groups in a source stream.
+type CombineStream<'a, 'b> (source : 'b stream, groupSize : int, group : 'b[] -> 'a) =
+    let buf : 'b[] = Array.zeroCreate groupSize
+    let loadOne () = source.Read (buf, 0, groupSize) = groupSize
+    let readOne () = group buf
+    let readbuf (buffer : 'a[], offset, size) = 
+        let mutable size = size
+        let mutable cur = offset
+        while size > 0 && loadOne() do
+            buffer.[cur] <- readOne()
+            cur <- cur + 1
+            size <- size - 1
+        cur - offset
+
+    interface Stream<'a> with
+        member this.Read () =
+            if loadOne () then Some (readOne ())
+            else None
+
+        member this.Read (buffer, offset, size) = readbuf (buffer, offset, size)
+
+        member this.Read (destination, size) =
+            let readbuffer = Array.zeroCreate size
+            let readsize = readbuf (readbuffer, 0, size)
+            Unsafe.copyap (readbuffer, 0) destination readsize
+            readsize
 
 /// A byte stream whose source is a region of memory.
 type UnsafeStream (regionStart : nativeint, regionEnd : nativeint) =
@@ -221,6 +248,17 @@ type IOData (source : Stream) =
 /// Contains functions for constructing and manipulating streams.
 module Stream =
 
+    /// Reads the given amount of items from a stream into a buffer. If the stream does not have the requested
+    /// amount of items, a smaller buffer of only the read items will be returned.
+    let read size (stream : 'a stream) =
+        let buf = Array.zeroCreate size
+        let readsize = stream.Read (buf, 0, size)
+        if readsize < size then
+            let nbuf = Array.zeroCreate readsize
+            Array.blit buf 0 nbuf 0 readsize
+            nbuf
+        else buf
+
     /// Constructs a stream to read from a buffer. Note that the buffer is referenced directly and 
     /// changes to the buffer will be reflected in the stream.
     let buffer buffer offset = new BufferStream<'a> (buffer, offset)
@@ -235,6 +273,18 @@ module Stream =
     let chunk initial retrieve = 
         let cs = new ChunkStream<'a, 'b> (initial, retrieve)
         Exclusive.custom cs.Finish (cs :> 'a stream)
+
+    /// Constructs a stream that combines fixed-sized groups in the source stream into single items.
+    let combine groupSize group source = new CombineStream<'a, 'b> (source, groupSize, group) :> 'a stream
+
+    /// Constructs a stream of shorts from a byte stream.
+    let byteToShort : byte stream -> int16 stream = combine 2 (fun x -> BitConverter.ToInt16 (x, 0))
+
+    /// Constructs a stream of ints from a byte stream.
+    let byteToInt : byte stream -> int stream = combine 4 (fun x -> BitConverter.ToInt32 (x, 0))
+
+    /// Constructs a stream of doubles from a byte stream.
+    let byteToDouble : byte stream -> double stream = combine 8 (fun x -> BitConverter.ToDouble (x, 0))
 
     /// Constructs a stream that reads from the given memory region.
     let unsafe regionStart regionEnd = new UnsafeStream (regionStart, regionEnd) :> byte stream

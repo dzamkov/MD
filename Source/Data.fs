@@ -5,7 +5,8 @@ open System.IO
 open Microsoft.FSharp.NativeInterop
 
 /// An interface to a reader for items of a certain type.
-type Stream<'a> =
+[<AbstractClass>]
+type Stream<'a> () =
 
     /// Tries reading a single item from this stream. Returns None if the end of the stream has
     /// been reached.
@@ -18,53 +19,106 @@ type Stream<'a> =
 
     /// Copies items from this stream to the given memory location and returns the amount
     /// of items read. If the returned amount is under the requested size, the end of
-    /// the stream has been reached. This should only be used for streams of value types.
+    /// the stream has been reached. This should only be used for blittable types.
     abstract member Read : destination : nativeint * size : int -> int
 
-/// A mutable collection of items indexed by an integer.
-type Data<'a> = 
+/// An immutable collection of items indexed by an integer.
+[<AbstractClass>]
+type Data<'a> () = 
 
     /// Gets the current size of the array.
     abstract member Size : int
 
-    /// Gets the current value of the array at the given index.
-    abstract member Item : index : int -> 'a with get
+    /// Reads the item at the given index in this data.
+    abstract member Read : index : int -> 'a
+
+    /// Copies items from this data (starting at the given index) into the given buffer.
+    abstract member Read : index : int * buffer : 'a[] * offset : int * size : int -> unit
+
+    /// Copies items from this data (starting at the given index) into the given memory location.
+    /// This should only be used for blittable types.
+    abstract member Read : index : int * destination : nativeint * size : int -> unit
 
     /// Creates a stream to read this array beginning at the given index. The given
     /// size sets a limit on the amount of items that can be read from the resulting
     /// stream, but does not ensure the stream will end after the given amount of items
     /// are read.
-    abstract member Read : start : int * size : int -> Stream<'a> exclusive
+    abstract member Read : index : int * size : int -> Stream<'a> exclusive
 
-// Create type abbreviations for data
+    /// Gets the item at the given index in this data.
+    member this.Item with get x = this.Read x
+
+// Create type abbreviations for data.
 type 'a stream = Stream<'a>
 type 'a data = Data<'a>
 
+/// A stream that reads from a data source.
+[<Sealed>]
+type DataStream<'a> (source : 'a data, index : int) =
+    inherit Stream<'a> ()
+    let mutable index = index
+
+    /// Gets the data source this stream is reading from.
+    member this.Source = source
+
+    /// Gets the current index in the source data this stream is reading from.
+    member this.Index = index
+
+    override this.Read () =
+        if index < source.Size then
+            let item = source.[index]
+            index <- index + 1
+            Some item
+        else None
+
+    override this.Read (buffer, offset, size) =
+        let readsize = min size (source.Size - index)
+        source.Read (index, buffer, offset, readsize)
+        index <- index + readsize
+        readsize
+
+    override this.Read (destination, size) =
+        let readsize = min size (source.Size - index)
+        source.Read (index, destination, readsize)
+        index <- index + readsize
+        readsize
+
+
 /// A stream that reads from a buffer (array).
+[<Sealed>]
 type BufferStream<'a> (buffer : 'a[], offset : int) =
+    inherit Stream<'a> ()
     let mutable offset = offset
-    interface Stream<'a> with
-        member this.Read () =
-            let cur = offset
-            if cur < buffer.Length 
-            then 
-                offset <- cur + 1
-                Some buffer.[cur]
-            else None
 
-        member this.Read (destbuffer, destoffset, size) =
-            let readsize = min size (buffer.Length - offset)
-            Array.blit buffer offset destbuffer destoffset readsize
-            offset <- offset + readsize
-            readsize
+    /// Gets the buffer this stream is reading from.
+    member this.Buffer = buffer
 
-        member this.Read (dest, size) =
-            let readsize = min size (buffer.Length - offset)
-            Unsafe.copyap (buffer, offset) dest readsize
-            readsize
+    /// Gets the current offset of the stream in the source buffer.
+    member this.Offset = offset
+
+    override this.Read () = 
+        if offset < buffer.Length then
+            let item = buffer.[offset]
+            offset <- offset + 1
+            Some item
+        else None
+
+    override this.Read (destbuffer, destoffset, size) =
+        let readsize = min size (buffer.Length - offset)
+        Array.blit buffer offset destbuffer destoffset readsize
+        offset <- offset + readsize
+        readsize
+
+    override this.Read (destination, size) =
+        let readsize = min size (buffer.Length - offset)
+        Unsafe.copyap (buffer, offset) destination readsize
+        offset <- offset + readsize
+        readsize
 
 /// Data from a buffer (array).
+[<Sealed>]
 type BufferData<'a> (buffer : 'a[], offset : int, size : int) =
+    inherit Data<'a> ()
     
     /// Gets the buffer for this data.
     member this.Buffer = buffer
@@ -72,16 +126,16 @@ type BufferData<'a> (buffer : 'a[], offset : int, size : int) =
     /// Gets this data's offset in the source buffer.
     member this.Offset = offset
 
-    /// Gets the size of this data.
-    member this.Size = size
-
-    interface Data<'a> with
-        member this.Size = buffer.Length
-        member this.Item with get x = buffer.[offset + x]
-        member this.Read (start, size) = new BufferStream<'a> (buffer, offset + start) :> Stream<'a> |> Exclusive.``static``
+    override this.Size = size
+    override this.Read index = buffer.[index + offset]
+    override this.Read (index, destbuffer, destoffset, size) = Array.blit buffer (index + offset) destbuffer destoffset size
+    override this.Read (index, destination, size) = Unsafe.copyap (buffer, index + offset) destination size
+    override this.Read (index, size) = new BufferStream<'a> (buffer, index + offset) :> 'a stream |> Exclusive.``static``
 
 /// A stream that reads through streams (called chunks) generated by a retrieve function.
+[<Sealed>]
 type ChunkStream<'a, 'b> (initialState : 'b, retrieve : 'b -> ('a stream exclusive * 'b) option) =
+    inherit Stream<'a> ()
     let mutable current = retrieve initialState
 
     let rec read () =
@@ -126,44 +180,43 @@ type ChunkStream<'a, 'b> (initialState : 'b, retrieve : 'b -> ('a stream exclusi
         | Some (stream, _) -> stream.Finish ()
         | None -> ()
 
-    interface Stream<'a> with
-        member this.Read () = read ()
-        member this.Read (buffer, offset, size) = readtobuf (buffer, offset, size) 0
-        member this.Read (destination, size) = readtoptr (destination, size) 0
+    override this.Read () = read ()
+    override this.Read (buffer, offset, size) = readtobuf (buffer, offset, size) 0
+    override this.Read (destination, size) = readtoptr (destination, size) 0
 
 /// A stream that combines fixed size groups in a source stream.
+[<Sealed>]
 type CombineStream<'a, 'b> (source : 'b stream, groupSize : int, group : 'b[] -> 'a) =
+    inherit Stream<'a> ()
     let buf : 'b[] = Array.zeroCreate groupSize
-    let loadOne () = source.Read (buf, 0, groupSize) = groupSize
-    let readOne () = group buf
-    let readbuf (buffer : 'a[], offset, size) = 
+    let loadone () = source.Read (buf, 0, groupSize) = groupSize
+    let readone () = group buf
+    let readtobuf (buffer : 'a[], offset, size) = 
         let mutable size = size
         let mutable cur = offset
-        while size > 0 && loadOne() do
-            buffer.[cur] <- readOne()
+        while size > 0 && loadone() do
+            buffer.[cur] <- readone()
             cur <- cur + 1
             size <- size - 1
         cur - offset
 
-    interface Stream<'a> with
-        member this.Read () =
-            if loadOne () then Some (readOne ())
-            else None
-
-        member this.Read (buffer, offset, size) = readbuf (buffer, offset, size)
-
-        member this.Read (destination, size) =
-            let readbuffer = Array.zeroCreate size
-            let readsize = readbuf (readbuffer, 0, size)
-            Unsafe.copyap (readbuffer, 0) destination readsize
-            readsize
+    override this.Read () = if loadone () then Some (readone ()) else None
+    override this.Read (buffer, offset, size) = readtobuf (buffer, offset, size)
+    override this.Read (destination, size) =
+        let readbuffer = Array.zeroCreate size
+        let readsize = readtobuf (readbuffer, 0, size)
+        Unsafe.copyap (readbuffer, 0) destination readsize
+        readsize
 
 /// A byte stream whose source is a region of memory.
-type UnsafeStream (regionStart : nativeint, regionEnd : nativeint) =
+[<Sealed>]
+type UnsafeStream<'a when 'a : unmanaged> (regionStart : nativeint, regionEnd : nativeint) =
+    inherit Stream<'a> ()
     let mutable cur = regionStart
+    let itemsize = Unsafe.sizeof<'a>
 
     /// Gets the remaining size of the stream.
-    member this.Size = int (regionEnd - cur)
+    member this.Size = int (regionEnd - cur) / itemsize
 
     /// Gets the pointer to the current position of the stream.
     member this.Current = cur
@@ -171,79 +224,92 @@ type UnsafeStream (regionStart : nativeint, regionEnd : nativeint) =
     /// Gets the end of the memory region readable by the stream.
     member this.End = regionEnd
 
-    interface Stream<byte> with
-        member this.Read () =
-            if this.Current = this.End then None
-            else 
-                let item = NativePtr.read (NativePtr.ofNativeInt cur)
-                cur <- cur + nativeint 1
-                Some item
+    override this.Read () =
+        let next = cur + nativeint itemsize
+        if next <= regionEnd then
+            let item = Unsafe.read cur
+            cur <- next
+            Some item
+        else None
 
-        member this.Read (buffer, offset, size) =
-            let readsize = min size this.Size
-            Unsafe.copypa cur (buffer, offset) size
-            cur <- cur + nativeint readsize
-            readsize
+    override this.Read (buffer, offset, size) =
+        let readsize = min size this.Size
+        Unsafe.copypa cur (buffer, offset) readsize
+        cur <- cur + nativeint (readsize * itemsize)
+        readsize
 
-        member this.Read (destination, size) =
-            let readsize = min size this.Size
-            Unsafe.copypp cur destination readsize
-            cur <- cur + nativeint readsize
-            readsize
+    override this.Read (destination, size) =
+        let readsize = min size this.Size
+        Unsafe.copypp cur destination readsize
+        cur <- cur + nativeint (readsize * itemsize)
+        readsize
 
 /// Byte data whose source is a region of memory.
-type UnsafeData (regionStart : nativeint, regionEnd : nativeint) =
+[<Sealed>]
+type UnsafeData<'a when 'a : unmanaged> (regionStart : nativeint, regionEnd : nativeint) =
+    inherit Data<'a> ()
+    let itemsize = Unsafe.sizeof<'a>
 
-    /// Gets the size of the data.
-    member this.Size = int (regionEnd - regionStart)
-    
     /// Gets the start of the memory region referenced by this data.
     member this.Start = regionStart
 
     /// Gets the end of the memory region referenced by this data.
     member this.End = regionEnd
 
-    interface Data<byte> with
-        member this.Size = this.Size
-        member this.Item with get x = NativePtr.get (NativePtr.ofNativeInt regionStart) x
-        member this.Read (start, size) = new UnsafeStream (regionStart + nativeint start, regionEnd) :> Stream<byte> |> Exclusive.``static``
+    override this.Size = int (regionEnd - regionStart) / itemsize
+    override this.Read index = Unsafe.read (regionStart + nativeint (index * itemsize))
+    override this.Read (index, buffer, offset, size) = Unsafe.copypa (regionStart + nativeint (index * itemsize)) (buffer, offset) size
+    override this.Read (index, destination, size) = Unsafe.copypp (regionStart + nativeint (index * itemsize)) destination size
+    override this.Read (index, size) = new UnsafeStream<'a> (regionStart + nativeint (index * itemsize), regionEnd) :> 'a stream |> Exclusive.``static``
 
 /// A byte stream based on a System.IO stream.
+[<Sealed>]
 type IOStream (source : Stream) =
+    inherit Stream<byte> ()
 
     /// Gets the System.IO stream source for this stream.
     member this.Source = source
 
-    interface Stream<byte> with
-        member this.Read () =
-            match source.ReadByte () with
-            | -1 -> None
-            | x -> Some (byte x)
+    override this.Read () =
+        match source.ReadByte () with
+        | -1 -> None
+        | x -> Some (byte x)
 
-        member this.Read (buffer, offset, size) = 
-            source.Read (buffer, offset, size)
+    override this.Read (buffer, offset, size) = source.Read (buffer, offset, size)
 
-        member this.Read (destination, size) =
-            let readbuffer = Array.zeroCreate size
-            let readsize = source.Read (readbuffer, 0, size)
-            Unsafe.copyap (readbuffer, 0) destination readsize
-            readsize
+    override this.Read (destination, size) =
+        let readbuffer = Array.zeroCreate size
+        let readsize = source.Read (readbuffer, 0, size)
+        Unsafe.copyap (readbuffer, 0) destination readsize
+        readsize
 
-/// Data based on a System.IO stream.
+/// Data based on a seekable System.IO stream.
+[<Sealed>]
 type IOData (source : Stream) =
+    inherit Data<byte> ()
 
     /// Gets the System.IO stream source for this data.
     member this.Source = source
 
-    interface Data<byte> with
-        member this.Size = int source.Length
-        member this.Item 
-            with get x =
-                source.Position <- int64 x
-                byte (source.ReadByte ())
-        member this.Read (start, size) =
-            source.Position <- int64 start
-            new IOStream (source) :> byte stream |> Exclusive.``static``
+    override this.Size = int source.Length
+
+    override this.Read index =
+        source.Position <- int64 index
+        byte (source.ReadByte ())
+
+    override this.Read (index, buffer, offset, size) =
+        source.Position <- int64 index
+        source.Read (buffer, offset, size) |> ignore
+
+    override this.Read (index, destination, size) =
+        source.Position <- int64 index
+        let readbuffer = Array.zeroCreate size
+        let readsize = source.Read (readbuffer, 0, size)
+        Unsafe.copyap (readbuffer, 0) destination readsize
+
+    override this.Read (index, size) = 
+        source.Position <- int64 index
+        new IOStream (source) :> byte stream |> Exclusive.``static``
 
 /// Contains functions for constructing and manipulating streams.
 module Stream =
@@ -277,36 +343,26 @@ module Stream =
     /// Constructs a stream that combines fixed-sized groups in the source stream into single items.
     let combine groupSize group source = new CombineStream<'a, 'b> (source, groupSize, group) :> 'a stream
 
-    /// Constructs a stream of shorts from a byte stream.
-    let byteToShort : byte stream -> int16 stream = combine 2 (fun x -> BitConverter.ToInt16 (x, 0))
-
-    /// Constructs a stream of ints from a byte stream.
-    let byteToInt : byte stream -> int stream = combine 4 (fun x -> BitConverter.ToInt32 (x, 0))
-
-    /// Constructs a stream of doubles from a byte stream.
-    let byteToDouble : byte stream -> double stream = combine 8 (fun x -> BitConverter.ToDouble (x, 0))
-
     /// Constructs a stream that reads from the given memory region.
-    let unsafe regionStart regionEnd = new UnsafeStream (regionStart, regionEnd) :> byte stream
+    let unsafe regionStart regionEnd = new UnsafeStream<'a> (regionStart, regionEnd) :> 'a stream
 
 /// Contains functions for constructing and manipulating data.
 module Data =
 
     /// Constructs data based on a buffer. Note that the buffer is referenced directly and 
     /// changes to the buffer will be reflected in the data.
-    let buffer buffer offset size = new BufferData<'a> (buffer, offset, size) :> Data<'a>
+    let buffer buffer offset size = new BufferData<'a> (buffer, offset, size) :> 'a data
 
     /// Constructs data for the file at the given path.
     let file (path : MD.Path) = 
         let fs = new FileStream (path.Source, FileMode.Open)
-        let id = new IOData (fs) :> byte data
-        Exclusive.custom fs.Dispose id
+        fs |> Exclusive.dispose |> Exclusive.map (fun fs -> new IOData (fs) :> byte data)
 
     /// Constructs data whose source is an IO stream.
     let io (source : System.IO.Stream) = new IOData (source) :> byte data
 
     /// Constructs data whose source is the given memory region.
-    let unsafe regionStart regionEnd = new UnsafeData (regionStart, regionEnd) :> byte data
+    let unsafe regionStart regionEnd = new UnsafeData<'a> (regionStart, regionEnd) :> 'a data
 
     /// Constructs a stream to read the entirety of the given data.
     let read (data : 'a data) : 'a stream exclusive = data.Read (0, data.Size)
@@ -322,7 +378,7 @@ module Data =
     /// Matches data for an unsafe pointer representation, if possible.
     let (|Unsafe|_|) (data : 'a data) =
         match data with
-        | :? UnsafeData as x -> Some (x.Start, x.End)
+        | :? UnsafeData<'a> as x -> Some (x.Start, x.End)
         | _ -> None
 
     /// Matches data for a complete (no offset) buffer representation.

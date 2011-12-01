@@ -10,6 +10,10 @@ let sizeof<'a> =
     if t.IsValueType then Marshal.SizeOf t
     else IntPtr.Size
 
+/// Reads a value from the given memory location.
+let inline read<'a when 'a : unmanaged> (dest : nativeint) =
+    NativePtr.read (NativePtr.ofNativeInt<'a> dest)
+
 /// Copies memory from the given source location to the given destination.
 let copypp (src : nativeint) (dest : nativeint) (size : int) =
 

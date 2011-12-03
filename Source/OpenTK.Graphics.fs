@@ -116,9 +116,13 @@ type Graphics () =
             Graphics.OutputVertex (b - wo)
             Graphics.OutputVertex (b + wo)
             Graphics.End ()
-        | Image (image, area) ->
+        | Image (image, interpolation, area) ->
             let tex = this.GetTexture image
             tex.Bind2D ()
+            match interpolation with
+            | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.Nearest, TextureMagFilter.Nearest)
+            | ImageInterpolation.Linear -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.Linear, TextureMagFilter.Linear)
+            | _ -> ()
             Graphics.SetPaint Paint.White
             Graphics.Begin BeginMode.Quads
             Graphics.OutputUV (new Point (0.0, 0.0))

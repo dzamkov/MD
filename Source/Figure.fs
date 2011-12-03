@@ -1,9 +1,16 @@
 ﻿namespace MD
 
+/// Identifies an interpolation mode for an image.
+type ImageInterpolation = 
+    | Nearest = 0
+    | Linear = 1
+    | Cubic = 2
+
 /// Describes a visual object on a two-dimensional plane.
 type Figure =
     | Line of Point * Point * double * Paint
-    | Image of Image * Rectangle
+    | Image of Image * ImageInterpolation * Rectangle
+    | Sample of (Point -> Paint)
     | Modulate of Paint * Figure
     | Transform of Transform * Figure
     | Composite of Figure * Figure
@@ -29,7 +36,7 @@ module Figure =
 
     /// Constructs a figure for an imaged placed in a rectangular area. Note that this figure will respect 
     /// the transparency information encoded in the image, if any.
-    let image image area = Figure.Image (image, area)
+    let image image interpolation area = Figure.Image (image, interpolation, area)
 
     /// Constructs a transformed form of a figure.
     let transform transform figure = Figure.Transform (transform, figure)

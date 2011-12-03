@@ -17,7 +17,7 @@ type Window () as this =
 
     let image = Image.load (Path.WorkingDirectory + "Resources" + "Images" + "Test.png") |> Option.get
     let fig = programTime |> Feed.maps (fun time ->
-        Figure.image image.Object (new Rectangle (-0.5, 0.5, 0.5, -0.5))
+        Figure.image image.Object ImageInterpolation.Linear (new Rectangle (-0.5, 0.5, 0.5, -0.5))
         |> Figure.transform (Transform.Rotate time)
         |> Figure.transform (Transform.Scale (cos (time * 3.7) * 0.3 + 0.7)))
 

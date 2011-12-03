@@ -191,6 +191,7 @@ type CombineStream<'a, 'b> (source : 'b stream, groupSize : int, group : 'b[] ->
     let buf : 'b[] = Array.zeroCreate groupSize
     let loadone () = source.Read (buf, 0, groupSize) = groupSize
     let readone () = group buf
+
     let readtobuf (buffer : 'a[], offset, size) = 
         let mutable size = size
         let mutable cur = offset
@@ -200,13 +201,20 @@ type CombineStream<'a, 'b> (source : 'b stream, groupSize : int, group : 'b[] ->
             size <- size - 1
         cur - offset
 
+    let readtoptr (destination, size) =
+        let itemsize = Memory.SizeOf<'a> ()
+        let initsize = size
+        let mutable size = size
+        let mutable cur = destination
+        while size > 0 && loadone() do
+            Memory.Write (cur, readone())
+            cur <- cur + nativeint (itemsize)
+            size <- size - 1
+        initsize - size
+
     override this.Read () = if loadone () then Some (readone ()) else None
     override this.Read (buffer, offset, size) = readtobuf (buffer, offset, size)
-    override this.Read (destination, size) =
-        let readbuffer = Array.zeroCreate size
-        let readsize = readtobuf (readbuffer, 0, size)
-        Memory.Copy (readbuffer, 0, destination, uint32 readsize)
-        readsize
+    override this.Read (destination, size) = readtoptr (destination, size)
 
 /// A byte stream whose source is a region of memory.
 [<Sealed>]

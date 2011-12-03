@@ -38,7 +38,6 @@ type AudioOutput private (context : AudioContext) =
                     source.Stop ()
                     (sources.[source]).Invoke ()
                     sources.Remove source |> ignore
-                | _ -> ()
             Monitor.Exit messages
 
             // Update sources (keep track of buffers processed and amount of active sources).

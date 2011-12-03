@@ -2,9 +2,9 @@
 
 /// Identifies an audio control event.
 type AudioControl =
-    | Play = 0
-    | Pause = 1
-    | Stop = 2
+    | Play
+    | Pause
+    | Stop
 
 /// Contains parameters for an audio output source.
 type AudioOutputParameters = {

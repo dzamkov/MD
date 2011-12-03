@@ -2,9 +2,9 @@
 
 /// Identifies an interpolation mode for an image.
 type ImageInterpolation = 
-    | Nearest = 0
-    | Linear = 1
-    | Cubic = 2
+    | Nearest
+    | Linear
+    | Cubic
 
 /// Describes a visual object on a two-dimensional plane.
 type Figure =

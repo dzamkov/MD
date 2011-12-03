@@ -1,5 +1,10 @@
 ﻿namespace MD
 
+/// Identifies an axis in two-dimensional space.
+type Axis =
+    | Horizontal
+    | Vertical
+
 /// A point or offset in two-dimensional space.
 type Point (x : double, y : double) =
     struct
@@ -24,6 +29,13 @@ type Point (x : double, y : double) =
 
         /// Negates an offset.
         static member (~-) (a : Point) = new Point (-a.X, -a.Y)
+
+        /// Gets the given axis component of this point.
+        member this.Item
+            with get (axis : Axis) =
+                match axis with
+                | Horizontal -> x
+                | Vertical -> y
 
         /// Gets the horizontal component of this point.
         member this.X = x

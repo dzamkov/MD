@@ -10,7 +10,22 @@ type ImageFormat =
     | BGR24
     | BGRA32
 
-/// Describes an immutable image, a two-dimensional array of pixels that contain color or paint information.
+/// Contains raw image data and information needed to interpret it as a colored image.
+type ImageData = {
+    /// The width of the image in pixels.
+    Width : int
+
+    /// The height of the image in pixels.
+    Height : int
+
+    /// The format for the image.
+    Format : ImageFormat
+
+    /// The data for the image.
+    Data : byte data
+    }
+
+/// Represents an immutable image, a two-dimensional array of pixels containing color or paint data.
 [<AbstractClass>]
 type Image (width : int, height : int, nativeFormat : ImageFormat) =
 
@@ -25,10 +40,18 @@ type Image (width : int, height : int, nativeFormat : ImageFormat) =
     member this.NativeFormat = nativeFormat
 
     /// Locks a rectangular region of this image for reading.
-    abstract member Lock : left : int * top : int * width : int * height : int * format : ImageFormat -> byte data exclusive
+    abstract member LockData : left : int * top : int * width : int * height : int * format : ImageFormat -> byte data exclusive
 
     /// Locks the entirety of this image for reading.
-    member this.Lock format = this.Lock (0, 0, width, height, format)
+    member this.LockData format = this.LockData (0, 0, width, height, format)
+
+    /// Locks a rectangular region of this image for reading.
+    member this.Lock (left, top, width, height, format) = this.LockData (left, top, width, height, format) |> Exclusive.map (fun data ->
+        { Width = width; Height = height; Format = format; Data = data })
+
+    /// Locks the entirety of this image for reading.
+    member this.Lock format = this.LockData (0, 0, width, height, format) |> Exclusive.map (fun data ->
+        { Width = width; Height = height; Format = format; Data = data })
 
 /// An image from a System.Drawing.Bitmap.
 type BitmapImage (bitmap : Bitmap) =
@@ -38,7 +61,7 @@ type BitmapImage (bitmap : Bitmap) =
         | PixelFormat.Format32bppArgb -> ImageFormat.BGRA32
         | _ -> ImageFormat.BGRA32)
 
-    override this.Lock (left, top, width, height, format) =
+    override this.LockData (left, top, width, height, format) =
         let rformat = 
             match format with
             | ImageFormat.BGR24 -> PixelFormat.Format24bppRgb

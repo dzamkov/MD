@@ -25,20 +25,20 @@ type Texture (id : int) =
             tex
 
         /// Sets the image for the given mipmap level of the currently-bound 2d texture.
-        static member SetImage (width : int, height : int, format : ImageFormat, data : byte data, level : int) =
+        static member SetImage (image : ImageData, level : int) =
             let pif, pf, pt = 
-                match format with
+                match image.Format with
                 | ImageFormat.BGR24 -> (PixelInternalFormat.Rgb, PixelFormat.Bgr, PixelType.UnsignedByte)
                 | ImageFormat.BGRA32 -> (PixelInternalFormat.Rgba, PixelFormat.Bgra, PixelType.UnsignedByte)
-            match data with
-            | Data.Unsafe (start, _) -> GL.TexImage2D (TextureTarget.Texture2D, level, pif, width, height, 0, pf, pt, start)
-            | Data.BufferComplete buf -> GL.TexImage2D (TextureTarget.Texture2D, level, pif, width, height, 0, pf, pt, buf)
+            match image.Data with
+            | Data.Unsafe (start, _) -> GL.TexImage2D (TextureTarget.Texture2D, level, pif, image.Width, image.Height, 0, pf, pt, start)
+            | Data.BufferComplete buf -> GL.TexImage2D (TextureTarget.Texture2D, level, pif, image.Width, image.Height, 0, pf, pt, buf)
 
         /// Sets the image for the given mipmap level of the currently-bound 2d texture.
         static member SetImage (image : Image, level : int) =
             let format = image.NativeFormat
             let edata = image.Lock format
-            Texture.SetImage (image.Width, image.Height, format, edata.Object, level)
+            Texture.SetImage (edata.Object, level)
             edata.Finish ()
 
         /// Sets the wrap mode for the currently-bound texture.

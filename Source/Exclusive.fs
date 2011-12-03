@@ -18,7 +18,7 @@ type Exclusive<'a> (obj : 'a) =
     /// Releases this handle.
     abstract member Finish : unit -> unit
 
-// Create type abbreviation
+// Create type abbreviation.
 type 'a exclusive = Exclusive<'a>
 
 /// An exclusive handle that does nothing upon release.

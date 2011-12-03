@@ -26,7 +26,7 @@ type Window () as this =
         this.VSync <- VSyncMode.On
         Graphics.Initialize ()
 
-        let music = new Path (@"N:\Music\Me\57.mp3")
+        let music = new Path (@"N:\Music\Me\12.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -35,11 +35,13 @@ type Window () as this =
             Stream.chunk () (fun () -> 
                 let mutable index = 0
                 if context.NextFrame (&index)
-                then Some (Data.read audiocontent.Data.Value, ())
+                then Some (Data.lock audiocontent.Data.Value, ())
                 else None))
 
+        let bytedata = Data.make 65536 bytestream
+
         let audioparams = {
-                Stream = bytestream
+                Stream = bytedata.Lock ()
                 SampleRate = int audiocontent.SampleRate
                 Channels = audiocontent.Channels
                 Format = audiocontent.Format
@@ -48,6 +50,18 @@ type Window () as this =
                 Pitch = Feed.``const`` 1.0
             }
         audiooutput.Begin audioparams |> ignore
+
+        let audioparams = {
+                Stream = bytedata.Lock ()
+                SampleRate = int audiocontent.SampleRate
+                Channels = audiocontent.Channels
+                Format = audiocontent.Format
+                Control = control
+                Volume = Feed.``const`` 0.8
+                Pitch = Feed.``const`` 2.0
+            }
+        audiooutput.Begin audioparams |> ignore
+
         control.Fire AudioControl.Play
         
 

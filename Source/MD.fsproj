@@ -49,6 +49,7 @@
     <Compile Include="Temporary.fs" />
     <Compile Include="Feed.fs" />
     <Compile Include="Plugin.fs" />
+    <Compile Include="Stream.fs" />
     <Compile Include="Data.fs" />
     <Compile Include="Container.fs" />
     <Compile Include="Audio.fs" />

@@ -200,7 +200,7 @@ RetractAction^ ::Plugin::Load() {
 FSharpOption<Tuple<Container^, ExclusiveContext^>^>^ ::Plugin::_LoadContainer(ExclusiveByteData^ Data, String^ Filename) {
 	using namespace Runtime::InteropServices;
 
-	AVIOContext* io = InitStreamContext(Data::read(Data->Object));
+	AVIOContext* io = InitStreamContext(Data::lock(Data->Object));
 
 	// Get file name if possible
 	char* filename = NULL;

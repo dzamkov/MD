@@ -64,6 +64,12 @@ type Rectangle (left : double, top : double, right : double, bottom : double) =
 
         new (topLeft : Point, bottomRight : Point) = new Rectangle (topLeft.X, topLeft.Y, bottomRight.X, bottomRight.Y)
 
+        /// Gets a rectangle that contains all points.
+        static member Unbound = new Rectangle (-infinity, infinity, infinity, -infinity)
+
+        /// Gets a rectangle that contains no points.
+        static member Null = new Rectangle (infinity, -infinity, -infinity, infinity)
+
         /// Adds an offset to this rectangle.
         static member (+) (a : Rectangle, b : Point) =
             new Rectangle (a.Left + b.X, a.Top + b.Y, a.Right + b.X, a.Bottom + b.Y)

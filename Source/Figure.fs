@@ -9,11 +9,12 @@ type ImageInterpolation =
 /// Describes a visual object on a two-dimensional plane.
 type Figure =
     | Line of Point * Point * double * Paint
-    | Image of Image * ImageInterpolation * Rectangle * Rectangle
+    | Image of Image * ImageInterpolation * Rectangle
     | Sample of (Point -> Paint)
     | Modulate of Paint * Figure
     | Transform of Transform * Figure
     | Composite of Figure * Figure
+    | Clip of Rectangle * Figure
 
     /// Constructs a transformed figure.
     static member (*) (a : Figure, b : Transform) =
@@ -34,13 +35,9 @@ module Figure =
     /// Constructs a figure for a colored line.
     let line start stop weight paint = Figure.Line (start, stop, weight, paint)
 
-    /// Constructs a figure for a portion of an image placed in a rectangular area. Note that this figure will respect 
+    /// Constructs a figure for an image placed in a rectangular area. Note that this figure will respect 
     /// the transparency information encoded in the image, if any.
-    let image image interpolation source area = Figure.Image (image, interpolation, source, area)
-
-    /// Constructs a figure for the entirety of an image placed in a rectangular area. Note that this figure will respect 
-    /// the transparency information encoded in the image, if any.
-    let imageFull image interpolation area = Figure.Image (image, interpolation, new Rectangle (0.0, 0.0, 1.0, 1.0), area)
+    let image image interpolation area = Figure.Image (image, interpolation, area)
 
     /// Constructs a transformed form of a figure.
     let transform transform figure = Figure.Transform (transform, figure)
@@ -51,3 +48,7 @@ module Figure =
 
     /// Constructs a composite figure.
     let composite bottom top = Figure.Composite (bottom, top)
+
+    /// Constructs a clipped form of a figure. This will cause all paints of the figure outside the given area to
+    /// be completely transparent.
+    let clip area figure = Figure.Clip (area, figure)

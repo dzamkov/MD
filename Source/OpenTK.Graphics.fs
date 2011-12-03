@@ -116,7 +116,7 @@ type Graphics () =
             Graphics.OutputVertex (b - wo)
             Graphics.OutputVertex (b + wo)
             Graphics.End ()
-        | Image (image, interpolation, source, area) ->
+        | Image (image, interpolation, area) ->
             let tex = this.GetTexture image
             tex.Bind2D ()
             match interpolation with
@@ -125,13 +125,13 @@ type Graphics () =
             | _ -> ()
             Graphics.SetPaint Paint.White
             Graphics.Begin BeginMode.Quads
-            Graphics.OutputUV source.TopLeft
+            Graphics.OutputUV (new Point (0.0, 0.0))
             Graphics.OutputVertex area.TopLeft
-            Graphics.OutputUV source.BottomLeft
+            Graphics.OutputUV (new Point (0.0, 1.0))
             Graphics.OutputVertex area.BottomLeft
-            Graphics.OutputUV source.BottomRight
+            Graphics.OutputUV (new Point (1.0, 1.0))
             Graphics.OutputVertex area.BottomRight
-            Graphics.OutputUV source.TopRight
+            Graphics.OutputUV (new Point (1.0, 0.0))
             Graphics.OutputVertex area.TopRight
             Graphics.End ()
         | Transform (trans, fig) ->

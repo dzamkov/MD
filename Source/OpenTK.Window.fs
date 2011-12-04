@@ -31,17 +31,16 @@ type Window () as this =
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
 
-        let bytestream = context |> Exclusive.bind (fun context -> 
-            Stream.chunk () (fun () -> 
+        let stream = context |> Exclusive.bind (fun context -> 
+            Stream.chunk 1 () (fun () -> 
                 let mutable index = 0
                 if context.NextFrame (&index)
                 then Some (Data.lock audiocontent.Data.Value, ())
-                else None))
-
-        let bytedata = Data.make 65536 bytestream
+                else None)) |> Exclusive.map Stream.cast
+        let data : int16 data = Data.make 65536 stream
 
         let audioparams = {
-                Stream = bytedata.Lock ()
+                Stream = data.Lock () |> Exclusive.map Stream.cast
                 SampleRate = int audiocontent.SampleRate
                 Channels = audiocontent.Channels
                 Format = audiocontent.Format
@@ -52,7 +51,7 @@ type Window () as this =
         audiooutput.Begin audioparams |> ignore
 
         let audioparams = {
-                Stream = bytedata.Lock ()
+                Stream = data.Lock () |> Exclusive.map Stream.cast
                 SampleRate = int audiocontent.SampleRate
                 Channels = audiocontent.Channels
                 Format = audiocontent.Format

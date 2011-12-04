@@ -39,12 +39,14 @@ type Window () as this =
             |> Exclusive.map Stream.cast
         let shortData : int16 data = Data.make 65536 stream
         let floatData = Data.map (fun x -> float x / 32768.0) shortData
+        let monoFloatData = Data.combine 2 (fun (x, o) -> x.[o]) floatData
+        let monoByteData = Data.map (fun x -> uint8 (x * 127.5 + 127.5)) monoFloatData
 
         let audioparams = {
-                Stream = shortData.Lock () |> Exclusive.map Stream.cast
+                Stream = monoByteData.Lock () |> Exclusive.map Stream.cast
                 SampleRate = int audiocontent.SampleRate
-                Channels = audiocontent.Channels
-                Format = audiocontent.Format
+                Channels = 1
+                Format = AudioFormat.PCM8
                 Control = control
                 Volume = Feed.``const`` 1.0
                 Pitch = Feed.``const`` 1.0

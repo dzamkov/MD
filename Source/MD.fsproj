@@ -42,8 +42,7 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Memory.fs" />
-    <Compile Include="Math.fs" />
+    <Compile Include="Util.fs" />
     <Compile Include="Retract.fs" />
     <Compile Include="Path.fs" />
     <Compile Include="Update.fs" />

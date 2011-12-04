@@ -1,5 +1,6 @@
 ﻿namespace MD
 
+open Util
 open System
 open System.IO
 open Microsoft.FSharp.NativeInterop
@@ -119,6 +120,31 @@ type MapData<'a, 'b> (source : 'b data, map : 'b -> 'a) =
             destination <- destination + nativeint itemSize
 
     override this.Lock (index, size) = source.Lock (index, size) |> Exclusive.map (Stream.map map)
+
+/// Data that combines fixed-size groups of items into single items.
+type CombineData<'a, 'b> (source : 'b data, groupSize : int, combine : 'b[] * int -> 'a) =
+    inherit Data<'a> (fit groupSize source.Alignment)
+
+    override this.Size = source.Size / uint64 groupSize
+
+    override this.Read (index, destBuffer, destOffset, size) =
+        let sourceSize = size * groupSize
+        let tempBuffer = Array.zeroCreate sourceSize
+        source.Read (index, tempBuffer, 0, sourceSize)
+        for index = 0 to tempBuffer.Length - 1 do
+            destBuffer.[destOffset + index] <- combine (tempBuffer, index * groupSize)
+
+    override this.Read (index, destination, size) = 
+        let mutable destination = destination
+        let itemSize = Memory.SizeOf<'a> ()
+        let sourceSize = size * groupSize
+        let tempBuffer = Array.zeroCreate sourceSize
+        source.Read (index, tempBuffer, 0, sourceSize)
+        for index = 0 to tempBuffer.Length - 1 do
+            Memory.Write (destination, combine (tempBuffer, index * groupSize))
+            destination <- destination + nativeint itemSize
+    
+    override this.Lock (index, size) = source.Lock (index * uint64 groupSize, size * uint64 groupSize) |> Exclusive.map (Stream.combine groupSize combine)
 
 /// Data created from a series of concatenated chunks.
 type ChunkData<'a> (alignment : int) =
@@ -248,6 +274,12 @@ module Data =
 
     /// Constructs a mapped form of the given data.
     let map map source = new MapData<'a, 'b> (source, map) :> 'a data
+
+    /// Constructs data that combines fixed-sized groups into single items.
+    let combine groupSize combine source = new CombineData<'a, 'b> (source, groupSize, combine) :> 'a data
+
+    /// Constructs data that combines fixed-sized groups into single items.
+    let split groupSize split source = new NotImplementedException () |> raise
 
     /// Constructs data whose source is the given memory region.
     let unsafe regionStart regionEnd = new UnsafeData<'a> (regionStart, regionEnd) :> 'a data

@@ -1,6 +1,6 @@
 ﻿namespace MD
 
-open Math
+open Util
 open System
 open System.Drawing
 open System.Drawing.Imaging

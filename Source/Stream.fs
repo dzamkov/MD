@@ -1,6 +1,6 @@
 ﻿namespace MD
 
-open Math
+open Util
 open System
 open System.IO
 open Microsoft.FSharp.NativeInterop
@@ -145,7 +145,7 @@ type MapStream<'a, 'b> (source : 'b stream, map : 'b -> 'a) =
 
 /// A stream that combines fixed-size groups of items into single items.
 [<Sealed>]
-type CombineStream<'a, 'b> (source : 'b stream, groupSize : int, group : 'b[] * int -> 'a) =
+type CombineStream<'a, 'b> (source : 'b stream, groupSize : int, combine : 'b[] * int -> 'a) =
     inherit Stream<'a> (fit groupSize source.Alignment)
     let buffer = Array.zeroCreate (base.Alignment * groupSize)
     let loadBuffer () = source.Read (buffer, 0, buffer.Length) = buffer.Length
@@ -155,7 +155,7 @@ type CombineStream<'a, 'b> (source : 'b stream, groupSize : int, group : 'b[] * 
         let mutable cur = offset
         while size > 0 && loadBuffer() do
             for index = 0 to this.Alignment - 1 do
-                destBuffer.[cur] <- group (buffer, index * groupSize)
+                destBuffer.[cur] <- combine (buffer, index * groupSize)
                 cur <- cur + 1
             size <- size - this.Alignment
         cur - offset
@@ -167,7 +167,7 @@ type CombineStream<'a, 'b> (source : 'b stream, groupSize : int, group : 'b[] * 
         let mutable cur = destination
         while size > 0 && loadBuffer() do
             for index = 0 to this.Alignment - 1 do
-                Memory.Write (cur, group (buffer, index * groupSize))
+                Memory.Write (cur, combine (buffer, index * groupSize))
                 cur <- cur + nativeint itemSize
             size <- size - this.Alignment
         initialSize - size

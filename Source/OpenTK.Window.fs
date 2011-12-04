@@ -48,14 +48,20 @@ type Window () as this =
         audiooutput.Begin audioparams |> ignore
         control.Fire AudioControl.Play
 
-        let sqr x = x * x
-        let colorBuffer = Array2D.init 256 256 (fun x y -> Color.RGB (sqr (float x / 128.0 - 1.0), sqr (float y / 128.0 - 1.0), 0.5))
+        let gradient = 
+            new Gradient [|
+                { Value = 0.0; Color = Color.RGB(1.0, 1.0, 1.0) };
+                { Value = 0.35; Color = Color.RGB(0.0, 1.0, 1.0) };
+                { Value = 0.5; Color = Color.RGB(0.0, 1.0, 0.0) };
+                { Value = 0.6; Color = Color.RGB(1.0, 1.0, 0.0) };
+                { Value = 0.85; Color = Color.RGB(1.0, 0.0, 0.0) };
+                { Value = 1.0; Color = Color.RGB(0.5, 0.0, 0.0) };
+            |]
+
+        let calc x y = abs (sin x * cos y * cos (x * 3.0) * sin (y * 2.3) + sqrt (abs (x * y)) * 0.1)
+        let colorBuffer = Array2D.init 1024 1024 (fun x y -> gradient.GetColor (calc (float x / 64.0 - 2.0) (float y / 64.0 - 2.0)))
         let image = Image.colorBuffer colorBuffer
-        fig.Current <- 
-            Figure.composite
-                (Figure.image image ImageInterpolation.Linear (new Rectangle (-1.0, 1.0, 1.0, -1.0)))
-                (Figure.image image ImageInterpolation.Linear (new Rectangle (-0.5, 0.5, 0.5, -0.5)))
-        
+        fig.Current <- Figure.image image ImageInterpolation.Linear (new Rectangle (-1.0, 1.0, 1.0, -1.0))
 
     /// Gets a feed that gives the size of the client area of this window in pixels.
     member this.Size = size

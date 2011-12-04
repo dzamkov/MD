@@ -12,4 +12,6 @@ let lcm a b = a * b / gcd a b
 let fit a b = b / gcd a b
 
 /// Rounds "a" up to the next highest multiple of "b"
-let round a b = (a + b - 1) / b * b
+let round a b = 
+    let t = a + b - 1
+    t - (t % b)

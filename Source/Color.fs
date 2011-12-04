@@ -1,7 +1,7 @@
 ﻿namespace MD
 
 /// Represents a color (with no transparency information).
-type Color (r : double, g : double, b : double) =
+type Color (r : float, g : float, b : float) =
     struct
 
         /// Gets a completely white color.
@@ -11,18 +11,18 @@ type Color (r : double, g : double, b : double) =
         static member Black = new Color (0.0, 0.0, 0.0)
 
         /// Creates a color based on its RGB representation.
-        static member RGB (r : double, g : double, b : double) =
+        static member RGB (r : float, g : float, b : float) =
             new Color (r, g, b)
 
         /// Blends two colors using the given amount (between 0.0 and 1.0) to determine
         /// what portion of the final color is the second color.
-        static member Blend (a : Color, b : Color, amount : double) =
+        static member Blend (a : Color, b : Color, amount : float) =
             let am = 1.0 - amount
             let bm = amount
             new Color (a.R * am + b.R * bm, a.G * am + b.G * bm, a.B * am + b.B * bm)
 
         /// Scales all components in a color by a certain amount.
-        static member (*) (a : Color, b : double) =
+        static member (*) (a : Color, b : float) =
             new Color (a.R * b, a.G * b, a.B * b)
 
         /// Gets the red component of this color.
@@ -47,8 +47,52 @@ type Color (r : double, g : double, b : double) =
         member this.Lightness = (r + g + b) / 3.0
     end
 
+/// A stop, or control point, in a gradient.
+type GradientStop = {
+
+    /// The value this stop occurs at.
+    Value : float
+
+    /// The color of this stop.
+    Color : Color
+
+    }
+
+/// A continuous mapping of real values to colors.
+type Gradient (stops : GradientStop[]) =
+    
+    /// Gets the stops for this gradient. Note that there must be at least one stop and the stop(s)
+    /// are given in order of ascending value.
+    member this.Stops = stops
+
+    /// Gets the minimum value for which this gradient has a unique color.
+    member this.Minimum = stops.[0].Value
+
+    /// Gets the maximum value for which this gradient has a unique color.
+    member this.Maximum = stops.[stops.Length - 1].Value
+
+    /// Gets the color of the gradient for the given value.
+    member this.GetColor value = 
+        let rec search low lowStop high highStop value =
+            if high = low + 1 then 
+                Color.Blend (lowStop.Color, highStop.Color, (value - lowStop.Value) / (highStop.Value - lowStop.Value))
+            else
+                let mid = (low + high) / 2
+                let midStop = stops.[mid]
+                if value < midStop.Value then search low lowStop mid midStop value
+                else search mid midStop high highStop value
+        let low = 0
+        let high = stops.Length - 1
+        let lowStop = stops.[low]
+        let highStop = stops.[high]
+        match value with
+        | value when value <= lowStop.Value -> lowStop.Color
+        | value when value >= highStop.Value -> highStop.Color
+        | _ -> search low lowStop high highStop value
+                    
+
 /// Represents a color with transparency information.
-type Paint (a : double, pre : Color) =
+type Paint (a : float, pre : Color) =
     struct
 
         /// Gets a completely white paint.
@@ -61,16 +105,16 @@ type Paint (a : double, pre : Color) =
         static member Transparent = new Paint (0.0, Color.White)
 
         /// Creates a paint based on its post-multiplied argb representation.
-        static member ARGB (a : double, source : Color) =
+        static member ARGB (a : float, source : Color) =
             new Paint (a, source * a)
 
         /// Creates a paint based on its post-multiplied argb representation.
-        static member ARGB (a : double, r : double, g : double, b : double) =
+        static member ARGB (a : float, r : float, g : float, b : float) =
             new Paint (a, new Color (a * r, a * g, a * b))
 
         /// Blends two paints using the given amount (between 0.0 and 1.0) to determine
         /// what portion of the final paint is the second paint.
-        static member Blend (a : Paint, b : Paint, amount : double) =
+        static member Blend (a : Paint, b : Paint, amount : float) =
             let am = 1.0 - amount
             let bm = amount
             let ac : Color = a.AdditiveColor

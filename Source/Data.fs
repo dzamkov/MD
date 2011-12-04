@@ -93,9 +93,32 @@ type BufferData<'a> (buffer : 'a[], offset : int, size : int) =
     member this.NativeSize = size
 
     override this.Size = uint64 size
-    override this.Read (index, destbuffer, destoffset, size) = Array.blit buffer (int index + offset) destbuffer destoffset size
+    override this.Read (index, destBuffer, destOffset, size) = Array.blit buffer (int index + offset) destBuffer destOffset size
     override this.Read (index, destination, size) = Memory.Copy (buffer, int index + offset, destination, uint32 size * Memory.SizeOf<'a> ())
-    override this.Lock (index, size) = new BufferStream<'a> (buffer, int index + offset) :> 'a stream |> Exclusive.``static``
+    override this.Lock (index, size) = Stream.buffer buffer (int index + offset) |> Exclusive.``static``
+
+/// Data that applies a mapping function to source data.
+type MapData<'a, 'b> (source : 'b data, map : 'b -> 'a) =
+    inherit Data<'a> (source.Alignment)
+
+    override this.Size = source.Size
+
+    override this.Read (index, destBuffer, destOffset, size) =
+        let tempBuffer = Array.zeroCreate size
+        source.Read (index, tempBuffer, 0, size)
+        for index = 0 to tempBuffer.Length - 1 do
+            destBuffer.[destOffset + index] <- map tempBuffer.[index]
+
+    override this.Read (index, destination, size) = 
+        let mutable destination = destination
+        let itemSize = Memory.SizeOf<'a> ()
+        let tempBuffer = Array.zeroCreate size
+        source.Read (index, tempBuffer, 0, size)
+        for index = 0 to tempBuffer.Length - 1 do
+            Memory.Write (destination, map tempBuffer.[index])
+            destination <- destination + nativeint itemSize
+
+    override this.Lock (index, size) = source.Lock (index, size) |> Exclusive.map (Stream.map map)
 
 /// Data created from a series of concatenated chunks.
 type ChunkData<'a> (alignment : int) =
@@ -222,6 +245,9 @@ module Data =
 
     /// Constructs data whose source is an IO stream.
     let io (source : System.IO.Stream) = new IOData (source) :> byte data
+
+    /// Constructs a mapped form of the given data.
+    let map map source = new MapData<'a, 'b> (source, map) :> 'a data
 
     /// Constructs data whose source is the given memory region.
     let unsafe regionStart regionEnd = new UnsafeData<'a> (regionStart, regionEnd) :> 'a data

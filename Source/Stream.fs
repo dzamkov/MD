@@ -114,8 +114,36 @@ type ChunkStream<'a, 'b> (alignment : int, initial : ('a stream exclusive * 'b) 
             | None -> totalReadSize
         read (destination, size) 0
 
+/// A stream that maps items with a mapping function.
+[<Sealed>]
+type MapStream<'a, 'b> (source : 'b stream, map : 'b -> 'a) =
+    inherit Stream<'a> (source.Alignment)
+    let buffer = Array.zeroCreate base.Alignment
+    let loadBuffer () = source.Read (buffer, 0, buffer.Length) = buffer.Length
 
-/// A stream that combines items in a source stream to form fixed-size groups.
+    override this.Read (destBuffer, offset, size) = 
+        let mutable size = size
+        let mutable cur = offset
+        while size > 0 && loadBuffer() do
+            for index = 0 to buffer.Length - 1 do
+                destBuffer.[cur] <- map buffer.[index]
+                cur <- cur + 1
+            size <- size - buffer.Length
+        cur - offset
+
+    override this.Read (destination, size) = 
+        let initialSize = size
+        let itemSize = Memory.SizeOf<'a> ()
+        let mutable size = size
+        let mutable cur = destination
+        while size > 0 && loadBuffer() do
+            for index = 0 to this.Alignment - 1 do
+                Memory.Write (cur, map buffer.[index])
+                cur <- cur + nativeint itemSize
+            size <- size - this.Alignment
+        initialSize - size
+
+/// A stream that combines fixed-size groups of items into single items.
 [<Sealed>]
 type CombineStream<'a, 'b> (source : 'b stream, groupSize : int, group : 'b[] * int -> 'a) =
     inherit Stream<'a> (fit groupSize source.Alignment)
@@ -126,9 +154,8 @@ type CombineStream<'a, 'b> (source : 'b stream, groupSize : int, group : 'b[] * 
         let mutable size = size
         let mutable cur = offset
         while size > 0 && loadBuffer() do
-            let mutable groupIndex = 0
-            while groupIndex < this.Alignment do
-                destBuffer.[cur] <- group (buffer, groupIndex * groupSize)
+            for index = 0 to this.Alignment - 1 do
+                destBuffer.[cur] <- group (buffer, index * groupSize)
                 cur <- cur + 1
             size <- size - this.Alignment
         cur - offset
@@ -139,10 +166,40 @@ type CombineStream<'a, 'b> (source : 'b stream, groupSize : int, group : 'b[] * 
         let mutable size = size
         let mutable cur = destination
         while size > 0 && loadBuffer() do
-            let mutable groupIndex = 0
-            while groupIndex < this.Alignment do
-                Memory.Write (cur, group (buffer, groupIndex * groupSize))
+            for index = 0 to this.Alignment - 1 do
+                Memory.Write (cur, group (buffer, index * groupSize))
                 cur <- cur + nativeint itemSize
+            size <- size - this.Alignment
+        initialSize - size
+
+/// A stream that splits single items into fixed-size groups.
+[<Sealed>]
+type SplitStream<'a, 'b> (source : 'b stream, groupSize : int, split : 'b * 'a[] * int -> unit) =
+    inherit Stream<'a> (source.Alignment * groupSize)
+    let buffer = Array.zeroCreate (source.Alignment)
+    let loadBuffer () = source.Read (buffer, 0, buffer.Length) = buffer.Length
+
+    override this.Read (destBuffer, offset, size) =
+        let mutable size = size
+        let mutable cur = offset
+        while size > 0 && loadBuffer() do
+            for index = 0 to buffer.Length - 1 do
+                split (buffer.[index], destBuffer, cur)
+                cur <- cur + groupSize
+            size <- size - this.Alignment
+        cur - offset
+
+    override this.Read (destination, size) =
+        let initialSize = size
+        let itemSize = Memory.SizeOf<'a> ()
+        let mutable size = size
+        let mutable cur = destination
+        let tempBuffer = Array.zeroCreate (this.Alignment)
+        while size > 0 && loadBuffer() do
+            for index = 0 to buffer.Length - 1 do
+                split (buffer.[index], tempBuffer, index * groupSize)
+            Memory.Copy (tempBuffer, 0, cur,  uint32 this.Alignment * itemSize)
+            cur <- cur + nativeint (uint32 this.Alignment * itemSize)
             size <- size - this.Alignment
         initialSize - size
 
@@ -221,7 +278,7 @@ module Stream =
 
     /// Constructs a stream to read from a buffer. Note that the buffer is referenced directly and 
     /// changes to the buffer will be reflected in the stream.
-    let buffer buffer offset = new BufferStream<'a> (buffer, offset)
+    let buffer buffer offset = new BufferStream<'a> (buffer, offset) :> 'a stream
 
     /// Constructs a stream to read from the file at the given path.
     let file (path : MD.Path) =
@@ -240,8 +297,14 @@ module Stream =
         let cs = new ChunkStream<'a, 'b> (alignment, initial, retrieve)
         Exclusive.custom cs.Finish (cs :> 'a stream)
 
-    /// Constructs a stream that combines fixed-sized groups in the source stream into single items.
+    /// Constructs a mapped form of a stream.
+    let map map source = new MapStream<'a, 'b> (source, map) :> 'a stream
+
+    /// Constructs a stream that combines fixed-sized groups into single items.
     let combine groupSize group source = new CombineStream<'a, 'b> (source, groupSize, group) :> 'a stream
+
+    /// Constructs a stream that splits single items into fixed-sized groups.
+    let split groupSize split source = new SplitStream<'a, 'b> (source, groupSize, split) :> 'a stream
 
     /// Constructs a stream based on a source stream that reinterprets the byte representations of source items in order
     /// to form items of other types.

@@ -28,16 +28,20 @@ type Window () as this =
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
 
-        let stream = context |> Exclusive.bind (fun context -> 
-            Stream.chunk 1 () (fun () -> 
-                let mutable index = 0
-                if context.NextFrame (&index)
-                then Some (Data.lock audiocontent.Data.Value, ())
-                else None)) |> Exclusive.map Stream.cast
-        let data : int16 data = Data.make 65536 stream
+        let stream = 
+            context 
+            |> Exclusive.bind (fun context -> 
+                Stream.chunk 1 () (fun () -> 
+                    let mutable index = 0
+                    if context.NextFrame (&index)
+                    then Some (Data.lock audiocontent.Data.Value, ())
+                    else None)) 
+            |> Exclusive.map Stream.cast
+        let shortData : int16 data = Data.make 65536 stream
+        let floatData = Data.map (fun x -> float x / 32768.0) shortData
 
         let audioparams = {
-                Stream = data.Lock () |> Exclusive.map Stream.cast
+                Stream = shortData.Lock () |> Exclusive.map Stream.cast
                 SampleRate = int audiocontent.SampleRate
                 Channels = audiocontent.Channels
                 Format = audiocontent.Format

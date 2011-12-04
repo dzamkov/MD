@@ -49,9 +49,12 @@ type Window () as this =
         control.Fire AudioControl.Play
 
         let sqr x = x * x
-        let paintBuffer = Array2D.init 256 256 (fun x y -> Paint.ARGB (1.0, sqr (float x / 128.0 - 1.0), sqr (float y / 128.0 - 1.0), 0.5))
-        let image = Image.paintBuffer paintBuffer
-        fig.Current <- Figure.image image ImageInterpolation.Nearest (new Rectangle (-1.0, 1.0, 1.0, -1.0))
+        let colorBuffer = Array2D.init 256 256 (fun x y -> Color.RGB (sqr (float x / 128.0 - 1.0), sqr (float y / 128.0 - 1.0), 0.5))
+        let image = Image.colorBuffer colorBuffer
+        fig.Current <- 
+            Figure.composite
+                (Figure.image image ImageInterpolation.Linear (new Rectangle (-1.0, 1.0, 1.0, -1.0)))
+                (Figure.image image ImageInterpolation.Linear (new Rectangle (-0.5, 0.5, 0.5, -0.5)))
         
 
     /// Gets a feed that gives the size of the client area of this window in pixels.

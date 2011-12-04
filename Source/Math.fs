@@ -10,3 +10,6 @@ let lcm a b = a * b / gcd a b
 
 /// Gets the smallest integer that can be multipled by "a" to get a multiple of "b".
 let fit a b = b / gcd a b
+
+/// Rounds "a" up to the next highest multiple of "b"
+let round a b = (a + b - 1) / b * b

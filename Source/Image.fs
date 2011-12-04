@@ -1,9 +1,9 @@
 ﻿namespace MD
 
+open Math
 open System
 open System.Drawing
 open System.Drawing.Imaging
-open Microsoft.FSharp.NativeInterop
 
 /// Identifies a possible image format.
 type ImageFormat =
@@ -72,6 +72,33 @@ type BitmapImage (bitmap : Bitmap) =
         let data = Data.unsafe bd.Scan0 (bd.Scan0 + nativeint ds)
         Exclusive.custom (fun () -> bitmap.UnlockBits bd) data
 
+/// An image from a two-dimensional array of colors.
+type ColorBufferImage (buffer : MD.Color[,]) =
+    inherit Image (buffer.GetLength 0, buffer.GetLength 1, ImageFormat.BGR24)
+
+    override this.LockData (left, top, width, height, format) =
+        match format with
+        | ImageFormat.BGRA32 -> new NotImplementedException () |> raise
+        | ImageFormat.BGR24 ->
+            let stride = round (width * 3) 4
+            let lineOffset = stride - width * 3
+            let outputSize = height * stride
+            let output = Array.zeroCreate outputSize
+            let mutable pos = 0
+            let mutable y = 0
+            while y < height do
+                let mutable x = 0
+                while x < width do
+                    let color = buffer.[left + x, top + y]
+                    output.[pos + 0] <- color.BByte
+                    output.[pos + 1] <- color.GByte
+                    output.[pos + 2] <- color.RByte
+                    pos <- pos + 3
+                    x <- x + 1
+                pos <- pos + lineOffset
+                y <- y + 1
+            Data.buffer output 0 outputSize |> Exclusive.``static``
+
 /// An image from a two-dimensional array of paints.
 type PaintBufferImage (buffer : Paint[,]) =
     inherit Image (buffer.GetLength 0, buffer.GetLength 1, ImageFormat.BGRA32)
@@ -104,6 +131,9 @@ module Image =
 
     /// Creates an image from a System.Drawing.Bitmap representation.
     let bitmap bitmap = new BitmapImage (bitmap) :> Image
+
+    /// Creates an image from a color buffer representation.
+    let colorBuffer buffer = new ColorBufferImage (buffer) :> Image
 
     /// Creates an image from a paint buffer representation.
     let paintBuffer buffer = new PaintBufferImage (buffer) :> Image

@@ -16,17 +16,14 @@ type Window () as this =
     let programTime = Feed.time
 
     let image = Image.load (Path.WorkingDirectory + "Resources" + "Images" + "Test.png") |> Option.get
-    let fig = programTime |> Feed.maps (fun time ->
-        Figure.image image.Object ImageInterpolation.Linear (new Rectangle (-0.5, 0.5, 0.5, -0.5))
-        |> Figure.transform (Transform.Rotate time)
-        |> Figure.transform (Transform.Scale (cos (time * 3.7) * 0.3 + 0.7)))
+    let fig = new ControlSignalFeed<Figure> (Figure.``null``)
 
     do 
         this.MakeCurrent ()
         this.VSync <- VSyncMode.On
         Graphics.Initialize ()
 
-        let music = new Path (@"N:\Music\Me\12.mp3")
+        let music = new Path (@"N:\Music\Me\19.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -49,19 +46,12 @@ type Window () as this =
                 Pitch = Feed.``const`` 1.0
             }
         audiooutput.Begin audioparams |> ignore
-
-        let audioparams = {
-                Stream = data.Lock () |> Exclusive.map Stream.cast
-                SampleRate = int audiocontent.SampleRate
-                Channels = audiocontent.Channels
-                Format = audiocontent.Format
-                Control = control
-                Volume = Feed.``const`` 0.8
-                Pitch = Feed.``const`` 2.0
-            }
-        audiooutput.Begin audioparams |> ignore
-
         control.Fire AudioControl.Play
+
+        let sqr x = x * x
+        let paintBuffer = Array2D.init 256 256 (fun x y -> Paint.ARGB (1.0, sqr (float x / 128.0 - 1.0), sqr (float y / 128.0 - 1.0), 0.5))
+        let image = Image.paintBuffer paintBuffer
+        fig.Current <- Figure.image image ImageInterpolation.Nearest (new Rectangle (-1.0, 1.0, 1.0, -1.0))
         
 
     /// Gets a feed that gives the size of the client area of this window in pixels.

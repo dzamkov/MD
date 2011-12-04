@@ -8,6 +8,7 @@ type ImageInterpolation =
 
 /// Describes a visual object on a two-dimensional plane.
 type Figure =
+    | Null
     | Line of Point * Point * double * Paint
     | Image of Image * ImageInterpolation * Rectangle
     | Sample of (Point -> Paint)
@@ -31,6 +32,9 @@ type Figure =
 /// Contains functions for constructing and manipulating figures.
 [<CompilationRepresentationAttribute(CompilationRepresentationFlags.ModuleSuffix)>]
 module Figure =
+
+    /// Gets the null figure, a figure that is completely transparent.
+    let ``null`` = Figure.Null
     
     /// Constructs a figure for a colored line.
     let line start stop weight paint = Figure.Line (start, stop, weight, paint)

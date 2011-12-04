@@ -13,7 +13,7 @@ type Data<'a> (alignment : int) =
     /// this integer.
     member this.Alignment = alignment
 
-    /// Gets the current size of the array.
+    /// Gets the size of the array.
     abstract member Size : uint64
 
     /// Gets a user-friendly string for the given size in bytes.
@@ -49,7 +49,7 @@ type Data<'a> (alignment : int) =
      /// Creates a stream to read this data.
     member this.Lock () = this.Lock (0UL, this.Size)
 
-    override this.ToString () = String.Format ("{0} of {1}s", this.SizeString, typeof<'a>.Name)
+    override this.ToString () = String.Format ("{0} of {1}", this.SizeString, typeof<'a>.Name)
 
 // Create type abbreviation.
 type 'a data = Data<'a>

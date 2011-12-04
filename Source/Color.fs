@@ -34,6 +34,15 @@ type Color (r : double, g : double, b : double) =
         /// Gets the blue component of this color.
         member this.B = b
 
+        /// Gets the byte representation of the red component of this color.
+        member this.RByte = byte (r * 255.99)
+
+        /// Gets the byte representation of the green component of this color.
+        member this.GByte = byte (g * 255.99)
+
+        /// Gets the byte representation of the blue component of this color.
+        member this.BByte = byte (b * 255.99)
+
         /// Gets the relative lightness of this color between 0.0 and 1.0.
         member this.Lightness = (r + g + b) / 3.0
     end
@@ -79,6 +88,9 @@ type Paint (a : double, pre : Color) =
 
         /// Gets the transparency of this paint, with 1.0 indicating fully opaque and 0.0 indicating fully transparent.
         member this.Alpha = a
+
+        /// Gets the byte representation of the alpha component of this paint.
+        member this.AlphaByte = byte (a * 255.99)
 
         /// Gets wether this paint is fully opaque.
         member this.IsOpaque = (a = 1.0)

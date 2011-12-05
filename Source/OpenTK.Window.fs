@@ -3,7 +3,6 @@
 open MD
 open Util
 open System
-open System.Numerics
 open Microsoft.FSharp.NativeInterop
 open global.OpenTK
 open OpenTK.Graphics
@@ -66,7 +65,7 @@ type Window () as this =
                 { Value = 1.0; Color = Color.RGB(0.5, 0.0, 0.0) };
             |]
 
-        let timeResolution = 512
+        let timeResolution = 256
         let windowDelta = 2048
         let freqResolution = 512
         let colorBuffer = Array2D.zeroCreate timeResolution freqResolution
@@ -78,7 +77,7 @@ type Window () as this =
             monoFloatData.Read (start, window, 0, freqResolution)
             pin window (fun windowPtr -> pin output (fun outputPtr -> DFT.computeReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt outputPtr) freqResolution))
             for y = 0 to freqResolution - 1 do
-                colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Magnitude)
+                colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs)
 
         let image = Image.colorBuffer colorBuffer
         fig.Current <- Figure.image image ImageInterpolation.Linear (new Rectangle (-1.0, 1.0, 1.0, -1.0))

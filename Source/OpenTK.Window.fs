@@ -81,7 +81,7 @@ type Window () as this =
                 colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs * 0.1)
 
         let image = Image.colorBuffer colorBuffer
-        fig.Current <- Figure.image image ImageInterpolation.Linear (new Rectangle (-1.0, 1.0, 1.0, -1.0))
+        fig.Current <- Figure.image image ImageInterpolation.Linear (new Rectangle (-1.0, 7.0, 1.0, -1.0))
 
     /// Gets a feed that gives the size of the client area of this window in pixels.
     member this.Size = size

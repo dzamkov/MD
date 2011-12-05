@@ -131,7 +131,7 @@ type CombineData<'a, 'b> (source : 'b data, groupSize : int, combine : 'b[] * in
         let sourceSize = size * groupSize
         let tempBuffer = Array.zeroCreate sourceSize
         source.Read (index, tempBuffer, 0, sourceSize)
-        for index = 0 to tempBuffer.Length - 1 do
+        for index = 0 to size - 1 do
             destBuffer.[destOffset + index] <- combine (tempBuffer, index * groupSize)
 
     override this.Read (index, destination, size) = 
@@ -140,7 +140,7 @@ type CombineData<'a, 'b> (source : 'b data, groupSize : int, combine : 'b[] * in
         let sourceSize = size * groupSize
         let tempBuffer = Array.zeroCreate sourceSize
         source.Read (index, tempBuffer, 0, sourceSize)
-        for index = 0 to tempBuffer.Length - 1 do
+        for index = 0 to size - 1 do
             Memory.Write (destination, combine (tempBuffer, index * groupSize))
             destination <- destination + nativeint itemSize
     

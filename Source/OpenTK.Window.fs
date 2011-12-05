@@ -1,7 +1,10 @@
 ﻿namespace MD.OpenTK
 
 open MD
+open Util
 open System
+open System.Numerics
+open Microsoft.FSharp.NativeInterop
 open global.OpenTK
 open OpenTK.Graphics
 open OpenTK.Graphics.OpenGL
@@ -40,13 +43,12 @@ type Window () as this =
         let shortData : int16 data = Data.make 65536 stream
         let floatData = Data.map (fun x -> float x / 32768.0) shortData
         let monoFloatData = Data.combine 2 (fun (x, o) -> x.[o]) floatData
-        let monoByteData = Data.map (fun x -> uint8 (x * 127.5 + 127.5)) monoFloatData
 
         let audioparams = {
-                Stream = monoByteData.Lock () |> Exclusive.map Stream.cast
+                Stream = shortData.Lock () |> Exclusive.map Stream.cast
                 SampleRate = int audiocontent.SampleRate
-                Channels = 1
-                Format = AudioFormat.PCM8
+                Channels = audiocontent.Channels
+                Format = audiocontent.Format
                 Control = control
                 Volume = Feed.``const`` 1.0
                 Pitch = Feed.``const`` 1.0
@@ -64,8 +66,20 @@ type Window () as this =
                 { Value = 1.0; Color = Color.RGB(0.5, 0.0, 0.0) };
             |]
 
-        let calc x y = abs (sin x * cos y * cos (x * 3.0) * sin (y * 2.3) + sqrt (abs (x * y)) * 0.1)
-        let colorBuffer = Array2D.init 1024 1024 (fun x y -> gradient.GetColor (calc (float x / 64.0 - 2.0) (float y / 64.0 - 2.0)))
+        let timeResolution = 512
+        let windowDelta = 2048
+        let freqResolution = 512
+        let colorBuffer = Array2D.zeroCreate timeResolution freqResolution
+
+        let window : float[] = Array.zeroCreate freqResolution
+        let output : Complex[] = Array.zeroCreate freqResolution
+        for x = 0 to timeResolution - 1 do
+            let start = uint64 windowDelta * uint64 x
+            monoFloatData.Read (start, window, 0, freqResolution)
+            pin window (fun windowPtr -> pin output (fun outputPtr -> DFT.computeReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt outputPtr) freqResolution))
+            for y = 0 to freqResolution - 1 do
+                colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Magnitude)
+
         let image = Image.colorBuffer colorBuffer
         fig.Current <- Figure.image image ImageInterpolation.Linear (new Rectangle (-1.0, 1.0, 1.0, -1.0))
 

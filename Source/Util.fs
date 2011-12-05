@@ -20,7 +20,11 @@ let round a b =
     t - (t % b)
 
 /// Pins an object and performs some operation on a pointer to it.
-let pin obj func =
+let inline pin obj func =
     let handle = GCHandle.Alloc (obj, GCHandleType.Pinned)
-    func (handle.AddrOfPinnedObject ())
+    let result = func (handle.AddrOfPinnedObject ())
     handle.Free ()
+    result
+
+/// Performs the given function using a memory block of the given size in bytes.
+let inline withMemory size func = pin (Array.zeroCreate<byte> size) func

@@ -58,28 +58,38 @@ module DFT =
         let unitSize = int cache.UnitSize
         let units = cache.Units
         let mutable curDestination = destination
-        for unit = 0 to unitOffsets.Length - 1 do
+        let mutable unit = 0
+        while unit < unitOffsets.Length do
             let offset = int unitOffsets.[unit]
-            for k = 0 to unitSize - 1 do
+            let mutable k = 0
+            while k < unitSize do
                 let mutable total = Complex.Zero
-                for n = 0 to unitSize - 1 do
+                let mutable n = 0
+                while n < unitSize do
                     total <- total + twiddles.[k * n * (twiddles.Length / unitSize) % twiddles.Length] * NativePtr.get source (n * units + offset)
+                    n <- n + 1
                 NativePtr.write curDestination total
                 curDestination <- NativePtr.add curDestination 1
+                k <- k + 1
+            unit <- unit + 1
 
         // Apply butterfly rounds
         let rounds = cache.Rounds
         let mutable halfSize = unitSize
         let mutable units = units >>> 1
-        for round = 0 to rounds - 1 do
+        while units > 0 do
             let mutable curDestination = destination
-            for unit = 0 to units - 1 do
-                for k = 0 to halfSize - 1 do
+            let mutable unit = 0
+            while unit < units do
+                let mutable k = 0
+                while k < halfSize do
                     let e = NativePtr.get curDestination k
                     let o = NativePtr.get curDestination (k + halfSize)
                     let twiddle = twiddles.[k * (twiddles.Length / halfSize) / 2]
                     NativePtr.set curDestination k (e + twiddle * o)
                     NativePtr.set curDestination (k + halfSize) (e - twiddle * o)
+                    k <- k + 1
                 curDestination <- NativePtr.add curDestination (halfSize * 2)
+                unit <- unit + 1
             units <- units >>> 1
             halfSize <- halfSize <<< 1

@@ -1,5 +1,7 @@
 ﻿namespace MD
 
+open System
+
 /// Represents a complex number.
 type Complex (real : float, imag : float) =
     struct
@@ -49,4 +51,6 @@ type Complex (real : float, imag : float) =
 
         /// Multiplies this number by i.
         member this.TimesI = new Complex (-this.Imag, this.Real)
+
+        override this.ToString() = String.Format("{0} + {1}i", real, imag)
     end

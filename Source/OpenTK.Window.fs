@@ -65,19 +65,20 @@ type Window () as this =
                 { Value = 1.0; Color = Color.RGB(0.5, 0.0, 0.0) };
             |]
 
-        let timeResolution = 256
+        let timeResolution = 1024
         let windowDelta = 2048
-        let freqResolution = 512
+        let freqResolution = 1024
         let colorBuffer = Array2D.zeroCreate timeResolution freqResolution
 
+        let cache = new FFTCache (freqResolution)
         let window : float[] = Array.zeroCreate freqResolution
         let output : Complex[] = Array.zeroCreate freqResolution
         for x = 0 to timeResolution - 1 do
             let start = uint64 windowDelta * uint64 x
             monoFloatData.Read (start, window, 0, freqResolution)
-            pin window (fun windowPtr -> pin output (fun outputPtr -> DFT.computeReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt outputPtr) freqResolution))
+            pin window (fun windowPtr -> pin output (fun outputPtr -> DFT.computeReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt outputPtr) cache))
             for y = 0 to freqResolution - 1 do
-                colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs)
+                colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs * 0.1)
 
         let image = Image.colorBuffer colorBuffer
         fig.Current <- Figure.image image ImageInterpolation.Linear (new Rectangle (-1.0, 1.0, 1.0, -1.0))

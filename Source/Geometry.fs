@@ -1,5 +1,7 @@
 ﻿namespace MD
 
+open System
+
 /// Identifies an axis in two-dimensional space.
 type Axis =
     | Horizontal
@@ -55,7 +57,7 @@ type Point (x : double, y : double) =
         /// Gets an offset perpendicular to this offset, with the same length.
         member this.Cross = new Point (-y, x)
 
-        override this.ToString () = x.ToString () + ", " + y.ToString ()
+        override this.ToString () = String.Format ("{0}, {1}", x, y)
     end
 
 /// An axis-aligned rectangle in two-dimensional space.

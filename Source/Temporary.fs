@@ -54,7 +54,7 @@ type ControlTemporary<'a> (value : 'a, wait : ManualResetEvent) =
                     Some value
                 else None
 
-            let unlock () =
+            let unlock x =
                 Monitor.Enter this
                 locks <- locks - 1
                 wait.Set () |> ignore

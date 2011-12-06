@@ -26,10 +26,10 @@ type AudioOutputSourceParameters = {
     Control : AudioControl event
 
     /// A feed giving the volume multiplier of the audio output.
-    Volume : double signal
+    Volume : float signal
 
     /// A feed giving pitch (sample rate multiplier) of the audio output.
-    Pitch : double signal
+    Pitch : float signal
     }
 
 /// Contains information about an active audio output source.

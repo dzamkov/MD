@@ -63,6 +63,10 @@ type Graphics () =
         GL.ClearColor (float32 color.R, float32 color.G, float32 color.B, float32 1.0)
         GL.Clear ClearBufferMask.ColorBufferBit
 
+    /// Clears the texture for the given texture target.
+    static member ClearTexture target =
+        GL.BindTexture (target, 0)
+
     /// Sets the given color as the current color.
     static member SetColor (color : Color) =
         GL.Color3 (color.R, color.G, color.B)
@@ -110,6 +114,7 @@ type Graphics () =
             let off = b - a
             let wo = off.Cross.Normal * (w / 2.0)
             Graphics.SetPaint p
+            Graphics.ClearTexture TextureTarget.Texture2D
             Graphics.Begin BeginMode.Quads
             Graphics.OutputVertex (a + wo)
             Graphics.OutputVertex (a - wo)

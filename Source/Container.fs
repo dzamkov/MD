@@ -71,7 +71,7 @@ type AudioFormat =
     | Double = 4
 
 /// An interface to audio content in a container.
-type AudioContent (sampleRate : double, channels : int, format : AudioFormat) =
+type AudioContent (sampleRate : float, channels : int, format : AudioFormat) =
     inherit Content ()
     let mutable data : byte data option = None
 

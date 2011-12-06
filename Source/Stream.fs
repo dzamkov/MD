@@ -284,18 +284,18 @@ module Stream =
     let file (path : MD.Path) =
         let fs = new FileStream (path.Source, FileMode.Open)
         let is = new IOStream (fs) :> byte stream
-        Exclusive.custom fs.Dispose is
+        Exclusive.custom (fun x -> fs.Dispose ()) is
 
     /// Constructs a stream that concatenates a series of chunks produced by the given retrieve function.
     let chunk alignment (initial : 'b) retrieve = 
         let cs = new ChunkStream<'a, 'b> (alignment, initial, retrieve)
-        Exclusive.custom cs.Finish (cs :> 'a stream)
+        cs |> Exclusive.custom (fun cs -> cs.Finish ()) |> Exclusive.map (fun x -> x :> 'a stream)
 
     /// Constructs a stream that concatenates a series of chunks produced by the given retrieve function. The initial chunk
     /// must be provided when using this function.
     let chunkInit alignment (initial : ('a stream exclusive * 'b) option) retrieve = 
         let cs = new ChunkStream<'a, 'b> (alignment, initial, retrieve)
-        Exclusive.custom cs.Finish (cs :> 'a stream)
+        cs |> Exclusive.custom (fun cs -> cs.Finish ()) |> Exclusive.map (fun x -> x :> 'a stream)
 
     /// Constructs a mapped form of a stream.
     let map map source = new MapStream<'a, 'b> (source, map) :> 'a stream

@@ -18,14 +18,18 @@ type Window () as this =
     let programTime = Feed.time
 
     let image = Image.load (Path.WorkingDirectory + "Resources" + "Images" + "Test.png") |> Option.get
-    let fig = new ControlSignalFeed<Figure> (Figure.``null``)
+    let mutable figure = Unchecked.defaultof<Figure signal>
+    let mutable projection = Unchecked.defaultof<Transform signal>
 
-    do 
+    /// Gets a feed that gives the size of the client area of this window in pixels.
+    member this.Size = size
+
+    override this.OnLoad args =
         this.MakeCurrent ()
-        this.VSync <- VSyncMode.On
+        this.VSync <- VSyncMode.Off
         Graphics.Initialize ()
 
-        let music = new Path (@"N:\Music\Me\57.mp3")
+        let music = new Path (@"N:\Music\Me\41.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -43,19 +47,17 @@ type Window () as this =
         let floatData = Data.map (fun x -> float x / 32768.0) shortData
         let monoFloatData = Data.combine 2 (fun (x, o) -> x.[o]) floatData
 
-        let mouse = Input.probe this.Mouse
-        let mouseView = Probe.windowToView size mouse
-
+        let sampleRate = audiocontent.SampleRate
         let audioparams = {
                 Stream = shortData.Lock () |> Exclusive.map Stream.cast
-                SampleRate = int audiocontent.SampleRate
+                SampleRate = int sampleRate
                 Channels = audiocontent.Channels
                 Format = audiocontent.Format
                 Control = control
-                Volume = mouseView.Position |> Feed.maps (fun x -> Math.Exp x.Y) 
-                Pitch = mouseView.Position |> Feed.maps (fun x -> Math.Exp x.X)
+                Volume = Feed.constant 1.0
+                Pitch = Feed.constant 1.0
             }
-        audiooutput.Begin audioparams |> ignore
+        let playPosition = (audiooutput.Begin audioparams).Value.Position
         control.Fire AudioControl.Play
 
         let gradient = 
@@ -77,24 +79,45 @@ type Window () as this =
         let window : float[] = Array.zeroCreate freqResolution
         let output : Complex[] = Array.zeroCreate freqResolution
         for x = 0 to timeResolution - 1 do
-            let start = uint64 windowDelta * uint64 x
-            monoFloatData.Read (start, window, 0, freqResolution)
+            let start = uint64 (windowDelta * x)
+            monoFloatData.Read (start * 2UL, window, 0, freqResolution)
             pin window (fun windowPtr -> pin output (fun outputPtr -> DFT.computeReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt outputPtr) parameters))
             for y = 0 to freqResolution - 1 do
                 colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs * 0.1)
 
         let image = Image.colorBuffer colorBuffer
 
-        fig.Current <- Figure.image image ImageInterpolation.Linear (new Rectangle (-1.0, 7.0, 1.0, -1.0))
+        let mouse = Input.probe this.Mouse
+        let mouseView = Probe.windowToView size mouse
+        let initialViewState = {
+                Center = new Point (0.0, 0.0)
+                Velocity = new Point (0.0, 0.0)
+                Zoom = 0.0
+                ZoomVelocity = -0.2
+            }
+        let view = Exclusive.get (View.Create {
+                InitialState = initialViewState
+                ChangeState = Feed.nil
+                Bounds = Rectangle.Unbound
+                Probe = mouseView
+                VelocityDamping = 0.1
+                ZoomVelocityDamping = 0.1
+            })
 
-    /// Gets a feed that gives the size of the client area of this window in pixels.
-    member this.Size = size
+        let getFigure playSample =
+            let image = Figure.image image ImageInterpolation.Linear (new Rectangle (-1.0, 1.0, 1.0, -1.0))
+            let linex = 2.0 * float playSample / float (timeResolution * windowDelta) - 1.0
+            let line = Figure.line (new Point (linex, -1.0)) (new Point (linex, 1.0)) 0.002 (Paint.ARGB (1.0, 1.0, 0.3, 0.0))
+            Figure.composite image line
+
+        projection <- view.Projection
+        figure <- playPosition |> Feed.maps getFigure
 
     override this.OnRenderFrame args =
-        Graphics.Setup (Transform.Identity, this.Width, this.Height, false)
-        Graphics.Clear (Color.RGB (1.0, 1.0, 1.0))
+        Graphics.Setup (projection.Current, this.Width, this.Height, false)
+        Graphics.Clear (Color.RGB (0.6, 0.8, 1.0))
 
-        graphics.Render fig.Current
+        graphics.Render figure.Current
 
         this.SwapBuffers ()
 

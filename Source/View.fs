@@ -1,5 +1,7 @@
 ﻿namespace MD
 
+open System
+
 // Note: coordinates in "viewspace" are similar to the ones used in OpenGL (see ASCII art).
 // "worldspace" is the rectangular area that the view is projected to.
 //   .------ 1.0 ------.
@@ -19,19 +21,15 @@ type ViewState = {
     /// The worldspace point at the center of the view.
     Center : Point
 
-    /// The movement velocity of the view, in worldspace units per second.
+    /// The movement velocity of the view, in viewspace (yes, viewspace) units per second.
     Velocity : Point
 
     /// The zoom level of the view, such that the ideal view will have
-    /// a square worldspace area with edge length 2 * 2 ^ Zoom.
+    /// a square worldspace area with edge length 2 * 2 ^ -Zoom.
     Zoom : float
 
     /// The zoom velocity of the view, in zoom units per second.
     ZoomVelocity : float
-
-    /// The aspect ratio of the view. This is the width divided by the height of
-    /// the worldspace area for a square viewport.
-    AspectRatio : float
 
     }
 
@@ -50,15 +48,68 @@ type ViewParameters = {
     /// The probe controlling the view, using viewport coordinates.
     Probe : Probe
 
-    }
+    /// The portion of velocity that is retained after each second.
+    VelocityDamping : float
 
-/// Contains information for a user-controlled zoomable axis-aligned view.
-type View = {
-
-    /// The current state of the view.
-    State : ViewState signal
-
-    /// The current transform from viewspace to worldspace.
-    Projection : Transform signal
+    /// The portion of zoom velocity that is retained after each second.
+    ZoomVelocityDamping : float
 
     }
+
+/// Contains information for a user-controlled, zoomable axis-aligned view.
+type View private (parameters : ViewParameters) =
+    let mutable state = parameters.InitialState
+    let probe = parameters.Probe
+    let bounds = parameters.Bounds
+    let velocityDamping = parameters.VelocityDamping
+    let zoomVelocityDamping = parameters.ZoomVelocityDamping
+
+    // Changes the state of the view to the given state after checking if it is
+    // within bounds and correcting if needed.
+    let changeState newState = state <- newState
+    let retractChangeState = parameters.ChangeState.Register changeState
+
+    // Updates the state of the view by the given amount of time in seconds.
+    let update time =
+        let dv = Math.Pow (velocityDamping, time)
+        let dzv = Math.Pow (zoomVelocityDamping, time)
+        let scale = Math.Pow (2.0, state.Zoom)
+        changeState {
+                Center = state.Center + state.Velocity * scale * time
+                Zoom = state.Zoom + state.ZoomVelocity * time
+                Velocity = state.Velocity * dv
+                ZoomVelocity = state.ZoomVelocity * dzv
+            }
+    let retractUpdate = Update.register update
+
+    // Handles a scroll wheel event.
+    let scroll (amount, position : Point) = 
+        let newVelocity = state.Velocity + position * (0.7 * amount)
+        let newZoomVelocity = state.ZoomVelocity - amount
+
+        // Don't call changeState; we haven't changed the position so no bounds-checking is needed.
+        state <- { state with Velocity = newVelocity; ZoomVelocity = newZoomVelocity }
+
+    let retractScroll = (Feed.tag probe.Scroll probe.Position).Register scroll
+
+    /// Creates a new view with the given parameters.
+    static member Create parameters = new View (parameters) |> Exclusive.custom (fun view -> view.Finish ())
+
+    /// Gets the projection from viewspace to worldspace for the given view state.
+    static member GetProjection (state : ViewState) =
+        let center = state.Center
+        let scale = Math.Pow (2.0, state.Zoom)
+        new Transform (center, new Point(scale, 0.0), new Point (0.0, scale))
+
+    /// Gets the projection feed for this view.
+    member this.Projection = this :> ViewState signal |> Feed.maps View.GetProjection
+
+    /// Releases all resources used by this view.
+    member this.Finish () = 
+        if retractChangeState <> null then retractChangeState.Invoke ()
+        if retractUpdate <> null then retractUpdate.Invoke ()
+        if retractScroll <> null then retractScroll.Invoke ()
+
+    interface SignalFeed<ViewState> with
+        member this.Current = state
+        member this.Delta = None

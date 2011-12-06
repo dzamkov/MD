@@ -35,9 +35,9 @@ type DisposeExclusive<'a> (obj : 'a) =
         | _ -> ()
 
 /// An exclusive handle that calls a given function upon release.
-type CustomExclusive<'a> (obj : 'a, finish : unit -> unit) =
+type CustomExclusive<'a> (obj : 'a, finish : 'a -> unit) =
     inherit Exclusive<'a> (obj)
-    override this.Finish () = finish ()
+    override this.Finish () = finish this.Object
 
 /// An exclusive handle that gives an object while separately managing another exclusive handle.
 type MapExclusive<'a, 'b> (obj : 'a, sub : 'b exclusive) =
@@ -53,6 +53,9 @@ type CombineExclusive<'a, 'b, 'c> (obj : 'a, subA : 'b exclusive, subB : 'c excl
 
 /// Contains functions for constructing and manipulating exclusive handles.
 module Exclusive =
+
+    /// Gets the object for an exclusive handle.
+    let get (handle : 'a exclusive) = handle.Object
 
     /// Creates an exclusive handle for an object that does nothing upon release.
     let make obj = new ReturnExclusive<'a> (obj) :> 'a exclusive

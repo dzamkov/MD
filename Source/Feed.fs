@@ -10,7 +10,7 @@ type EventFeed<'a> =
     /// Registers a callback to be called whenever an event occurs in this
     /// feed. The returned retract action can be used to remove the callback, but
     /// is not guranteed to stop calls to it.
-    abstract member Register : Action<'a> -> RetractAction
+    abstract member Register : ('a -> unit) -> RetractAction
 
 /// Contains information about a change in a value of a certain type.
 type Change<'a> = {
@@ -74,18 +74,15 @@ type ConstSignalFeed<'a> (value : 'a) =
 
 /// An event feed that allows events to be manually fired.
 type ControlEventFeed<'a> () =
-    let mutable callback : Action<'a> = null
+    let callbacks : Registry<'a -> unit> = new Registry<'a -> unit> ()
 
     /// Fires the given event in this feed.
     member this.Fire event =
-        match callback with
-        | null -> ()
-        | x -> x.Invoke event
+        for callback in callbacks do
+            callback event
 
     interface EventFeed<'a> with
-        member this.Register x = 
-            callback <- Delegate.Combine (callback, x) :?> Action<'a>
-            RetractAction (fun () -> callback <- Delegate.Remove (callback, x) :?> Action<'a>)
+        member this.Register callback = callbacks.Add callback
 
 /// A signal feed that maintains a manually set value.
 type ControlSignalFeed<'a> (initial : 'a) =
@@ -166,7 +163,7 @@ type MapFilterEventFeed<'a, 'b> (source : 'b event, map : 'b -> 'a option) =
     interface EventFeed<'a> with
         member this.Register callback = source.Register (fun x -> 
             match map x with
-            | Some y -> callback.Invoke y
+            | Some y -> callback y
             | None -> ())
 
 /// A signal feed that applies a mapping to values from a source feed.
@@ -197,6 +194,11 @@ type UnionCollectionFeed<'a> (sourceA : 'a collection, sourceB : 'a collection) 
     interface CollectionFeed<'a> with
         member this.Register callback = Delegate.Combine (sourceA.Register callback, sourceB.Register callback) :?> RetractAction
 
+/// An event feed that tags events with a value from the given signal.
+type TagEventFeed<'a, 'b> (event : 'a event, signal : 'b signal) =
+    interface EventFeed<'a * 'b> with
+        member this.Register callback = event.Register (fun x -> callback (x, signal.Current))
+
 /// A signal feed that collates two signals into a tuple signal.
 type CollateSignalFeed<'a, 'b> (sourceA : 'a signal, sourceB : 'b signal) =
     interface SignalFeed<'a * 'b> with
@@ -206,22 +208,25 @@ type CollateSignalFeed<'a, 'b> (sourceA : 'a signal, sourceB : 'b signal) =
 /// An event feed that polls changes in a source feed on program updates.
 type ChangePollEventFeed<'a when 'a : equality> (source : 'a signal) =
     let mutable last = source.Current
-    let mutable callback : Action<'a change> = null
     let mutable retractUpdate : RetractAction = null
+    let callbacks : Registry<'a change -> unit> = new Registry<'a change -> unit> ()
 
     // Polling function
     let poll time =
         let cur = source.Current
-        if last <> cur && callback <> null then callback.Invoke { Old = last; New = cur }
+        if last <> cur then 
+            let change = { Old = last; New = cur }
+            for callback in callbacks do
+                callback change
         last <- cur
 
     interface EventFeed<Change<'a>> with
-        member this.Register x =
-            if callback = null then retractUpdate <- Update.register poll
-            callback <- Delegate.Combine (callback, x) :?> Action<'a change>
-            let retract () = 
-                callback <- Delegate.Remove (callback, x) :?> Action<'a change>
-                if callback = null then retractUpdate.Invoke ()
+        member this.Register callback =
+            if callbacks.Count = 0 then retractUpdate <- Update.register poll
+            let retractCallback = callbacks.Add callback
+            let retract () =
+                retractCallback.Invoke ()
+                if callbacks.Count = 0 then retractUpdate.Invoke ()
             RetractAction retract
 
 /// A signal feed that gives the current time in seconds.
@@ -292,6 +297,9 @@ module Feed =
 
     /// Collates two signal feeds into a tuple.
     let collate a b = new CollateSignalFeed<'a, 'b> (a, b) :> ('a * 'b) signal
+
+    /// Tags an event feed with values from a signal feed.
+    let tag a b = new TagEventFeed<'a, 'b> (a, b) :> ('a * 'b) event
 
     /// Gets an event feed that fires when a change occurs in the source signal feed. If it is not possible to determine
     /// exactly when a change occurs, the source will be polled on every program-wide update, and an event will be fired

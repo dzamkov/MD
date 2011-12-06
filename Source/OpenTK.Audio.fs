@@ -123,12 +123,12 @@ type AudioOutput private (context : AudioContext) =
                 let source = new AudioOutputSource (p, format, bps, 4096 * 4, 4)
 
                 // Register control callback for message queue.
-                let retract = p.Control.Register (Action<AudioControl> (fun x ->
+                let retract = p.Control.Register (fun x ->
                     Monitor.Enter messages
                     messages.Enqueue (Control (source, x))
                     Monitor.Exit messages
                     wait.Set() |> ignore
-                ))
+                )
 
                 // Add source and signal update thread
                 Monitor.Enter messages
@@ -146,6 +146,7 @@ type AudioOutput private (context : AudioContext) =
 /// An interface to an OpenAL audio output source.
 and private AudioOutputSource (parameters : AudioOutputSourceParameters, format : ALFormat, bytesPerSample : int, bufferSize : int,  bufferCount : int) =
     let stream = parameters.Stream
+    let samplesPerBuffer = bufferSize / bytesPerSample
     let sampleRate = parameters.SampleRate
     let pitch = parameters.Pitch
     let volume = parameters.Volume
@@ -212,7 +213,7 @@ and private AudioOutputSource (parameters : AudioOutputSourceParameters, format 
 
         // Refill processed buffers
         if buffersprocessed > 0 then
-            startPosition <- startPosition + uint64 (buffersprocessed * bufferSize / bytesPerSample)
+            startPosition <- startPosition + uint64 (buffersprocessed * samplesPerBuffer)
 
             let buffers = AL.SourceUnqueueBuffers (sid, buffersprocessed)
             for buffer in buffers do

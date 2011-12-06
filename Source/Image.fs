@@ -70,7 +70,7 @@ type BitmapImage (bitmap : Bitmap) =
         let bd = bitmap.LockBits (new Rectangle (left, top, width, height), ImageLockMode.ReadOnly, rformat)
         let ds = height * bd.Stride
         let data = Data.unsafe bd.Scan0 (bd.Scan0 + nativeint ds)
-        Exclusive.custom (fun () -> bitmap.UnlockBits bd) data
+        Exclusive.custom (fun x -> bitmap.UnlockBits bd) data
 
 /// An image from a two-dimensional array of colors.
 type ColorBufferImage (buffer : MD.Color[,]) =

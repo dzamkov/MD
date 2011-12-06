@@ -96,7 +96,7 @@ type BufferData<'a> (buffer : 'a[], offset : int, size : int) =
     override this.Size = uint64 size
     override this.Read (index, destBuffer, destOffset, size) = Array.blit buffer (int index + offset) destBuffer destOffset size
     override this.Read (index, destination, size) = Memory.Copy (buffer, int index + offset, destination, uint32 size * Memory.SizeOf<'a> ())
-    override this.Lock (index, size) = Stream.buffer buffer (int index + offset) |> Exclusive.``static``
+    override this.Lock (index, size) = Stream.buffer buffer (int index + offset) |> Exclusive.make
 
 /// Data that applies a mapping function to source data.
 type MapData<'a, 'b> (source : 'b data, map : 'b -> 'a) =
@@ -218,7 +218,7 @@ type UnsafeData<'a when 'a : unmanaged> (regionStart : nativeint, regionEnd : na
     override this.Size = uint64 (regionEnd - regionStart) / uint64 itemSize
     override this.Read (index, buffer, offset, size) = Memory.Copy (regionStart + nativeint (index * uint64 itemSize), buffer, offset, uint32 size * itemSize)
     override this.Read (index, destination, size) = Memory.Copy (regionStart + nativeint (index * uint64 itemSize), destination, uint32 size * itemSize)
-    override this.Lock (index, size) = Stream.unsafe (regionStart + nativeint (index * uint64 itemSize)) regionEnd |> Exclusive.``static``
+    override this.Lock (index, size) = Stream.unsafe (regionStart + nativeint (index * uint64 itemSize)) regionEnd |> Exclusive.make
 
 /// Data based on a seekable System.IO stream.
 [<Sealed>]
@@ -242,7 +242,7 @@ type IOData (source : Stream) =
 
     override this.Lock (index, size) = 
         source.Position <- int64 index
-        new IOStream (source) :> byte stream |> Exclusive.``static``
+        new IOStream (source) :> byte stream |> Exclusive.make
 
 /// Contains functions for constructing and manipulating data.
 module Data =

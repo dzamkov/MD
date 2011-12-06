@@ -236,10 +236,10 @@ type TimeSignalFeed private () =
 module Feed =
     
     /// An event feed that never fires.
-    let ``null``<'a> = NullEventFeed<'a>.Instance :> 'a event
+    let nil<'a> = NullEventFeed<'a>.Instance :> 'a event
 
     /// Constructs a signal feed with a constant value.
-    let ``const`` value = new ConstSignalFeed<'a> (value) :> 'a signal
+    let constant value = new ConstSignalFeed<'a> (value) :> 'a signal
 
     /// A signal feed that gives the amount of real-world time, in seconds, that has
     /// elapsed since the start of the program.

@@ -49,8 +49,8 @@ type Window () as this =
                 Channels = audiocontent.Channels
                 Format = audiocontent.Format
                 Control = control
-                Volume = Feed.``const`` 1.0
-                Pitch = Feed.``const`` 1.0
+                Volume = Feed.constant 1.0
+                Pitch = Feed.constant 1.0
             }
         audiooutput.Begin audioparams |> ignore
         control.Fire AudioControl.Play
@@ -67,16 +67,16 @@ type Window () as this =
 
         let timeResolution = 1024
         let windowDelta = 2048
-        let freqResolution = 1024
+        let freqResolution = 2048
         let colorBuffer = Array2D.zeroCreate timeResolution freqResolution
 
-        let cache = new FFTCache (freqResolution)
+        let parameters = new FFTParameters (freqResolution)
         let window : float[] = Array.zeroCreate freqResolution
         let output : Complex[] = Array.zeroCreate freqResolution
         for x = 0 to timeResolution - 1 do
             let start = uint64 windowDelta * uint64 x
             monoFloatData.Read (start, window, 0, freqResolution)
-            pin window (fun windowPtr -> pin output (fun outputPtr -> DFT.computeReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt outputPtr) cache))
+            pin window (fun windowPtr -> pin output (fun outputPtr -> DFT.computeReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt outputPtr) parameters))
             for y = 0 to freqResolution - 1 do
                 colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs * 0.1)
 

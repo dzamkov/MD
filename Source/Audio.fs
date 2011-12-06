@@ -7,7 +7,7 @@ type AudioControl =
     | Stop
 
 /// Contains parameters for an audio output source.
-type AudioOutputParameters = {
+type AudioOutputSourceParameters = {
 
     /// The stream from which the raw audio data is read. Note that multichannel samples should be interleaved
     /// in this stream.
@@ -32,13 +32,19 @@ type AudioOutputParameters = {
     Pitch : double signal
     }
 
+/// Contains information about an audio output source.
+type AudioOutputSource = {
+
+    /// The currently playing sample in relation to the start of the source stream.
+    Position : uint64 signal
+}
+
 /// An interface to an audio output device.
 type AudioOutput =
     
-    /// Tries creating an audio output source with the given parameters. If successful, a signal feed
-    /// will be returned giving the current play position of the audio source in the input stream.
-    /// The audio source will begin in the paused state and requires a Play control event to start.
-    abstract member Begin : AudioOutputParameters -> int signal option
+    /// Tries creating an audio output source with the given parameters. The audio source will begin in the 
+    /// paused state and will require a Play control event to start.
+    abstract member Begin : AudioOutputSourceParameters -> AudioOutputSource option
 
     /// Stops all currently-playing sources and indicates the output will no longer be used.
     abstract member Finish : unit -> unit

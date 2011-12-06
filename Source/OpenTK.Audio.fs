@@ -136,7 +136,7 @@ type AudioOutput private (context : AudioContext) =
                 Monitor.Exit messages
                 wait.Set () |> ignore
 
-                Some source.Position
+                Some { Position = source.Position } 
             | _ -> None
 
         member this.Finish () =
@@ -144,15 +144,15 @@ type AudioOutput private (context : AudioContext) =
             exit <- true
 
 /// An interface to an OpenAL audio output source.
-and private AudioOutputSource (parameters : AudioOutputParameters, format : ALFormat, bytesPerSample : int, bufferSize : int,  bufferCount : int) =
+and private AudioOutputSource (parameters : AudioOutputSourceParameters, format : ALFormat, bytesPerSample : int, bufferSize : int,  bufferCount : int) =
     let stream = parameters.Stream
     let sampleRate = parameters.SampleRate
     let pitch = parameters.Pitch
     let volume = parameters.Volume
 
-    let mutable startPosition = 0
+    let mutable startPosition = 0UL
     let mutable playing = false
-    let position = new ControlSignalFeed<int> (0)
+    let position = new ControlSignalFeed<uint64> (0UL)
     let buffer = Array.create bufferSize 0uy
     let sid = AL.GenSource ()
 
@@ -174,7 +174,7 @@ and private AudioOutputSource (parameters : AudioOutputParameters, format : ALFo
             t <- t + 1
 
     /// Gets a signal feed that maintains the position of this source in its input stream.
-    member this.Position = position :> SignalFeed<int>
+    member this.Position = position :> SignalFeed<uint64>
 
     /// Gets wether this source is playing.
     member this.Playing = playing
@@ -212,7 +212,7 @@ and private AudioOutputSource (parameters : AudioOutputParameters, format : ALFo
 
         // Refill processed buffers
         if buffersprocessed > 0 then
-            startPosition <- startPosition + buffersprocessed * bufferSize / bytesPerSample
+            startPosition <- startPosition + uint64 (buffersprocessed * bufferSize / bytesPerSample)
 
             let buffers = AL.SourceUnqueueBuffers (sid, buffersprocessed)
             for buffer in buffers do
@@ -224,7 +224,7 @@ and private AudioOutputSource (parameters : AudioOutputParameters, format : ALFo
         // Update play position
         let mutable sampleoffset = 0
         AL.GetSource (sid, ALGetSourcei.SampleOffset, &sampleoffset)
-        position.Current <- startPosition + sampleoffset
+        position.Current <- startPosition + uint64 sampleoffset
 
         // Update gain
         let nvol = volume.Current

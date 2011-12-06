@@ -15,9 +15,9 @@ type Temporary<'a> =
 type 'a temp = Temporary<'a>
 
 /// A temporary handle to a static value that can never be invalidated.
-type StaticTemporary<'a> (value : 'a) =
+type ReturnTemporary<'a> (value : 'a) =
     interface Temporary<'a> with
-        member this.Access () = Some (Exclusive.``static`` value)
+        member this.Access () = Some (Exclusive.make value)
 
 /// A manually-controlled temporary handle. Note that a ManualResetEvent must be provided to manage
 /// threading.
@@ -68,7 +68,7 @@ type ControlTemporary<'a> (value : 'a, wait : ManualResetEvent) =
 module Temp =
 
     /// Creates a temporary handle for a static value.
-    let ``static`` value = new StaticTemporary<'a> (value) :> 'a temp
+    let make value = new ReturnTemporary<'a> (value) :> 'a temp
 
     /// Tries using the given temporary handle to perform an action, or does nothing if the handle is already invalid.
     let tryUse action (handle : 'a temp) =

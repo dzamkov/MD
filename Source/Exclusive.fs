@@ -22,7 +22,7 @@ type Exclusive<'a> (obj : 'a) =
 type 'a exclusive = Exclusive<'a>
 
 /// An exclusive handle that does nothing upon release.
-type StaticExclusive<'a> (obj : 'a) =
+type ReturnExclusive<'a> (obj : 'a) =
     inherit Exclusive<'a> (obj)
     override this.Finish () = ()
 
@@ -54,8 +54,8 @@ type CombineExclusive<'a, 'b, 'c> (obj : 'a, subA : 'b exclusive, subB : 'c excl
 /// Contains functions for constructing and manipulating exclusive handles.
 module Exclusive =
 
-    /// Creates a static exclusive handle for an object.
-    let ``static`` obj = new StaticExclusive<'a> (obj) :> 'a exclusive
+    /// Creates an exclusive handle for an object that does nothing upon release.
+    let make obj = new ReturnExclusive<'a> (obj) :> 'a exclusive
 
     /// Creates an exclusive handle for a disposable object to be disposed upon release.
     let dispose obj = new DisposeExclusive<'a> (obj) :> 'a exclusive
@@ -69,7 +69,7 @@ module Exclusive =
     /// Determines wether the given handle is static. If so, there is no need to call Finish on it.
     let isStatic (handle : 'a exclusive) = 
         match handle with
-        | :? StaticExclusive<'a> -> true
+        | :? ReturnExclusive<'a> -> true
         | _ -> false
 
     /// Maps an exclusive handle.

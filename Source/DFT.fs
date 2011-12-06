@@ -4,8 +4,8 @@ open Util
 open System
 open Microsoft.FSharp.NativeInterop
 
-/// Contains cache information to compute a FFT of a specific size.
-type FFTCache (size : int) =
+/// Contains parameters and precomputed information to compute a FFT of a specific size.
+type FFTParameters (size : int) =
     let magnitude = log2 (uint32 size)
     let unitSize = 8
     let rounds = magnitude - log2 (uint32 unitSize)
@@ -48,33 +48,13 @@ type FFTCache (size : int) =
 
 /// Contains functions for evaluating discrete Fourier transforms.
 module DFT =
-    
-    /// Computes a DFT on real data (with a power of two size).
-    let computeReal (source : nativeptr<float>) (destination : nativeptr<Complex>) (cache : FFTCache) =
-        
-        // Initialize destination with direct DFT's of units
-        let twiddles = cache.Twiddles
-        let unitOffsets = cache.UnitOffsets
-        let unitSize = int cache.UnitSize
-        let units = cache.Units
-        let mutable curDestination = destination
-        let mutable unit = 0
-        while unit < unitOffsets.Length do
-            let offset = int unitOffsets.[unit]
-            let mutable k = 0
-            while k < unitSize do
-                let mutable total = Complex.Zero
-                let mutable n = 0
-                while n < unitSize do
-                    total <- total + twiddles.[k * n * (twiddles.Length / unitSize) % twiddles.Length] * NativePtr.get source (n * units + offset)
-                    n <- n + 1
-                NativePtr.write curDestination total
-                curDestination <- NativePtr.add curDestination 1
-                k <- k + 1
-            unit <- unit + 1
 
-        // Apply butterfly rounds
-        let rounds = cache.Rounds
+    /// Applies the "butterfly" rounds for a FFT.
+    let applyRounds (destination : nativeptr<Complex>) (parameters : FFTParameters) =
+        let twiddles = parameters.Twiddles
+        let unitSize = int parameters.UnitSize
+        let units = parameters.Units
+        let rounds = parameters.Rounds
         let mutable halfSize = unitSize
         let mutable units = units >>> 1
         while units > 0 do
@@ -93,3 +73,31 @@ module DFT =
                 unit <- unit + 1
             units <- units >>> 1
             halfSize <- halfSize <<< 1
+
+    /// Initializes FFT units from a real source.
+    let initializeUnitsReal (source : nativeptr<float>) (destination : nativeptr<Complex>) (parameters : FFTParameters) = 
+        let twiddles = parameters.Twiddles
+        let unitOffsets = parameters.UnitOffsets
+        let unitSize = int parameters.UnitSize
+        let units = parameters.Units
+        let mutable curDestination = destination
+        let mutable unit = 0
+        while unit < unitOffsets.Length do
+            let offset = int unitOffsets.[unit]
+            let mutable k = 0
+            while k < unitSize do
+                let mutable total = Complex.Zero
+                let mutable n = 0
+                while n < unitSize do
+                    total <- total + twiddles.[k * n * (twiddles.Length / unitSize) % twiddles.Length] * NativePtr.get source (n * units + offset)
+                    n <- n + 1
+                NativePtr.write curDestination total
+                curDestination <- NativePtr.add curDestination 1
+                k <- k + 1
+            unit <- unit + 1
+        
+
+    /// Computes a DFT on real data (with a power of two size).
+    let computeReal (source : nativeptr<float>) (destination : nativeptr<Complex>) (parameters : FFTParameters) =
+        initializeUnitsReal source destination parameters
+        applyRounds destination parameters

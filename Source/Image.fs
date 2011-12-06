@@ -97,7 +97,7 @@ type ColorBufferImage (buffer : MD.Color[,]) =
                     x <- x + 1
                 pos <- pos + lineOffset
                 y <- y + 1
-            Data.buffer output 0 outputSize |> Exclusive.``static``
+            Data.buffer output 0 outputSize |> Exclusive.make
 
 /// An image from a two-dimensional array of paints.
 type PaintBufferImage (buffer : Paint[,]) =
@@ -122,7 +122,7 @@ type PaintBufferImage (buffer : Paint[,]) =
                     pos <- pos + 4
                     x <- x + 1
                 y <- y + 1
-            Data.buffer output 0 outputSize |> Exclusive.``static``
+            Data.buffer output 0 outputSize |> Exclusive.make
         | ImageFormat.BGR24 -> new NotImplementedException () |> raise
 
 /// Contains functions for constructing and manipulating images.

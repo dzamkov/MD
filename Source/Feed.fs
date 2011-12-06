@@ -197,6 +197,12 @@ type UnionCollectionFeed<'a> (sourceA : 'a collection, sourceB : 'a collection) 
     interface CollectionFeed<'a> with
         member this.Register callback = Delegate.Combine (sourceA.Register callback, sourceB.Register callback) :?> RetractAction
 
+/// A signal feed that collates two signals into a tuple signal.
+type CollateSignalFeed<'a, 'b> (sourceA : 'a signal, sourceB : 'b signal) =
+    interface SignalFeed<'a * 'b> with
+        member this.Current = (sourceA.Current, sourceB.Current)
+        member this.Delta = new NotImplementedException () |> raise
+
 /// An event feed that polls changes in a source feed on program updates.
 type ChangePollEventFeed<'a when 'a : equality> (source : 'a signal) =
     let mutable last = source.Current
@@ -283,6 +289,9 @@ module Feed =
 
     /// Combines two collection feeds.
     let unionc a b = new UnionCollectionFeed<'a> (a, b) :> 'a collection
+
+    /// Collates two signal feeds into a tuple.
+    let collate a b = new CollateSignalFeed<'a, 'b> (a, b) :> ('a * 'b) signal
 
     /// Gets an event feed that fires when a change occurs in the source signal feed. If it is not possible to determine
     /// exactly when a change occurs, the source will be polled on every program-wide update, and an event will be fired

@@ -9,7 +9,7 @@ module Input =
     /// A feed that tracks the position of a mouse device in window coordinates.
     type MousePositionFeed (mouse : MouseDevice) =
         interface SignalFeed<Point> with
-            member this.Current = new Point (double mouse.X, double mouse.Y)   
+            member this.Current = new Point (float mouse.X, float mouse.Y)   
             member this.Delta = None
     
     /// Gets a feed for the position of a mouse.

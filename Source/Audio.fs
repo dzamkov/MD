@@ -32,7 +32,7 @@ type AudioOutputSourceParameters = {
     Pitch : double signal
     }
 
-/// Contains information about an audio output source.
+/// Contains information about an active audio output source.
 type AudioOutputSource = {
 
     /// The currently playing sample in relation to the start of the source stream.

@@ -25,7 +25,7 @@ type Window () as this =
         this.VSync <- VSyncMode.On
         Graphics.Initialize ()
 
-        let music = new Path (@"N:\Music\Me\19.mp3")
+        let music = new Path (@"N:\Music\Me\57.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -43,14 +43,17 @@ type Window () as this =
         let floatData = Data.map (fun x -> float x / 32768.0) shortData
         let monoFloatData = Data.combine 2 (fun (x, o) -> x.[o]) floatData
 
+        let mouse = Input.probe this.Mouse
+        let mouseView = Probe.windowToView size mouse
+
         let audioparams = {
                 Stream = shortData.Lock () |> Exclusive.map Stream.cast
                 SampleRate = int audiocontent.SampleRate
                 Channels = audiocontent.Channels
                 Format = audiocontent.Format
                 Control = control
-                Volume = Feed.constant 1.0
-                Pitch = Feed.constant 1.0
+                Volume = mouseView.Position |> Feed.maps (fun x -> Math.Exp x.Y) 
+                Pitch = mouseView.Position |> Feed.maps (fun x -> Math.Exp x.X)
             }
         audiooutput.Begin audioparams |> ignore
         control.Fire AudioControl.Play
@@ -81,6 +84,7 @@ type Window () as this =
                 colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs * 0.1)
 
         let image = Image.colorBuffer colorBuffer
+
         fig.Current <- Figure.image image ImageInterpolation.Linear (new Rectangle (-1.0, 7.0, 1.0, -1.0))
 
     /// Gets a feed that gives the size of the client area of this window in pixels.

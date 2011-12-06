@@ -61,6 +61,7 @@
     <Compile Include="Image.fs" />
     <Compile Include="Figure.fs" />
     <Compile Include="Input.fs" />
+    <Compile Include="View.fs" />
     <Compile Include="OpenTK.Audio.fs" />
     <Compile Include="OpenTK.Input.fs" />
     <Compile Include="OpenTK.Texture.fs" />

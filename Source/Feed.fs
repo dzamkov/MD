@@ -33,18 +33,14 @@ type SignalFeed<'a> =
     /// New and Old on the given change will be the same.
     abstract member Delta : EventFeed<Change<'a>> option
 
-/// An action that registers callbacks and objects on an item and returns a retract action
-/// to later revert the modifications.
-type RegisterItemAction<'a> = delegate of 'a -> RetractAction
-
 /// An interface to a dynamic collection of objects of a certain type.
 type CollectionFeed<'a> =
 
     /// Registers a callback to be called on every current item in the collection, and every
     /// time an item is added. When an item is removed, the retract action returned by the corresponding
-    /// register item action will be called. When the returned retract action of this method is called,
+    /// item registration action will be called. When the returned retract action of this method is called,
     /// the retract action of every registered item will be called.
-    abstract member Register : RegisterItemAction<'a> -> RetractAction
+    abstract member Register : ('a -> RetractAction) -> RetractAction
 
 // Create type abbreviations
 type 'a change = Change<'a>
@@ -104,15 +100,15 @@ type ControlSignalFeed<'a> (initial : 'a) =
 /// A collection feed that allows items to be manually added or removed.
 type ControlCollectionFeed<'a> () =
     let items = new LinkedList<'a> ()
-    let callbacks = new LinkedList<RegisterItemAction<'a>> ()
-    let relations = new LinkedList<LinkedListNode<'a> * LinkedListNode<RegisterItemAction<'a>> * RetractAction> ()
+    let callbacks = new LinkedList<'a -> RetractAction> ()
+    let relations = new LinkedList<LinkedListNode<'a> * LinkedListNode<'a -> RetractAction> * RetractAction> ()
 
     /// Adds an item to this collection feed and returns a retract handler to later remove it.
     member this.Add (item : 'a) = 
         let itemnode = items.AddFirst item
         let mutable callbacknode = callbacks.First
         while callbacknode <> null do
-            let retract = callbacknode.Value.Invoke itemnode.Value
+            let retract = callbacknode.Value itemnode.Value
             if retract <> null then relations.AddFirst ((itemnode, callbacknode, retract)) |> ignore
             callbacknode <- callbacknode.Next
         let remove () =
@@ -132,11 +128,11 @@ type ControlCollectionFeed<'a> () =
         RetractAction remove
 
     /// Registers a callback for this feed.
-    member this.Register (callback : RegisterItemAction<'a>) =
+    member this.Register (callback : 'a -> RetractAction) =
         let callbacknode = callbacks.AddFirst callback
         let mutable itemnode = items.First
         while itemnode <> null do
-            let retract = callbacknode.Value.Invoke itemnode.Value
+            let retract = callbacknode.Value itemnode.Value
             if retract <> null then relations.AddFirst ((itemnode, callbacknode, retract)) |> ignore
             itemnode <- itemnode.Next
         let remove () =
@@ -181,7 +177,7 @@ type MapFilterCollectionFeed<'a, 'b> (source : 'b collection, map : 'b -> 'a opt
     interface CollectionFeed<'a> with
         member this.Register callback = source.Register (fun x ->
             match map x with
-            | Some y -> callback.Invoke y
+            | Some y -> callback y
             | None -> null)
 
 /// An event feed that combines events from two source feeds.

@@ -15,18 +15,35 @@ type Probe = {
     Scroll : float event
     }
 
-/// Contains functions for constructing and manipulating probes.
-[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
-module Probe =
-
-    /// Transforms a probe in window coordinates to a probe in view coordinates, given the size of the window.
-    let windowToView (size : Point signal) (probe : Probe) = 
-        let npos = Feed.collate size probe.Position |> Feed.maps (fun (size, pos) -> new Point (pos.X / size.X * 2.0 - 1.0, -pos.Y / size.Y * 2.0 + 1.0))
-        { probe with Position = npos }
-
 /// An interface for user input.
 type Input = {
 
     /// A collection of probes present in this input interface.
     Probes : Probe collection
     }
+
+/// Contains functions for constructing and manipulating inputs.
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module Input =
+
+    /// Applies a mapping to all probes in the given input.
+    let mapProbes map (input : Input) = { input with Probes = input.Probes |> Feed.mapc map }
+
+    /// Applies a constant spatial transformation to the given probe.
+    let transformProbe (transform : Transform) (probe : Probe) =
+        let newPosition = probe.Position |> Feed.maps transform.Apply
+        { probe with Position = newPosition }
+    
+    /// Applies a constant spatial transformation to the given input context.
+    let transform transform = mapProbes (transformProbe transform)
+
+    /// Transforms a probe from window coordinates to viewport coordinates, given the size
+    /// of the window over time.
+    let windowToViewProbe (windowSize : Point signal) (probe : Probe) =
+        let transform (windowSize : Point, position : Point) = new Point (2.0 * position.X / windowSize.X - 1.0, 1.0 - 2.0 * position.Y / windowSize.Y)
+        let newPosition = probe.Position |> Feed.collate windowSize |> Feed.maps transform
+        { probe with Position = newPosition }
+
+    /// Transforms an input context from window coordinates to viewport coordinates, given the size
+    /// of the window over time.
+    let windowToView (windowSize : Point signal) = mapProbes (windowToViewProbe windowSize)

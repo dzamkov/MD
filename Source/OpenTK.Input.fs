@@ -1,6 +1,8 @@
 ﻿namespace MD.OpenTK
 
 open MD
+open System
+open global.OpenTK
 open OpenTK.Input
 
 /// Contains functions related to OpenTK input.
@@ -55,4 +57,28 @@ module Input =
             Primary = buttonstate.GetFeed MouseButton.Left
             Secondary = buttonstate.GetFeed MouseButton.Right
             Scroll = scroll mouse
+        }
+
+    /// Creates a full input context for a window, in window coordinates.
+    let create (window : GameWindow) =
+
+        // Create mouse probe.
+        let mouse = probe window.Mouse
+
+        // Setup mouse enter and leave events.
+        let probes = new ControlCollectionFeed<Probe> ()
+        let retractMouse = ref null
+        let mouseEnter args = 
+            retractMouse := probes.Add mouse
+        let mouseExit args = 
+            let retract = !retractMouse
+            if retract <> null then
+                retract.Invoke ()
+                retractMouse := null
+        window.MouseEnter.Add mouseEnter
+        window.MouseLeave.Add mouseExit
+
+        // Create input context.
+        {
+            Probes = probes
         }

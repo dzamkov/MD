@@ -45,8 +45,8 @@ type ViewParameters = {
     /// The bounds of the viewing area. The view will never allow a projection to an area outside these bounds.
     Bounds : Rectangle
     
-    /// The probe controlling the view, using viewport coordinates.
-    Probe : Probe
+    /// The input interface controlling the view, using viewport coordinates.
+    Input : Input
 
     /// The portion of velocity that is retained after each second.
     VelocityDamping : float
@@ -59,7 +59,7 @@ type ViewParameters = {
 /// Contains information for a user-controlled, zoomable axis-aligned view.
 type View private (parameters : ViewParameters) =
     let mutable state = parameters.InitialState
-    let probe = parameters.Probe
+    let input = parameters.Input
     let bounds = parameters.Bounds
     let velocityDamping = parameters.VelocityDamping
     let zoomVelocityDamping = parameters.ZoomVelocityDamping
@@ -90,7 +90,10 @@ type View private (parameters : ViewParameters) =
         // Don't call changeState; we haven't changed the position so no bounds-checking is needed.
         state <- { state with Velocity = newVelocity; ZoomVelocity = newZoomVelocity }
 
-    let retractScroll = (Feed.tag probe.Scroll probe.Position).Register scroll
+    /// Registers a new controlling probe for the view.
+    let registerProbe (probe : Probe) = 
+        (Feed.tag probe.Scroll probe.Position).Register scroll
+    let retractProbes = input.Probes.Register registerProbe
 
     /// Creates a new view with the given parameters.
     static member Create parameters = new View (parameters) |> Exclusive.custom (fun view -> view.Finish ())
@@ -108,7 +111,7 @@ type View private (parameters : ViewParameters) =
     member this.Finish () = 
         if retractChangeState <> null then retractChangeState.Invoke ()
         if retractUpdate <> null then retractUpdate.Invoke ()
-        if retractScroll <> null then retractScroll.Invoke ()
+        if retractProbes <> null then retractProbes.Invoke ()
 
     interface SignalFeed<ViewState> with
         member this.Current = state

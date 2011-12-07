@@ -14,10 +14,10 @@ type Window () as this =
     inherit GameWindow (640, 480, GraphicsMode.Default, "MD")
     let audiooutput = AudioOutput.Create () |> Option.get :> MD.AudioOutput
     let graphics = Graphics.Create ()
-    let size = new ControlSignalFeed<Point> (new Point (double this.Width, double this.Height))
+    let size = new ControlSignalFeed<Point> (new Point (float 640, float 480))
+    let input = Input.create this
     let programTime = Feed.time
 
-    let image = Image.load (Path.WorkingDirectory + "Resources" + "Images" + "Test.png") |> Option.get
     let mutable figure = Unchecked.defaultof<Figure signal>
     let mutable projection = Unchecked.defaultof<Transform signal>
 
@@ -58,7 +58,6 @@ type Window () as this =
                 Pitch = Feed.constant 1.0
             }
         let playPosition = (audiooutput.Begin audioparams).Value.Position
-        control.Fire AudioControl.Play
 
         let gradient = 
             new Gradient [|
@@ -72,7 +71,7 @@ type Window () as this =
 
         let timeResolution = 1024
         let windowDelta = 2048
-        let freqResolution = 2048
+        let freqResolution = 1024
         let colorBuffer = Array2D.zeroCreate timeResolution freqResolution
 
         let parameters = new FFTParameters (freqResolution)
@@ -88,7 +87,6 @@ type Window () as this =
         let image = Image.colorBuffer colorBuffer
 
         let mouse = Input.probe this.Mouse
-        let mouseView = Probe.windowToView size mouse
         let initialViewState = {
                 Center = new Point (0.0, 0.0)
                 Velocity = new Point (0.0, 0.0)
@@ -99,7 +97,7 @@ type Window () as this =
                 InitialState = initialViewState
                 ChangeState = Feed.nil
                 Bounds = Rectangle.Unbound
-                Probe = mouseView
+                Input = Input.windowToView size input
                 VelocityDamping = 0.1
                 ZoomVelocityDamping = 0.1
             })
@@ -112,6 +110,7 @@ type Window () as this =
 
         projection <- view.Projection
         figure <- playPosition |> Feed.maps getFigure
+        control.Fire AudioControl.Play
 
     override this.OnRenderFrame args =
         Graphics.Setup (projection.Current, this.Width, this.Height, false)

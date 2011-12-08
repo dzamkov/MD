@@ -29,7 +29,7 @@ type Window () as this =
         this.VSync <- VSyncMode.Off
         Graphics.Initialize ()
 
-        let music = new Path (@"N:\Music\Me\41.mp3")
+        let music = new Path (@"N:\Music\Me\19.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -71,16 +71,24 @@ type Window () as this =
 
         let timeResolution = 1024
         let windowDelta = 2048
-        let freqResolution = 1024
+        let freqResolution = 2048
+        let windowSize = 4096 * 2
+        let downsampleCount = log2 (uint32 windowSize) - log2 (uint32 freqResolution)
         let colorBuffer = Array2D.zeroCreate timeResolution freqResolution
 
         let parameters = new FFTParameters (freqResolution)
-        let window : float[] = Array.zeroCreate freqResolution
+        let window : float[] = Array.zeroCreate windowSize
         let output : Complex[] = Array.zeroCreate freqResolution
         for x = 0 to timeResolution - 1 do
             let start = uint64 (windowDelta * x)
-            monoFloatData.Read (start * 2UL, window, 0, freqResolution)
-            pin window (fun windowPtr -> pin output (fun outputPtr -> DFT.computeReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt outputPtr) parameters))
+            monoFloatData.Read (start * 2UL, window, 0, windowSize)
+            pin window (fun windowPtr ->
+                let mutable curSize = windowSize
+                while curSize > freqResolution do
+                    DSignal.downsampleReal (NativePtr.ofNativeInt windowPtr) curSize
+                    curSize <- curSize / 2
+                pin output (fun outputPtr -> DFT.computeReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt outputPtr) parameters)
+            )
             for y = 0 to freqResolution - 1 do
                 colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs * 0.1)
 
@@ -103,7 +111,7 @@ type Window () as this =
             })
 
         let getFigure playSample =
-            let image = Figure.image image ImageInterpolation.Linear (new Rectangle (-1.0, 1.0, 1.0, -1.0))
+            let image = Figure.image image ImageInterpolation.Nearest (new Rectangle (-1.0, 1.0, 1.0, -1.0))
             let linex = 2.0 * float playSample / float (timeResolution * windowDelta) - 1.0
             let line = Figure.line (new Point (linex, -1.0)) (new Point (linex, 1.0)) 0.002 (Paint.ARGB (1.0, 1.0, 0.3, 0.0))
             Figure.composite image line

@@ -5,9 +5,8 @@ open System
 open Microsoft.FSharp.NativeInterop
 
 /// Contains parameters and precomputed information to compute a FFT of a specific size.
-type FFTParameters (size : int) =
+type FFTParameters (size : int, unitSize : int) =
     let magnitude = log2 (uint32 size)
-    let unitSize = 8
     let rounds = magnitude - log2 (uint32 unitSize)
     let units = size / unitSize
     let unitOffsets = Array.zeroCreate<int> (int units)
@@ -23,6 +22,8 @@ type FFTParameters (size : int) =
         let n = twiddles.Length
         for k = 0 to n - 1 do
             twiddles.[k] <- Complex.ExpImag (-2.0 * Math.PI * float k / float n)
+
+    new (size : int) = new FFTParameters (size, 8)
 
     /// Gets the magnitude of the FFT window. This is log2 of the total size.
     member this.Magnitude = magnitude

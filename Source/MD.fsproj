@@ -45,6 +45,7 @@
     <Compile Include="Util.fs" />
     <Compile Include="Retract.fs" />
     <Compile Include="Complex.fs" />
+    <Compile Include="DSignal.fs" />
     <Compile Include="DFT.fs" />
     <Compile Include="Path.fs" />
     <Compile Include="Update.fs" />

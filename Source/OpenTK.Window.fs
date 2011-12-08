@@ -82,13 +82,19 @@ type Window () as this =
         for x = 0 to timeResolution - 1 do
             let start = uint64 (windowDelta * x)
             monoFloatData.Read (start * 2UL, window, 0, windowSize)
-            pin window (fun windowPtr ->
-                let mutable curSize = windowSize
-                while curSize > freqResolution do
-                    DSignal.downsampleReal (NativePtr.ofNativeInt windowPtr) curSize
-                    curSize <- curSize / 2
-                pin output (fun outputPtr -> DFT.computeReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt outputPtr) parameters)
-            )
+
+            let windowHandle, windowPtr = pin window
+            let outputHandle, outputPtr = pin output
+
+            let mutable curSize = windowSize
+            while curSize > freqResolution do
+                DSignal.downsampleReal (NativePtr.ofNativeInt windowPtr) curSize
+                curSize <- curSize / 2
+            DFT.computeReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt outputPtr) parameters
+
+            unpin windowHandle
+            unpin outputHandle
+
             for y = 0 to freqResolution - 1 do
                 colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs * 0.1)
 

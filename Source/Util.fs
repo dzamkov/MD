@@ -19,15 +19,13 @@ let round a b =
     let t = a + b - 1
     t - (t % b)
 
-/// Pins an object and performs some operation on a pointer to it.
-let inline pin obj func =
+/// Creates a pinned handle to the given object and returns the handle and the address to the object.
+let pin obj = 
     let handle = GCHandle.Alloc (obj, GCHandleType.Pinned)
-    let result = func (handle.AddrOfPinnedObject ())
-    handle.Free ()
-    result
+    (handle, handle.AddrOfPinnedObject ())
 
-/// Performs the given function using a memory block of the given size in bytes.
-let inline withMemory size func = pin (Array.zeroCreate<byte> size) func
+/// Releases the given pinned handle.
+let unpin (handle : GCHandle) = handle.Free()
 
 /// Reverses the order of the bits in an integer.
 let bitrev (x : uint32) =

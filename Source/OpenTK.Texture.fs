@@ -50,6 +50,10 @@ type Texture (id : int) =
         static member SetFilterMode (target, min : TextureMinFilter, mag : TextureMagFilter) =
             GL.TexParameter (target, TextureParameterName.TextureMinFilter, int min)
             GL.TexParameter (target, TextureParameterName.TextureMagFilter, int mag)
+
+        /// Creates a mipmap for the currently-bound texture.
+        static member CreateMipmap (target) =
+            GL.Ext.GenerateMipmap target
     
         /// Sets this as the current texture for the given texture target.
         member this.Bind target = GL.BindTexture (target, id)

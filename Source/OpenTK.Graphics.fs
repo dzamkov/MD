@@ -104,7 +104,7 @@ type Graphics () =
         if not (textures.TryGetValue (image, &texture)) then
             texture <- Texture.Create image
             textures.[image] <- texture
-            Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.Linear, TextureMagFilter.Linear)
+            Texture.CreateMipmap GenerateMipmapTarget.Texture2D
         texture
 
     /// Renders the given figure using this graphics context.
@@ -125,8 +125,8 @@ type Graphics () =
             let tex = this.GetTexture image
             tex.Bind2D ()
             match interpolation with
-            | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.Nearest, TextureMagFilter.Nearest)
-            | ImageInterpolation.Linear -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.Linear, TextureMagFilter.Linear)
+            | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
+            | ImageInterpolation.Linear -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
             | _ -> ()
             Graphics.SetPaint Paint.White
             Graphics.Begin BeginMode.Quads

@@ -29,7 +29,7 @@ type Window () as this =
         this.VSync <- VSyncMode.Off
         Graphics.Initialize ()
 
-        let music = new Path (@"N:\Music\Me\19.mp3")
+        let music = new Path (@"N:\Music\Me\57.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()

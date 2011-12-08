@@ -50,7 +50,10 @@ type Complex (real : float, imag : float) =
         member this.Abs = sqrt (real * real + imag * imag)
 
         /// Multiplies this number by i.
-        member this.TimesI = new Complex (-this.Imag, this.Real)
+        member this.TimesI = new Complex (-imag, real)
+
+        /// Gets the complex conjugate of this number.
+        member this.Conjugate = new Complex (real, -imag)
 
         override this.ToString() = String.Format("{0} + {1}i", real, imag)
     end

@@ -76,7 +76,8 @@ type Window () as this =
         let downsampleCount = log2 (uint32 windowSize) - log2 (uint32 freqResolution)
         let colorBuffer = Array2D.zeroCreate timeResolution freqResolution
 
-        let parameters = new FFTParameters (freqResolution)
+        let parameters = new FFTParameters (freqResolution, 8)
+
         let window : float[] = Array.zeroCreate windowSize
         let output : Complex[] = Array.zeroCreate freqResolution
         for x = 0 to timeResolution - 1 do

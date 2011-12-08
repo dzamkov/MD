@@ -20,8 +20,9 @@ type FFTParameters (size : int, unitSize : int) =
 
         // Initialize twiddle factors
         let n = twiddles.Length
+        let m = -2.0 * Math.PI / float n
         for k = 0 to n - 1 do
-            twiddles.[k] <- Complex.ExpImag (-2.0 * Math.PI * float k / float n)
+            twiddles.[k] <- Complex.ExpImag (m * float k)
 
     new (size : int) = new FFTParameters (size, 8)
 
@@ -75,8 +76,8 @@ module DFT =
             units <- units >>> 1
             halfSize <- halfSize <<< 1
 
-    /// Initializes FFT units from a real source.
-    let initializeUnitsReal (source : nativeptr<float>) (destination : nativeptr<Complex>) (parameters : FFTParameters) = 
+     /// Initializes FFT units from a generic unmanaged source.
+    let inline initializeUnits (source : nativeptr<'a>) (destination : nativeptr<Complex>) (parameters : FFTParameters) = 
         let twiddles = parameters.Twiddles
         let unitOffsets = parameters.UnitOffsets
         let unitSize = int parameters.UnitSize
@@ -96,9 +97,27 @@ module DFT =
                 curDestination <- NativePtr.add curDestination 1
                 k <- k + 1
             unit <- unit + 1
-        
+
+    /// Initializes FFT units from a real source.
+    let initializeUnitsReal (source : nativeptr<float>) destination parameters = initializeUnits source destination parameters
+
+    /// Initializes FFT units from a complex source.
+    let initializeUnitsComplex (source : nativeptr<Complex>) destination parameters = initializeUnits source destination parameters
 
     /// Computes a DFT on real data (with a power of two size).
     let computeReal (source : nativeptr<float>) (destination : nativeptr<Complex>) (parameters : FFTParameters) =
         initializeUnitsReal source destination parameters
         applyRounds destination parameters
+
+    /// Computes a DFT on complex data (with a power of two size).
+    let computeComplex (source : nativeptr<Complex>) (destination : nativeptr<Complex>) (parameters : FFTParameters) =
+        initializeUnitsComplex source destination parameters
+        applyRounds destination parameters
+
+    /// Computes an inverse DFT on complex data (with a power of two size).
+    let computeInverseComplex (source : nativeptr<Complex>) (destination : nativeptr<Complex>) (parameters : FFTParameters) =
+        initializeUnitsComplex source destination parameters
+        DSignal.conjugate destination parameters.Size
+        applyRounds destination parameters
+        DSignal.conjugate destination parameters.Size
+        DSignal.scaleComplex (1.0 / float parameters.Size) destination parameters.Size

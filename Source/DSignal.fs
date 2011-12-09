@@ -31,6 +31,13 @@ module DSignal =
             (NativePtr.get source index) * factor |> NativePtr.set source index
             index <- index + 1
 
+    /// Performs an in-place windowing of the given signal by the given window (of the size).
+    let inline window (window : nativeptr<'b>) (destination : nativeptr<'a>) size =
+        let mutable index = 0
+        while index < size do
+            (NativePtr.get destination index) * (NativePtr.get window index) |> NativePtr.set destination index
+            index <- index + 1
+
     /// Converts a real signal to a complex signal.
     let convertComplex (source : nativeptr<float>) (destination : nativeptr<Complex>) size =
         let mutable index = 0
@@ -88,3 +95,9 @@ module DSignal =
 
     /// Performs an in-place scaling of the given complex signal by the given real factor.
     let scaleComplex (factor : float) (source : nativeptr<Complex>) size = scale factor source size
+
+    /// Performs an in-place windowing of the given real signal by the given window (of the size).
+    let windowReal (win : nativeptr<float>) (destination : nativeptr<float>)  size = window win destination size
+
+    /// Performs an in-place windowing of the given complex signal by the given window (of the size).
+    let windowComplex (win : nativeptr<float>) (destination : nativeptr<Complex>) size = window win destination size

@@ -47,6 +47,7 @@
     <Compile Include="Complex.fs" />
     <Compile Include="DSignal.fs" />
     <Compile Include="DFT.fs" />
+    <Compile Include="Window.fs" />
     <Compile Include="Path.fs" />
     <Compile Include="Update.fs" />
     <Compile Include="Exclusive.fs" />

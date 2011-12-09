@@ -58,12 +58,13 @@ type ViewState = {
         let center = this.Center
         let velocity = this.Velocity
         let scale = this.Scale
+        let zoomVelocity = this.ZoomVelocity
 
         // Check if scale is too big to fit in bounds. If so, reduce the size of both components.
         let widthRatio = (bounds.Right - bounds.Left) / (2.0 * scale.X)
         let heightRatio = (bounds.Top - bounds.Bottom) / (2.0 * scale.Y)
         let minRatio = min widthRatio heightRatio
-        let scale = if minRatio > 1.0 then scale else scale * minRatio
+        let scale, zoomVelocity = if minRatio > 1.0 then (scale, zoomVelocity) else (scale * minRatio, min zoomVelocity 0.0)
 
         // Check if the view is outside the horizontal and vertical axis independently.
         let check min max value scale =
@@ -74,8 +75,13 @@ type ViewState = {
         let centerX = check bounds.Left bounds.Right center.X scale.X
         let centerY = check bounds.Bottom bounds.Top center.Y scale.Y
 
-        { this with Center = new Point (centerX, centerY); Zoom = Math.Log (scale.Y, 2.0) }
+        { this with Center = new Point (centerX, centerY); Zoom = Math.Log (scale.Y, 2.0); ZoomVelocity = zoomVelocity }
 
+    /// Gets the projection for this view.
+    member this.Projection = 
+        let center = this.Center
+        let scale = this.Scale
+        new Transform (center, new Point(scale.X, 0.0), new Point (0.0, scale.Y))
 
 /// Contains parameters for a view.
 type ViewParameters = {
@@ -107,44 +113,67 @@ type View private (parameters : ViewParameters) =
     let velocityDamping = parameters.VelocityDamping
     let zoomVelocityDamping = parameters.ZoomVelocityDamping
     let mutable state = parameters.InitialState.CheckBounds bounds
+    let mutable drag : (Probe * Point * RetractAction) option = None
 
     // Changes the state of the view to the given state after checking if it is
     // within bounds and correcting if needed.
     let changeState (newState : ViewState) = state <- newState.CheckBounds bounds
-    let retractChangeState = parameters.ChangeState.Register changeState
+    let retract = parameters.ChangeState.Register changeState
 
     // Updates the state of the view by the given amount of time in seconds.
-    let update time = changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
-    let retractUpdate = Update.register update
+    let update time = 
+        match drag with
+        | Some (probe, startPosition, retractLock) ->
+            if probe.Primary.Current then
+                let scale = state.Scale
+                let currentPosition = Point.Scale (probe.Position.Current, scale) + state.Center
+                let offset = currentPosition - startPosition
+                let pullCenter = state.Center - offset
+                let centerSmooth = 8.0
+                let newCenter = (state.Center * centerSmooth + pullCenter) / (centerSmooth + 1.0)
+                let pullVelocity = -new Point (offset.X / scale.X, offset.Y / scale.Y) / time
+                let velocitySmooth = 4.0
+                let newVelocity = (state.Velocity * velocitySmooth + pullVelocity) / (velocitySmooth + 1.0) 
+
+                let state = { state with Center = newCenter; Velocity = newVelocity; }
+                changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
+            else 
+                Retract.invoke retractLock
+                drag <- None
+                changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
+        | _ ->  changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
+
+    let retract = Update.register update |> Retract.combine retract
 
     // Handles a scroll wheel event.
     let scroll (amount, position : Point) = 
-        let newVelocity = state.Velocity + position * (0.7 * amount)
-        let newZoomVelocity = state.ZoomVelocity - amount
-        changeState { state with Velocity = newVelocity; ZoomVelocity = newZoomVelocity }
+        if Option.isNone drag then
+            let newVelocity = state.Velocity + position * (0.7 * amount)
+            let newZoomVelocity = state.ZoomVelocity - amount
+            changeState { state with Velocity = newVelocity; ZoomVelocity = newZoomVelocity }
+
+    // Handles a probe grab event.
+    let grab probe identifier () = 
+        
+        // Start dragging
+        if Option.isNone drag then
+            let retractLock = input.Lock identifier
+            drag <- Some (probe, state.Projection.Apply probe.Position.Current, retractLock)
 
     /// Registers a new controlling probe for the view.
-    let registerProbe (probe : Probe) = 
-        (Feed.tag probe.Scroll probe.Position).Register scroll
-    let retractProbes = input.Probes.Register registerProbe
+    let registerProbe (probe : Probe, identifier) = 
+        (Feed.tag probe.Scroll probe.Position).Register scroll 
+        |> Retract.combine ((Feed.rising probe.Primary).Register (grab probe identifier))
+    let retract = input.Probes.Register registerProbe |> Retract.combine retract
 
     /// Creates a new view with the given parameters.
     static member Create parameters = new View (parameters) |> Exclusive.custom (fun view -> view.Finish ())
 
-    /// Gets the projection from viewspace to worldspace for the given view state.
-    static member GetProjection (state : ViewState) =
-        let center = state.Center
-        let scale = state.Scale
-        new Transform (center, new Point(scale.X, 0.0), new Point (0.0, scale.Y))
-
     /// Gets the projection feed for this view.
-    member this.Projection = this :> ViewState signal |> Feed.maps View.GetProjection
+    member this.Projection = this :> ViewState signal |> Feed.maps (fun vs -> vs.Projection)
 
     /// Releases all resources used by this view.
-    member this.Finish () = 
-        if retractChangeState <> null then retractChangeState.Invoke ()
-        if retractUpdate <> null then retractUpdate.Invoke ()
-        if retractProbes <> null then retractProbes.Invoke ()
+    member this.Finish () = Retract.invoke retract
 
     interface SignalFeed<ViewState> with
         member this.Current = state

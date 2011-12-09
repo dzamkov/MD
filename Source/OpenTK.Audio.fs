@@ -36,7 +36,7 @@ type AudioOutput private (context : AudioContext) =
                 | Control (source, AudioControl.Pause) -> source.Pause ()
                 | Control (source, AudioControl.Stop) ->
                     source.Stop ()
-                    (sources.[source]).Invoke ()
+                    Retract.invoke sources.[source]
                     sources.Remove source |> ignore
             Monitor.Exit messages
 
@@ -58,7 +58,7 @@ type AudioOutput private (context : AudioContext) =
         // Clean up on exit
         for kvp in sources do
             kvp.Key.Stop ()
-            kvp.Value.Invoke ()
+            Retract.invoke kvp.Value
         context.Dispose()
         wait.Close ()
 

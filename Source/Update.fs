@@ -14,6 +14,4 @@ module Update =
     let register callback = callbacks.Add callback
 
     /// Invokes a program-wide update with the given time in seconds.
-    let invoke time =
-        for callback in callbacks do
-            callback time
+    let invoke time = callbacks.Forall (fun a -> a time)

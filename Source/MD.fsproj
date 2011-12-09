@@ -42,8 +42,8 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Util.fs" />
     <Compile Include="Retract.fs" />
+    <Compile Include="Util.fs" />
     <Compile Include="Complex.fs" />
     <Compile Include="DSignal.fs" />
     <Compile Include="DFT.fs" />
@@ -51,6 +51,7 @@
     <Compile Include="Update.fs" />
     <Compile Include="Exclusive.fs" />
     <Compile Include="Temporary.fs" />
+    <Compile Include="Identifier.fs" />
     <Compile Include="Feed.fs" />
     <Compile Include="Plugin.fs" />
     <Compile Include="Stream.fs" />

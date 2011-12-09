@@ -66,19 +66,22 @@ module Input =
         let mouse = probe window.Mouse
 
         // Setup mouse enter and leave events.
-        let probes = new ControlCollectionFeed<Probe> ()
+        let probes = new ControlCollectionFeed<Probe * identifier> ()
         let retractMouse = ref null
         let mouseEnter args = 
-            retractMouse := probes.Add mouse
+            retractMouse := probes.Add (mouse, Identifier.Create mouse)
         let mouseExit args = 
             let retract = !retractMouse
-            if retract <> null then
-                retract.Invoke ()
-                retractMouse := null
+            Retract.invoke retract
+            retractMouse := null
+        let lock args =
+            mouseExit ()
+            RetractAction (fun () -> mouseEnter ())
         window.MouseEnter.Add mouseEnter
         window.MouseLeave.Add mouseExit
 
         // Create input context.
         {
             Probes = probes
+            Lock = lock
         }

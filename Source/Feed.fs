@@ -70,12 +70,10 @@ type ConstSignalFeed<'a> (value : 'a) =
 
 /// An event feed that allows events to be manually fired.
 type ControlEventFeed<'a> () =
-    let callbacks : Registry<'a -> unit> = new Registry<'a -> unit> ()
+    let callbacks = new Registry<'a -> unit> ()
 
     /// Fires the given event in this feed.
-    member this.Fire event =
-        for callback in callbacks do
-            callback event
+    member this.Fire event = callbacks.Forall (fun a -> a event)
 
     interface EventFeed<'a> with
         member this.Register callback = callbacks.Add callback
@@ -123,7 +121,7 @@ type ControlCollectionFeed<'a> () =
                     let nextnode = relationnode.Next
                     relations.Remove relationnode
                     relationnode <- nextnode
-                    retract.Invoke ()
+                    Retract.invoke retract
                 | _ -> relationnode <- relationnode.Next
         RetractAction remove
 
@@ -147,7 +145,7 @@ type ControlCollectionFeed<'a> () =
                     let nextnode = relationnode.Next
                     relations.Remove relationnode
                     relationnode <- nextnode
-                    retract.Invoke ()
+                    Retract.invoke retract
                 | _ -> relationnode <- relationnode.Next
         RetractAction remove
 
@@ -156,11 +154,13 @@ type ControlCollectionFeed<'a> () =
 
 /// An event feed that applies a mapping and filter to all events from a source feed.
 type MapFilterEventFeed<'a, 'b> (source : 'b event, map : 'b -> 'a option) =
+    let mapCallback callback event =
+        match map event with
+        | Some x -> callback x
+        | None -> ()
+
     interface EventFeed<'a> with
-        member this.Register callback = source.Register (fun x -> 
-            match map x with
-            | Some y -> callback y
-            | None -> ())
+        member this.Register callback = source.Register (mapCallback callback)
 
 /// A signal feed that applies a mapping to values from a source feed.
 type MapSignalFeed<'a, 'b> (source : 'b signal, map : 'b -> 'a) =
@@ -183,12 +183,12 @@ type MapFilterCollectionFeed<'a, 'b> (source : 'b collection, map : 'b -> 'a opt
 /// An event feed that combines events from two source feeds.
 type UnionEventFeed<'a> (sourceA : 'a event, sourceB : 'a event) =
     interface EventFeed<'a> with
-        member this.Register callback = Delegate.Combine (sourceA.Register callback, sourceB.Register callback) :?> RetractAction
+        member this.Register callback = Retract.combine (sourceA.Register callback) (sourceB.Register callback)
 
 /// A collection feed that combines items from two source feeds.
 type UnionCollectionFeed<'a> (sourceA : 'a collection, sourceB : 'a collection) =
     interface CollectionFeed<'a> with
-        member this.Register callback = Delegate.Combine (sourceA.Register callback, sourceB.Register callback) :?> RetractAction
+        member this.Register callback = Retract.combine (sourceA.Register callback) (sourceB.Register callback)
 
 /// An event feed that tags events with a value from the given signal.
 type TagEventFeed<'a, 'b> (event : 'a event, signal : 'b signal) =
@@ -221,8 +221,8 @@ type ChangePollEventFeed<'a when 'a : equality> (source : 'a signal) =
             if callbacks.Count = 0 then retractUpdate <- Update.register poll
             let retractCallback = callbacks.Add callback
             let retract () =
-                retractCallback.Invoke ()
-                if callbacks.Count = 0 then retractUpdate.Invoke ()
+                Retract.invoke retractCallback
+                if callbacks.Count = 0 then Retract.invoke retractUpdate
             RetractAction retract
 
 /// A signal feed that gives the current time in seconds.
@@ -314,3 +314,13 @@ module Feed =
 
     /// Constructs an event feed that fires whenever the source signal changes from true to false.
     let falling source = mapfiltere (fun x -> if x.New = false then Some () else None) (delta source)
+
+    /// Registers a callback to be called once, on the next occurence of an event in the source event feed.
+    let registerOnce callback (source : 'a event) =
+        let retract = ref null
+        let newCallback event =
+            if !retract <> null then
+                retract := null
+                Retract.invoke !retract
+                callback event
+        retract := source.Register callback

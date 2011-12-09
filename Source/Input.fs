@@ -18,8 +18,12 @@ type Probe = {
 /// An interface for user input.
 type Input = {
 
-    /// A collection of probes present in this input interface.
-    Probes : Probe collection
+    /// A collection of unlocked probes available for use in this input interface.
+    Probes : (Probe * identifier) collection
+
+    /// Locks the probe with the given identifier and returns a retract action to later unlock it.
+    Lock : identifier -> RetractAction
+
     }
 
 /// Contains functions for constructing and manipulating inputs.
@@ -27,7 +31,7 @@ type Input = {
 module Input =
 
     /// Applies a mapping to all probes in the given input.
-    let mapProbes map (input : Input) = { input with Probes = input.Probes |> Feed.mapc map }
+    let mapProbes map (input : Input) = { input with Probes = input.Probes |> Feed.mapc (fun (probe, identifier) -> (map probe, identifier)) }
 
     /// Applies a constant spatial transformation to the given probe.
     let transformProbe (transform : Transform) (probe : Probe) =

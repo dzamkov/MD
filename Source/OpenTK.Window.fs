@@ -29,7 +29,7 @@ type Window () as this =
         this.VSync <- VSyncMode.Off
         Graphics.Initialize ()
 
-        let music = new Path (@"N:\Music\Me\57.mp3")
+        let music = new Path (@"N:\Music\Me\19.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -70,9 +70,9 @@ type Window () as this =
             |]
 
         let timeResolution = 1024
-        let windowDelta = 2048
-        let freqResolution = 2048
-        let windowSize = 4096 * 2
+        let freqResolution = 1024
+        let windowSize = freqResolution * 8
+        let windowDelta = freqResolution * 4
         let downsampleCount = log2 (uint32 windowSize) - log2 (uint32 freqResolution)
         let colorBuffer = Array2D.zeroCreate timeResolution freqResolution
 
@@ -111,14 +111,14 @@ type Window () as this =
         let view = Exclusive.get (View.Create {
                 InitialState = initialViewState
                 ChangeState = Feed.nil
-                Bounds = Rectangle.Unbound
+                Bounds = new Rectangle (-1.0, 1.0, -1.0, 0.0)
                 Input = Input.windowToView size input
                 VelocityDamping = 0.1
                 ZoomVelocityDamping = 0.1
             })
 
         let getFigure playSample =
-            let image = Figure.image image ImageInterpolation.Nearest (new Rectangle (-1.0, 1.0, 1.0, -1.0))
+            let image = Figure.image image ImageInterpolation.Nearest (new Rectangle (-1.0, 1.0, -1.0, 1.0))
             let linex = 2.0 * float playSample / float (timeResolution * windowDelta) - 1.0
             let line = Figure.line (new Point (linex, -1.0)) (new Point (linex, 1.0)) 0.002 (Paint.ARGB (1.0, 1.0, 0.3, 0.0))
             Figure.composite image line

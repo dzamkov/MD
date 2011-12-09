@@ -8,7 +8,7 @@ type Axis =
     | Vertical
 
 /// A point or offset in two-dimensional space.
-type Point (x : double, y : double) =
+type Point (x : float, y : float) =
     struct
         /// Adds two offsets.
         static member (+) (a : Point, b : Point) =
@@ -31,6 +31,10 @@ type Point (x : double, y : double) =
 
         /// Negates an offset.
         static member (~-) (a : Point) = new Point (-a.X, -a.Y)
+
+        /// Scales a point by the multipliers given by another point.
+        static member Scale (a : Point, b : Point) =
+            new Point (a.X * b.X, a.Y * b.Y)
 
         /// Gets the given axis component of this point.
         member this.Item
@@ -61,24 +65,22 @@ type Point (x : double, y : double) =
     end
 
 /// An axis-aligned rectangle in two-dimensional space.
-type Rectangle (left : double, top : double, right : double, bottom : double) =
+type Rectangle (left : float, right : float, bottom : float, top : float) =
     struct
 
-        new (topLeft : Point, bottomRight : Point) = new Rectangle (topLeft.X, topLeft.Y, bottomRight.X, bottomRight.Y)
-
         /// Gets a rectangle that contains all points.
-        static member Unbound = new Rectangle (-infinity, infinity, infinity, -infinity)
+        static member Unbound = new Rectangle (-infinity, infinity, -infinity, infinity)
 
         /// Gets a rectangle that contains no points.
-        static member Null = new Rectangle (infinity, -infinity, -infinity, infinity)
+        static member Null = new Rectangle (infinity, -infinity, infinity, -infinity)
 
         /// Adds an offset to this rectangle.
         static member (+) (a : Rectangle, b : Point) =
-            new Rectangle (a.Left + b.X, a.Top + b.Y, a.Right + b.X, a.Bottom + b.Y)
+            new Rectangle (a.Left + b.X, a.Right + b.X, a.Bottom + b.Y, a.Top + b.Y)
 
         /// Adds an offset from this rectangle.
         static member (-) (a : Rectangle, b : Point) =
-            new Rectangle (a.Left - b.X, a.Top - b.Y, a.Right - b.X, a.Bottom - b.Y)
+            new Rectangle (a.Left - b.X, a.Right - b.X, a.Bottom - b.Y, a.Top - b.Y)
         
         /// Gets the horizontal component of the left edge of this rectangle.
         member this.Left = left
@@ -104,8 +106,11 @@ type Rectangle (left : double, top : double, right : double, bottom : double) =
         /// Gets the position of the bottom-right corner of this rectangle.
         member this.BottomRight = new Point (right, bottom)
 
+        /// Gets an offset for the size of this rectangle.
+        member this.Size = new Point (right - left, top - bottom)
+
         /// Gets the area of this rectangle.
-        member this.Area = (right - left) * (bottom - top)
+        member this.Area = (right - left) * (top - bottom)
     end
 
 /// An affline transform in two-dimensional space.

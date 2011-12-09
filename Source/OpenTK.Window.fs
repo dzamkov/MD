@@ -29,7 +29,7 @@ type Window () as this =
         this.VSync <- VSyncMode.Off
         Graphics.Initialize ()
 
-        let music = new Path (@"N:\Music\Me\19.mp3")
+        let music = new Path (@"N:\Music\Me\12.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -42,14 +42,12 @@ type Window () as this =
                     if context.NextFrame (&index)
                     then Some (Data.lock audiocontent.Data.Value, ())
                     else None)) 
-            |> Exclusive.map Stream.cast
-        let shortData : int16 data = Data.make 65536 stream
-        let floatData = Data.map (fun x -> float x / 32768.0) shortData
-        let monoFloatData = Data.combine 2 (fun (x, o) -> x.[o]) floatData
+        let data = Data.make 65536 stream
+        let floatData = Data.combine 4 (fun (x, o) -> float (BitConverter.ToInt16 (x, o)) / 32768.0) data
 
         let sampleRate = audiocontent.SampleRate
         let audioparams = {
-                Stream = shortData.Lock () |> Exclusive.map Stream.cast
+                Stream = data.Lock ()
                 SampleRate = int sampleRate
                 Channels = audiocontent.Channels
                 Format = audiocontent.Format
@@ -71,34 +69,32 @@ type Window () as this =
 
         let timeResolution = 1024
         let freqResolution = 1024
-        let windowSize = freqResolution * 8
-        let windowDelta = freqResolution * 4
-        let downsampleCount = log2 (uint32 windowSize) - log2 (uint32 freqResolution)
+        let windowSize = freqResolution * 16
+        let windowDelta = 4096 * 1024 / timeResolution
+        let downsampleCount = log2 (uint32 windowSize) - log2 (uint32 freqResolution) - 1
         let colorBuffer = Array2D.zeroCreate timeResolution freqResolution
 
-        let parameters = new FFTParameters (freqResolution, 8)
+        let parameters = new FFTParameters (freqResolution * 2, 8)
 
         let window : float[] = Array.zeroCreate windowSize
-        let output : Complex[] = Array.zeroCreate freqResolution
+        let output : Complex[] = Array.zeroCreate (freqResolution * 2)
+        let windowHandle, windowPtr = pin window
+        let outputHandle, outputPtr = pin output
         for x = 0 to timeResolution - 1 do
             let start = uint64 (windowDelta * x)
-            monoFloatData.Read (start * 2UL, window, 0, windowSize)
-
-            let windowHandle, windowPtr = pin window
-            let outputHandle, outputPtr = pin output
+            floatData.Read (start, window, 0, windowSize)
 
             let mutable curSize = windowSize
-            while curSize > freqResolution do
+            while curSize > freqResolution * 2 do
                 DSignal.downsampleReal (NativePtr.ofNativeInt windowPtr) curSize
                 curSize <- curSize / 2
             DFT.computeReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt outputPtr) parameters
 
-            unpin windowHandle
-            unpin outputHandle
-
             for y = 0 to freqResolution - 1 do
                 colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs * 0.1)
 
+        unpin windowHandle
+        unpin outputHandle
         let image = Image.colorBuffer colorBuffer
 
         let mouse = Input.probe this.Mouse
@@ -118,7 +114,7 @@ type Window () as this =
             })
 
         let getFigure playSample =
-            let image = Figure.image image ImageInterpolation.Nearest (new Rectangle (-1.0, 1.0, -1.0, 1.0))
+            let image = Figure.image image ImageInterpolation.Nearest (new Rectangle (-1.0, 1.0, -1.0, 0.0))
             let linex = 2.0 * float playSample / float (timeResolution * windowDelta) - 1.0
             let line = Figure.line (new Point (linex, -1.0)) (new Point (linex, 1.0)) 0.002 (Paint.ARGB (1.0, 1.0, 0.3, 0.0))
             Figure.composite image line

@@ -52,8 +52,8 @@ type ViewState = {
         let scale = this.Scale
         new Rectangle (center.X - scale.X, center.X + scale.X, center.Y - scale.Y, center.Y + scale.Y)
 
-    /// Checks that the area this view state is within the given rectangle, correcting any parameters
-    /// (including center and zoom) if needed.
+    /// Checks that the area this view state is within the given rectangle, correcting parameters
+    /// as needed.
     member this.CheckBounds (bounds : Rectangle) =
         let center = this.Center
         let velocity = this.Velocity
@@ -67,15 +67,16 @@ type ViewState = {
         let scale, zoomVelocity = if minRatio > 1.0 then (scale, zoomVelocity) else (scale * minRatio, min zoomVelocity 0.0)
 
         // Check if the view is outside the horizontal and vertical axis independently.
-        let check min max value scale =
-            if value - scale < min then min + scale
-            elif value + scale > max then max - scale
-            else value
+        let maxSideVelocity = -zoomVelocity * Math.Log 2.0
+        let check low high value velocity scale =
+            if value - scale < low then (low + scale, max -maxSideVelocity velocity)
+            elif value + scale > high then (high - scale, min maxSideVelocity velocity)
+            else (value, velocity)
 
-        let centerX = check bounds.Left bounds.Right center.X scale.X
-        let centerY = check bounds.Bottom bounds.Top center.Y scale.Y
+        let centerX, velocityX = check bounds.Left bounds.Right center.X velocity.X scale.X
+        let centerY, velocityY = check bounds.Bottom bounds.Top center.Y velocity.Y scale.Y
 
-        { this with Center = new Point (centerX, centerY); Zoom = Math.Log (scale.Y, 2.0); ZoomVelocity = zoomVelocity }
+        { Center = new Point (centerX, centerY); Velocity = new Point (velocityX, velocityY); Zoom = Math.Log (scale.Y, 2.0); ZoomVelocity = zoomVelocity }
 
     /// Gets the projection for this view.
     member this.Projection = 

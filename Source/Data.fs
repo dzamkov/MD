@@ -130,7 +130,7 @@ type CombineData<'a, 'b> (source : 'b data, groupSize : int, combine : 'b[] * in
     override this.Read (index, destBuffer, destOffset, size) =
         let sourceSize = size * groupSize
         let tempBuffer = Array.zeroCreate sourceSize
-        source.Read (index, tempBuffer, 0, sourceSize)
+        source.Read (index * uint64 groupSize, tempBuffer, 0, sourceSize)
         for index = 0 to size - 1 do
             destBuffer.[destOffset + index] <- combine (tempBuffer, index * groupSize)
 
@@ -139,7 +139,7 @@ type CombineData<'a, 'b> (source : 'b data, groupSize : int, combine : 'b[] * in
         let itemSize = Memory.SizeOf<'a> ()
         let sourceSize = size * groupSize
         let tempBuffer = Array.zeroCreate sourceSize
-        source.Read (index, tempBuffer, 0, sourceSize)
+        source.Read (index * uint64 groupSize, tempBuffer, 0, sourceSize)
         for index = 0 to size - 1 do
             Memory.Write (destination, combine (tempBuffer, index * groupSize))
             destination <- destination + nativeint itemSize
@@ -171,26 +171,26 @@ type ChunkData<'a> (alignment : int) =
 
     override this.Read (index, buffer, offset, size) =
         let chunk, chunkIndex, chunkOffset = find index
-        let rec read (offset, size, chunk : 'a data, chunkIndex, chunkOffset) totalReadSize =
+        let rec read offset size (chunk : 'a data) chunkIndex chunkOffset =
             let chunkReadSize = chunk.Size - chunkOffset
             if size > int chunkReadSize then
                 chunk.Read (chunkOffset, buffer, offset, int chunkReadSize)
-                read (offset + int chunkReadSize, size - int chunkReadSize, snd chunks.[chunkIndex], chunkIndex + 1, 0UL) (totalReadSize + int chunkReadSize)
+                read (offset + int chunkReadSize) (size - int chunkReadSize) (snd chunks.[chunkIndex + 1]) (chunkIndex + 1) 0UL
             else
                 chunk.Read (chunkOffset, buffer, offset, size)
-        read (offset, size, chunk, chunkIndex, chunkOffset) 0
+        read offset size chunk chunkIndex chunkOffset
 
     override this.Read (index, destination, size) =
         let itemSize = Memory.SizeOf<'a> ()
         let chunk, chunkIndex, chunkOffset = find index
-        let rec read (destination, size, chunk : 'a data, chunkIndex, chunkOffset) totalReadSize =
+        let rec read destination size (chunk : 'a data) chunkIndex chunkOffset =
             let chunkReadSize = chunk.Size - chunkOffset
             if size > int chunkReadSize then
                 chunk.Read (chunkOffset, destination, int chunkReadSize)
-                read (destination + nativeint (uint32 chunkReadSize * itemSize), size - int chunkReadSize, snd chunks.[chunkIndex], chunkIndex + 1, 0UL) (totalReadSize + int chunkReadSize)
+                read (destination + nativeint (uint32 chunkReadSize * itemSize)) (size - int chunkReadSize) (snd chunks.[chunkIndex + 1]) (chunkIndex + 1) 0UL
             else
                 chunk.Read (chunkOffset, destination, size)
-        read (destination, size, chunk, chunkIndex, chunkOffset) 0
+        read destination size chunk chunkIndex chunkOffset
 
     override this.Lock (index, size) =
         let chunk, chunkIndex, chunkOffset = find index

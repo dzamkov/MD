@@ -68,14 +68,14 @@ type Window () as this =
                 Zoom = 0.0
                 ZoomVelocity = -0.2
             }
-        let view = Exclusive.get (View.Create {
+        let view, _ = View.Create {
                 InitialState = initialViewState
                 ChangeState = Feed.nil
                 Bounds = new Rectangle (-1.0, 1.0, -1.0, 0.0)
                 Input = Input.windowToView size input
                 VelocityDamping = 0.1
                 ZoomVelocityDamping = 0.1
-            })
+            }
 
         // Create spectrogram gradient
         let gradient = 
@@ -89,8 +89,8 @@ type Window () as this =
             |]
 
         // Spectrogram parameters
-        let timeResolution = 2048
-        let freqResolution = 1024
+        let timeResolution = 512
+        let freqResolution = 512
         let windowSize = freqResolution * 2
         let inputSize = windowSize * 8
         let inputDelta = (int floatData.Size - inputSize) / timeResolution

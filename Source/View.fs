@@ -108,7 +108,7 @@ type ViewParameters = {
     }
 
 /// Contains information for a user-controlled, zoomable axis-aligned view.
-type View private (parameters : ViewParameters) =
+type View private (parameters : ViewParameters, retract : RetractAction byref) =
     let input = parameters.Input
     let bounds = parameters.Bounds
     let velocityDamping = parameters.VelocityDamping
@@ -119,7 +119,7 @@ type View private (parameters : ViewParameters) =
     // Changes the state of the view to the given state after checking if it is
     // within bounds and correcting if needed.
     let changeState (newState : ViewState) = state <- newState.CheckBounds bounds
-    let retract = parameters.ChangeState.Register changeState
+    do retract <- Retract.combine retract (parameters.ChangeState.Register changeState)
 
     // Updates the state of the view by the given amount of time in seconds.
     let update time = 
@@ -130,10 +130,10 @@ type View private (parameters : ViewParameters) =
                 let currentPosition = Point.Scale (probe.Position.Current, scale) + state.Center
                 let offset = currentPosition - startPosition
                 let pullCenter = state.Center - offset
-                let centerSmooth = 8.0
+                let centerSmooth = 6.0
                 let newCenter = (state.Center * centerSmooth + pullCenter) / (centerSmooth + 1.0)
                 let pullVelocity = -new Point (offset.X / scale.X, offset.Y / scale.Y) / time
-                let velocitySmooth = 4.0
+                let velocitySmooth = 200.0
                 let newVelocity = (state.Velocity * velocitySmooth + pullVelocity) / (velocitySmooth + 1.0) 
 
                 let state = { state with Center = newCenter; Velocity = newVelocity; }
@@ -143,8 +143,7 @@ type View private (parameters : ViewParameters) =
                 drag <- None
                 changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
         | _ ->  changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
-
-    let retract = Update.register update |> Retract.combine retract
+    do retract <- Retract.combine retract (Update.register update)
 
     // Handles a scroll wheel event.
     let scroll (amount, position : Point) = 
@@ -165,16 +164,15 @@ type View private (parameters : ViewParameters) =
     let registerProbe (probe : Probe, identifier) = 
         (Feed.tag probe.Scroll probe.Position).Register scroll 
         |> Retract.combine ((Feed.rising probe.Primary).Register (grab probe identifier))
-    let retract = input.Probes.Register registerProbe |> Retract.combine retract
+    do retract <- Retract.combine retract (input.Probes.Register registerProbe)
 
     /// Creates a new view with the given parameters.
-    static member Create parameters = new View (parameters) |> Exclusive.custom (fun view -> view.Finish ())
+    static member Create parameters = 
+        let mutable retract = Retract.nil
+        (new View (parameters, &retract), retract)
 
     /// Gets the projection feed for this view.
     member this.Projection = this :> ViewState signal |> Feed.maps (fun vs -> vs.Projection)
-
-    /// Releases all resources used by this view.
-    member this.Finish () = Retract.invoke retract
 
     interface SignalFeed<ViewState> with
         member this.Current = state

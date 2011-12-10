@@ -199,7 +199,17 @@ type TagEventFeed<'a, 'b> (event : 'a event, signal : 'b signal) =
 type CollateSignalFeed<'a, 'b> (sourceA : 'a signal, sourceB : 'b signal) =
     interface SignalFeed<'a * 'b> with
         member this.Current = (sourceA.Current, sourceB.Current)
-        member this.Delta = new NotImplementedException () |> raise
+        member this.Delta = 
+            match sourceA.Delta, sourceB.Delta with
+            | (Some a, Some b) ->
+                let amap (change : 'a change, b) = Some { Old = (change.Old, b); New = (change.New, b) }
+                let bmap (change : 'b change, a) = Some { Old = (a, change.Old); New = (a, change.New) }
+                let atagged = new TagEventFeed<'a change, 'b> (a, sourceB)
+                let btagged = new TagEventFeed<'b change, 'a> (b, sourceA)
+                let amapped = new MapFilterEventFeed<('a * 'b) change, 'a change * 'b> (atagged, amap)
+                let bmapped = new MapFilterEventFeed<('a * 'b) change, 'b change * 'a> (btagged, bmap)
+                Some (new UnionEventFeed<('a * 'b) change> (amapped, bmapped) :> ('a * 'b) change event)
+            | _ -> None
 
 /// An event feed that polls changes in a source feed on program updates.
 type ChangePollEventFeed<'a when 'a : equality> (source : 'a signal) =

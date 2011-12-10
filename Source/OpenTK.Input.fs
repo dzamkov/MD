@@ -65,18 +65,22 @@ module Input =
         // Create mouse probe.
         let mouse = probe window.Mouse
 
-        // Setup mouse enter and leave events.
+        // Setup mouse enter/leave and lock/unlock controls.
         let probes = new ControlCollectionFeed<Probe * identifier> ()
+        let mouseAvailable = new ControlSignalFeed<bool> (false)
+        let mouseLocked = new ControlSignalFeed<bool> (false)
+        let mouseReady = Feed.collate mouseAvailable mouseLocked |> Feed.maps (fun (x, y) -> x && not y)
         let retractMouse = ref null
-        let mouseEnter args = 
-            retractMouse := probes.Add (mouse, Identifier.Create mouse)
-        let mouseExit args = 
-            let retract = !retractMouse
-            Retract.invoke retract
-            retractMouse := null
+        (Feed.delta mouseReady).Register (fun change ->
+            if change.New && !retractMouse = null then retractMouse := probes.Add (mouse, Identifier.Create mouse)
+            elif not change.New && !retractMouse <> null then Retract.invoke !retractMouse; retractMouse := null) |> ignore
+
+        let retractMouse = ref null
+        let mouseEnter args = mouseAvailable.Current <- true
+        let mouseExit args = mouseAvailable.Current <- false
         let lock args =
-            mouseExit ()
-            RetractAction (fun () -> mouseEnter ())
+            mouseLocked.Current <- true
+            RetractAction (fun () -> mouseLocked.Current <- false)
         window.MouseEnter.Add mouseEnter
         window.MouseLeave.Add mouseExit
 

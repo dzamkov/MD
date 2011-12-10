@@ -30,7 +30,7 @@ type Window () as this =
         Graphics.Initialize ()
 
         // Get audio container
-        let music = new Path (@"N:\Music\Me\57.mp3")
+        let music = new Path (@"N:\Music\Me\19.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -89,11 +89,11 @@ type Window () as this =
             |]
 
         // Spectrogram parameters
-        let timeResolution = 1024
+        let timeResolution = 2048
         let freqResolution = 1024
         let windowSize = freqResolution * 2
         let inputSize = windowSize * 8
-        let inputDelta = 4096 * 1024 / timeResolution
+        let inputDelta = (int floatData.Size - inputSize) / timeResolution
         let downsampleCount = log2 (uint32 inputSize) - log2 (uint32 freqResolution) - 1
         let colorBuffer = Array2D.zeroCreate timeResolution freqResolution
 

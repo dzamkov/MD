@@ -21,8 +21,8 @@ type Input = {
     /// A collection of unlocked probes available for use in this input interface.
     Probes : (Probe * identifier) collection
 
-    /// Locks the probe with the given identifier and returns a retract action to later unlock it.
-    Lock : identifier -> RetractAction
+    /// Locks the probe with the given identifier and returns a retract operation to later unlock it.
+    Lock : identifier -> Retract
 
     }
 

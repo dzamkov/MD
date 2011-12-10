@@ -8,9 +8,9 @@ open System.Collections.Generic
 type EventFeed<'a> =
 
     /// Registers a callback to be called whenever an event occurs in this
-    /// feed. The returned retract action can be used to remove the callback, but
+    /// feed. The returned retract operation can be used to remove the callback, but
     /// is not guranteed to stop calls to it.
-    abstract member Register : ('a -> unit) -> RetractAction
+    abstract member Register : ('a -> unit) -> Retract
 
 /// Contains information about a change in a value of a certain type.
 type Change<'a> = {
@@ -37,10 +37,10 @@ type SignalFeed<'a> =
 type CollectionFeed<'a> =
 
     /// Registers a callback to be called on every current item in the collection, and every
-    /// time an item is added. When an item is removed, the retract action returned by the corresponding
-    /// item registration action will be called. When the returned retract action of this method is called,
-    /// the retract action of every registered item will be called.
-    abstract member Register : ('a -> RetractAction) -> RetractAction
+    /// time an item is added. When an item is removed, the retract operation returned by the corresponding
+    /// item registration action will be called. When the returned retract operation of this method is called,
+    /// the retract operation of every registered item will be called.
+    abstract member Register : ('a -> Retract) -> Retract
 
 // Create type abbreviations
 type 'a change = Change<'a>
@@ -56,7 +56,7 @@ type NullEventFeed<'a> private () =
     static member Instance = instance
 
     interface EventFeed<'a> with
-        member this.Register x = null
+        member this.Register x = Retract.Nil
 
 /// A signal feed that maintains a constant value.
 type ConstSignalFeed<'a> (value : 'a) =
@@ -98,8 +98,8 @@ type ControlSignalFeed<'a> (initial : 'a) =
 /// A collection feed that allows items to be manually added or removed.
 type ControlCollectionFeed<'a> () =
     let items = new LinkedList<'a> ()
-    let callbacks = new LinkedList<'a -> RetractAction> ()
-    let relations = new LinkedList<LinkedListNode<'a> * LinkedListNode<'a -> RetractAction> * RetractAction> ()
+    let callbacks = new LinkedList<'a -> Retract> ()
+    let relations = new LinkedList<LinkedListNode<'a> * LinkedListNode<'a -> Retract> * Retract> ()
 
     /// Adds an item to this collection feed and returns a retract handler to later remove it.
     member this.Add (item : 'a) = 
@@ -107,7 +107,7 @@ type ControlCollectionFeed<'a> () =
         let mutable callbacknode = callbacks.First
         while callbacknode <> null do
             let retract = callbacknode.Value itemnode.Value
-            if retract <> null then relations.AddFirst ((itemnode, callbacknode, retract)) |> ignore
+            if retract.HasAction then relations.AddFirst ((itemnode, callbacknode, retract)) |> ignore
             callbacknode <- callbacknode.Next
         let remove () =
             items.Remove itemnode
@@ -121,17 +121,17 @@ type ControlCollectionFeed<'a> () =
                     let nextnode = relationnode.Next
                     relations.Remove relationnode
                     relationnode <- nextnode
-                    Retract.invoke retract
+                    retract.Invoke ()
                 | _ -> relationnode <- relationnode.Next
-        RetractAction remove
+        Retract.Single remove
 
     /// Registers a callback for this feed.
-    member this.Register (callback : 'a -> RetractAction) =
+    member this.Register (callback : 'a -> Retract) =
         let callbacknode = callbacks.AddFirst callback
         let mutable itemnode = items.First
         while itemnode <> null do
             let retract = callbacknode.Value itemnode.Value
-            if retract <> null then relations.AddFirst ((itemnode, callbacknode, retract)) |> ignore
+            if retract.HasAction then relations.AddFirst ((itemnode, callbacknode, retract)) |> ignore
             itemnode <- itemnode.Next
         let remove () =
             callbacks.Remove callbacknode
@@ -145,9 +145,9 @@ type ControlCollectionFeed<'a> () =
                     let nextnode = relationnode.Next
                     relations.Remove relationnode
                     relationnode <- nextnode
-                    Retract.invoke retract
+                    retract.Invoke ()
                 | _ -> relationnode <- relationnode.Next
-        RetractAction remove
+        Retract.Single remove
 
     interface CollectionFeed<'a> with
         member this.Register callback = this.Register callback
@@ -178,17 +178,17 @@ type MapFilterCollectionFeed<'a, 'b> (source : 'b collection, map : 'b -> 'a opt
         member this.Register callback = source.Register (fun x ->
             match map x with
             | Some y -> callback y
-            | None -> null)
+            | None -> Retract.Nil)
 
 /// An event feed that combines events from two source feeds.
 type UnionEventFeed<'a> (sourceA : 'a event, sourceB : 'a event) =
     interface EventFeed<'a> with
-        member this.Register callback = Retract.combine (sourceA.Register callback) (sourceB.Register callback)
+        member this.Register callback = sourceA.Register callback + sourceB.Register callback
 
 /// A collection feed that combines items from two source feeds.
 type UnionCollectionFeed<'a> (sourceA : 'a collection, sourceB : 'a collection) =
     interface CollectionFeed<'a> with
-        member this.Register callback = Retract.combine (sourceA.Register callback) (sourceB.Register callback)
+        member this.Register callback = sourceA.Register callback + sourceB.Register callback
 
 /// An event feed that tags events with a value from the given signal.
 type TagEventFeed<'a, 'b> (event : 'a event, signal : 'b signal) =
@@ -214,7 +214,7 @@ type CollateSignalFeed<'a, 'b> (sourceA : 'a signal, sourceB : 'b signal) =
 /// An event feed that polls changes in a source feed on program updates.
 type ChangePollEventFeed<'a when 'a : equality> (source : 'a signal) =
     let mutable last = source.Current
-    let mutable retractUpdate : RetractAction = null
+    let mutable retractUpdate : Retract = Retract.Nil
     let callbacks : Registry<'a change -> unit> = new Registry<'a change -> unit> ()
 
     // Polling function
@@ -231,9 +231,9 @@ type ChangePollEventFeed<'a when 'a : equality> (source : 'a signal) =
             if callbacks.Count = 0 then retractUpdate <- Update.register poll
             let retractCallback = callbacks.Add callback
             let retract () =
-                Retract.invoke retractCallback
-                if callbacks.Count = 0 then Retract.invoke retractUpdate
-            RetractAction retract
+                retractCallback.Invoke ()
+                if callbacks.Count = 0 then retractUpdate.Invoke ()
+            Retract.Single retract
 
 /// A signal feed that gives the current time in seconds.
 type TimeSignalFeed private () =
@@ -327,10 +327,9 @@ module Feed =
 
     /// Registers a callback to be called once, on the next occurence of an event in the source event feed.
     let registerOnce callback (source : 'a event) =
-        let retract = ref null
+        let retract = ref Retract.Nil
         let newCallback event =
-            if !retract <> null then
-                retract := null
-                Retract.invoke !retract
-                callback event
+            (!retract).Invoke ()
+            retract := Retract.Nil
+            callback event
         retract := source.Register callback

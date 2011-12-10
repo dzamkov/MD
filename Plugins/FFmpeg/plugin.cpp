@@ -150,7 +150,7 @@ FSharpOption<ExclusiveByteStream^>^ _Container::Encode(ExclusiveContext^ Context
 	return FSharpOption<ExclusiveByteStream^>::None;
 }
 
-RetractAction^ ::Plugin::Load() {
+Retract^ ::Plugin::Load() {
 	if (!Initialized)
 	{
 		Initialized = true;
@@ -184,7 +184,7 @@ RetractAction^ ::Plugin::Load() {
 		}
 	}
 
-	RetractAction^ retract = nullptr;
+	Retract^ retract = Retract::Nil;
 
 	// Register containers
 	for each(_Container^ container in _Containers->Values) {

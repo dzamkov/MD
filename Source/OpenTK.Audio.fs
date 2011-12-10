@@ -9,7 +9,7 @@ open OpenTK.Audio.OpenAL
 
 /// An interface to an audio output device managed by OpenAL.
 type AudioOutput private (context : AudioContext) =
-    let sources = new Dictionary<AudioOutputSource, RetractAction> ()
+    let sources = new Dictionary<AudioOutputSource, Retract> ()
     let messages = new Queue<AudioOutputMessage> ()
     let wait = new ManualResetEvent (false)
     let mutable exit = false
@@ -36,7 +36,7 @@ type AudioOutput private (context : AudioContext) =
                 | Control (source, AudioControl.Pause) -> source.Pause ()
                 | Control (source, AudioControl.Stop) ->
                     source.Stop ()
-                    Retract.invoke sources.[source]
+                    sources.[source].Invoke ()
                     sources.Remove source |> ignore
             Monitor.Exit messages
 
@@ -58,7 +58,7 @@ type AudioOutput private (context : AudioContext) =
         // Clean up on exit
         for kvp in sources do
             kvp.Key.Stop ()
-            Retract.invoke kvp.Value
+            kvp.Value.Invoke ()
         context.Dispose()
         wait.Close ()
 
@@ -240,5 +240,5 @@ and private AudioOutputSource (parameters : AudioOutputSourceParameters, format 
 
 /// A message for audio output.
 and private AudioOutputMessage =
-    | New of AudioOutputSource * RetractAction
+    | New of AudioOutputSource * Retract
     | Control of AudioOutputSource * AudioControl

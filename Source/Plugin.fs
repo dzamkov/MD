@@ -52,6 +52,6 @@ type Plugin () =
     abstract member About : string
     default this.About = null
 
-    /// Attaches this plugin to the program. Returns a retract action to later unload
+    /// Attaches this plugin to the program. Returns a retract to later unload
     /// the plugin.
-    abstract member Load : unit -> RetractAction
+    abstract member Load : unit -> Retract

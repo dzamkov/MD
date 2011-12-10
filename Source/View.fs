@@ -108,18 +108,18 @@ type ViewParameters = {
     }
 
 /// Contains information for a user-controlled, zoomable axis-aligned view.
-type View private (parameters : ViewParameters, retract : RetractAction byref) =
+type View private (parameters : ViewParameters, retract : Retract byref) =
     let input = parameters.Input
     let bounds = parameters.Bounds
     let velocityDamping = parameters.VelocityDamping
     let zoomVelocityDamping = parameters.ZoomVelocityDamping
     let mutable state = parameters.InitialState.CheckBounds bounds
-    let mutable drag : (Probe * Point * RetractAction) option = None
+    let mutable drag : (Probe * Point * Retract) option = None
 
     // Changes the state of the view to the given state after checking if it is
     // within bounds and correcting if needed.
     let changeState (newState : ViewState) = state <- newState.CheckBounds bounds
-    do retract <- Retract.combine retract (parameters.ChangeState.Register changeState)
+    do retract <- retract + parameters.ChangeState.Register changeState
 
     // Updates the state of the view by the given amount of time in seconds.
     let update time = 
@@ -139,11 +139,11 @@ type View private (parameters : ViewParameters, retract : RetractAction byref) =
                 let state = { state with Center = newCenter; Velocity = newVelocity; }
                 changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
             else 
-                Retract.invoke retractLock
+                retractLock.Invoke ()
                 drag <- None
                 changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
         | _ ->  changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
-    do retract <- Retract.combine retract (Update.register update)
+    do retract <- retract + Update.register update
 
     // Handles a scroll wheel event.
     let scroll (amount, position : Point) = 
@@ -162,13 +162,13 @@ type View private (parameters : ViewParameters, retract : RetractAction byref) =
 
     /// Registers a new controlling probe for the view.
     let registerProbe (probe : Probe, identifier) = 
-        (Feed.tag probe.Scroll probe.Position).Register scroll 
-        |> Retract.combine ((Feed.rising probe.Primary).Register (grab probe identifier))
-    do retract <- Retract.combine retract (input.Probes.Register registerProbe)
+        (Feed.tag probe.Scroll probe.Position).Register scroll +
+        ((Feed.rising probe.Primary).Register (grab probe identifier))
+    do retract <- retract + input.Probes.Register registerProbe
 
     /// Creates a new view with the given parameters.
     static member Create parameters = 
-        let mutable retract = Retract.nil
+        let mutable retract = Retract.Nil
         (new View (parameters, &retract), retract)
 
     /// Gets the projection feed for this view.

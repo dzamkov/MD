@@ -89,8 +89,8 @@ type Window () as this =
             |]
 
         // Spectrogram parameters
-        let timeResolution = 512
-        let freqResolution = 512
+        let timeResolution = 2048
+        let freqResolution = 1024
         let windowSize = freqResolution * 2
         let inputSize = windowSize * 8
         let inputDelta = (int floatData.Size - inputSize) / timeResolution

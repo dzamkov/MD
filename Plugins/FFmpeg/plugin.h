@@ -96,7 +96,7 @@ public:
 		}
 	}
 
-	virtual RetractAction^ Load() override;
+	virtual Retract^ Load() override;
 
 private:
 	static Dictionary<String^, _Container^>^ _Containers = nullptr;

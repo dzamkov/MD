@@ -70,17 +70,17 @@ module Input =
         let mouseAvailable = new ControlSignalFeed<bool> (false)
         let mouseLocked = new ControlSignalFeed<bool> (false)
         let mouseReady = Feed.collate mouseAvailable mouseLocked |> Feed.maps (fun (x, y) -> x && not y)
-        let retractMouse = ref null
+        let retractMouse = ref Retract.Nil
         (Feed.delta mouseReady).Register (fun change ->
-            if change.New && !retractMouse = null then retractMouse := probes.Add (mouse, Identifier.Create mouse)
-            elif not change.New && !retractMouse <> null then Retract.invoke !retractMouse; retractMouse := null) |> ignore
+            if change.New then retractMouse := probes.Add (mouse, Identifier.Create mouse)
+            elif not change.New then (!retractMouse).Invoke ()) |> ignore
 
         let retractMouse = ref null
         let mouseEnter args = mouseAvailable.Current <- true
         let mouseExit args = mouseAvailable.Current <- false
         let lock args =
             mouseLocked.Current <- true
-            RetractAction (fun () -> mouseLocked.Current <- false)
+            Retract.Single (fun () -> mouseLocked.Current <- false)
         window.MouseEnter.Add mouseEnter
         window.MouseLeave.Add mouseExit
 

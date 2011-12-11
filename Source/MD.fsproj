@@ -31,6 +31,8 @@
     <WarningLevel>3</WarningLevel>
     <NoWarn>9</NoWarn>
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <OtherFlags>
+    </OtherFlags>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -57,19 +59,19 @@
     <Compile Include="Stream.fs" />
     <Compile Include="Data.fs" />
     <Compile Include="Container.fs" />
-    <Compile Include="UI.Feed.fs" />
-    <Compile Include="UI.Audio.fs" />
-    <Compile Include="UI.Geometry.fs" />
-    <Compile Include="UI.Color.fs" />
-    <Compile Include="UI.Image.fs" />
-    <Compile Include="UI.Figure.fs" />
-    <Compile Include="UI.Input.fs" />
-    <Compile Include="UI.View.fs" />
-    <Compile Include="OpenTK.Audio.fs" />
-    <Compile Include="OpenTK.Input.fs" />
-    <Compile Include="OpenTK.Texture.fs" />
-    <Compile Include="OpenTK.Graphics.fs" />
-    <Compile Include="OpenTK.Window.fs" />
+    <Compile Include="UI\Feed.fs" />
+    <Compile Include="UI\Audio.fs" />
+    <Compile Include="UI\Geometry.fs" />
+    <Compile Include="UI\Color.fs" />
+    <Compile Include="UI\Image.fs" />
+    <Compile Include="UI\Figure.fs" />
+    <Compile Include="UI\Input.fs" />
+    <Compile Include="UI\View.fs" />
+    <Compile Include="OpenTK\Audio2.fs" />
+    <Compile Include="OpenTK\Input2.fs" />
+    <Compile Include="OpenTK\Texture.fs" />
+    <Compile Include="OpenTK\Graphics.fs" />
+    <Compile Include="OpenTK\Window2.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

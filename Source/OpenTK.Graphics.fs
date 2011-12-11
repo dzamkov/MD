@@ -1,6 +1,7 @@
 ﻿namespace MD.OpenTK
 
 open MD
+open MD.UI
 open System
 open System.Collections.Generic
 open global.OpenTK

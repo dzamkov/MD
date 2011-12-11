@@ -1,4 +1,6 @@
-﻿namespace MD
+﻿namespace MD.UI
+
+open MD
 
 /// Identifies an audio control event.
 type AudioControl =

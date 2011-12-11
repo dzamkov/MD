@@ -1,6 +1,7 @@
 ﻿namespace MD.OpenTK
 
 open MD
+open MD.UI
 open Util
 open System
 open Microsoft.FSharp.NativeInterop
@@ -10,12 +11,11 @@ open OpenTK.Graphics.OpenGL
 open OpenTK.Input
 
 /// Main program window
-type Window () as this =
+type Window () =
     inherit GameWindow (640, 480, GraphicsMode.Default, "MD")
-    let audiooutput = AudioOutput.Create () |> Option.get :> MD.AudioOutput
+    let audiooutput = AudioOutput.Create () |> Option.get :> MD.UI.AudioOutput
     let graphics = Graphics.Create ()
     let size = new ControlSignalFeed<Point> (new Point (float 640, float 480))
-    let input = Input.create this
     let programTime = Feed.time
 
     let mutable figure = Unchecked.defaultof<Figure signal>
@@ -23,6 +23,11 @@ type Window () as this =
 
     /// Gets a feed that gives the size of the client area of this window in pixels.
     member this.Size = size
+
+    /// Gets a feed that gives the projection from window coordinates to viewspace.
+    member this.ViewspaceProjection = 
+        let getTransform (size : Point) = new Transform (new Point (-1.0, 1.0), new Point (2.0 / size.X, 0.0), new Point (0.0, -2.0 / size.Y))
+        size |> Feed.maps getTransform
 
     override this.OnLoad args =
         this.MakeCurrent ()
@@ -61,7 +66,6 @@ type Window () as this =
         let playPosition = (audiooutput.Begin audioparams).Value.Position
 
         // Setup mouse control and view
-        let mouse = Input.probe this.Mouse
         let initialViewState = {
                 Center = new Point (0.0, 0.0)
                 Velocity = new Point (0.0, 0.0)
@@ -70,12 +74,11 @@ type Window () as this =
             }
         let view, _ = View.Create {
                 InitialState = initialViewState
-                ChangeState = Feed.nil
                 Bounds = new Rectangle (-1.0, 1.0, -1.0, 0.0)
-                Input = Input.windowToView size input
                 VelocityDamping = 0.1
                 ZoomVelocityDamping = 0.1
             }
+        let worldspaceProjection = Feed.collate this.ViewspaceProjection view.Projection |> Feed.maps (fun (a, b) -> a * b)
 
         // Create spectrogram gradient
         let gradient = 
@@ -89,8 +92,8 @@ type Window () as this =
             |]
 
         // Spectrogram parameters
-        let timeResolution = 2048
-        let freqResolution = 1024
+        let timeResolution = 1024
+        let freqResolution = 512
         let windowSize = freqResolution * 2
         let inputSize = windowSize * 8
         let inputDelta = (int floatData.Size - inputSize) / timeResolution
@@ -146,6 +149,7 @@ type Window () as this =
             Figure.composite image line
 
         // Start
+        Input.link (this :> GameWindow) (view :> Interface |> Input.transform worldspaceProjection) |> ignore
         projection <- view.Projection
         figure <- playPosition |> Feed.maps getFigure
         control.Fire AudioControl.Play
@@ -163,4 +167,4 @@ type Window () as this =
         Update.invoke args.Time
 
     override this.OnResize args =
-        size.Current <- new Point (double this.Width, double this.Height)
+        size.Update (new Point (double this.Width, double this.Height))

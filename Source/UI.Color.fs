@@ -1,4 +1,4 @@
-﻿namespace MD
+﻿namespace MD.UI
 
 /// Represents a color (with no transparency information).
 type Color (r : float, g : float, b : float) =

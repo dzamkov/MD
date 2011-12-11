@@ -1,6 +1,7 @@
-﻿namespace MD
+﻿namespace MD.UI
 
-open Util
+open MD
+open MD.Util
 open System
 open System.Drawing
 open System.Drawing.Imaging
@@ -73,7 +74,7 @@ type BitmapImage (bitmap : Bitmap) =
         Exclusive.custom (fun x -> bitmap.UnlockBits bd) data
 
 /// An image from a two-dimensional array of colors.
-type ColorBufferImage (buffer : MD.Color[,]) =
+type ColorBufferImage (buffer : MD.UI.Color[,]) =
     inherit Image (buffer.GetLength 0, buffer.GetLength 1, ImageFormat.BGR24)
 
     override this.LockData (left, top, width, height, format) =

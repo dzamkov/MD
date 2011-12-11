@@ -1,6 +1,7 @@
 ﻿namespace MD.OpenTK
 
 open MD
+open MD.UI
 open System
 open System.Collections.Generic
 open System.Threading
@@ -114,7 +115,7 @@ type AudioOutput private (context : AudioContext) =
         if AudioContext.CurrentContext <> context then
             context.MakeCurrent ()
 
-    interface MD.AudioOutput with
+    interface MD.UI.AudioOutput with
         member this.Begin p =
             match alformat p.Channels p.Format with
             | Some (format, bps) ->
@@ -225,7 +226,7 @@ and private AudioOutputSource (parameters : AudioOutputSourceParameters, format 
         // Update play position
         let mutable sampleoffset = 0
         AL.GetSource (sid, ALGetSourcei.SampleOffset, &sampleoffset)
-        position.Current <- startPosition + uint64 sampleoffset
+        position.Update (startPosition + uint64 sampleoffset)
 
         // Update gain
         let nvol = volume.Current

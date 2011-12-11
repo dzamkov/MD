@@ -1,91 +1,113 @@
 ﻿namespace MD.OpenTK
 
 open MD
+open MD.UI
 open System
 open global.OpenTK
 open OpenTK.Input
 
+/// A signal feed for a mouse button state. Note that "MouseButton.LastButton" will be given a constant value of false.
+type MouseButtonStateFeed (mouse : MouseDevice) =
+    inherit CompoundSignalFeed<MouseButton, bool> ()
+    static let buttonCount = int MouseButton.LastButton
+    let buttonFeeds = (Array.create buttonCount None) : (ControlSignalFeed<bool> option)[] 
+
+    /// Handles a button event.
+    member this.ButtonEvent (args : MouseButtonEventArgs) =
+        match buttonFeeds.[int args.Button] with
+        | Some signal -> signal.Update args.IsPressed
+        | None -> ()
+
+    /// Updates the signals for all buttons in the feed.
+    member this.Update () =
+        for button = 0 to buttonCount - 1 do
+            match buttonFeeds.[button] with
+            | Some signal -> signal.Update mouse.[enum<MouseButton> button]
+            | None -> ()
+
+    override this.Current = 
+        let buttonState = Array.zeroCreate buttonCount
+        for button = 0 to buttonCount - 1 do
+            buttonState.[button] <- mouse.[enum<MouseButton> button]
+        fun x -> if x <> MouseButton.LastButton then buttonState.[int x] else false
+
+    override this.GetElementSignal index =
+        if index = MouseButton.LastButton then Feed.constant false
+        else 
+            match buttonFeeds.[int index] with
+            | Some signal -> signal :> bool signal
+            | None -> 
+                let signal = new ControlSignalFeed<bool> (mouse.[index])
+                buttonFeeds.[int index] <- Some signal
+                signal :> bool signal
+
+/// A feed that tracks the position of a mouse device in window coordinates.
+type MousePositionFeed (mouse : MouseDevice) =
+    inherit SignalFeed<Point> ()
+
+    override this.Current = new Point (float mouse.X, float mouse.Y)
+
 /// Contains functions related to OpenTK input.
 module Input =
 
-    /// A feed that tracks the position of a mouse device in window coordinates.
-    type MousePositionFeed (mouse : MouseDevice) =
-        interface SignalFeed<Point> with
-            member this.Current = new Point (float mouse.X, float mouse.Y)   
-            member this.Delta = None
-    
-    /// Gets a feed for the position of a mouse.
-    let position (mouse : MouseDevice) = new MousePositionFeed (mouse) :> Point signal
-    
-    /// Encapsulates the complete button state for a mouse device.
-    type MouseButtonState (mouse : MouseDevice) =
-        let buttonCount = int MouseButton.LastButton
-        let buttonFeeds : ControlSignalFeed<bool> option [] = Array.create buttonCount None
+    /// Gets the OpenTK mouse button for the given input button.
+    let getNativeButton (button : Button) =
+        match button with
+        | Primary -> MouseButton.Left
+        | Secondary -> MouseButton.Right
+        | Extra x -> if x >= 0 && x < 8 then enum<MouseButton> (x + 3) else MouseButton.LastButton
 
-        // Register events
-        let buttonChange (args : MouseButtonEventArgs) =
-            match buttonFeeds.[int args.Button] with
-            | Some feed -> feed.Current <- args.IsPressed
-            | None -> ()
+    /// Gets the input button for the given OpenTK mouse button.
+    let getButton (button : MouseButton) =
+        match button with
+        | MouseButton.Left -> Button.Primary
+        | MouseButton.Right -> Button.Secondary
+        | x -> Button.Extra (int button - 3)
 
-        do
-            mouse.ButtonDown.Add buttonChange
-            mouse.ButtonUp.Add buttonChange
+    /// Links an interface to a window, returning a retract action to later undo the link.
+    let link (window : GameWindow) (source : Interface) =
+        let mouse = window.Mouse
+        let sourceButtonState = new MouseButtonStateFeed (mouse)
+        let position = new MousePositionFeed (mouse) :> Point signal
+        let buttonState = Feed.alias getNativeButton sourceButtonState
+        let modifierState = Feed.constant (fun x -> false)
+        let keyState = Feed.constant (fun x -> false)
+        let unlock = ref (None : (MouseButton * Retract) option)
+        let unfocus = ref (None : Retract option)
 
-        /// Gets the signal feed for the given mouse button.
-        member this.GetFeed (button : MouseButton) =
-            match buttonFeeds.[int button] with
-            | Some feed -> feed :> bool signal
-            | None ->
-                let newfeed = new ControlSignalFeed<bool> (mouse.[button])
-                buttonFeeds.[int button] <- Some newfeed
-                newfeed :> bool signal
+        // Gets the current mouse input context.
+        let context () = (buttonState.Current, modifierState.Current)
 
-    /// Gets an interface to the button state of a mouse. This contains feeds for each button of the mouse.
-    let buttonState (mouse : MouseDevice) = new MouseButtonState (mouse)
+        // Hook up mouse button events.
+        let buttonEvent args = 
+            sourceButtonState.ButtonEvent args
+            if args.IsPressed then
+                if (!unlock).IsNone then
+                    match source.ButtonDown (context (), getButton args.Button, new Point (float args.X, float args.Y)) with
+                    | Some lock -> unlock := Some (args.Button, lock position)
+                    | None -> ()
+            else
+                match !unlock with
+                | Some (button, runlock) -> 
+                    if button = args.Button then
+                        runlock.Invoke ()
+                        unlock := None
+                | None ->
+                    match source.ButtonPress (context (), getButton args.Button, new Point (float args.X, float args.Y)) with
+                    | Some focus ->
+                        match !unfocus with
+                        | Some runfocus -> runfocus.Invoke ()
+                        | None -> ()
+                        unfocus := Some (focus keyState)
+                    | None -> ()
 
-    /// Gets a feed for the scroll event on a mouse.
-    let scroll (mouse : MouseDevice) =
-        Feed.native mouse.WheelChanged
-        |> Feed.mape (fun x -> double x.DeltaPrecise)
+        let retract = (Feed.native mouse.ButtonUp).Register buttonEvent + (Feed.native mouse.ButtonDown).Register buttonEvent
 
-    /// Creates a probe for a mouse device.
-    let probe (mouse : MouseDevice) = 
-        let buttonstate = buttonState mouse
-        {   
-            Position = position mouse
-            Primary = buttonstate.GetFeed MouseButton.Left
-            Secondary = buttonstate.GetFeed MouseButton.Right
-            Scroll = scroll mouse
-        }
+        // Hook up scroll events.
+        let scrollEvent (args : MouseWheelEventArgs) = 
+            source.Scroll (context (), new Point (float args.X, float args.Y), float args.DeltaPrecise)
 
-    /// Creates a full input context for a window, in window coordinates.
-    let create (window : GameWindow) =
+        let retract = retract + (Feed.native mouse.WheelChanged).Register scrollEvent
 
-        // Create mouse probe.
-        let mouse = probe window.Mouse
-
-        // Setup mouse enter/leave and lock/unlock controls.
-        let probes = new ControlCollectionFeed<Probe * identifier> ()
-        let mouseAvailable = new ControlSignalFeed<bool> (false)
-        let mouseLocked = new ControlSignalFeed<bool> (false)
-        let mouseReady = Feed.collate mouseAvailable mouseLocked |> Feed.maps (fun (x, y) -> x && not y)
-        let retractMouse = ref Retract.Nil
-        (Feed.delta mouseReady).Register (fun change ->
-            if change.New then retractMouse := probes.Add (mouse, Identifier.Create mouse)
-            elif not change.New then (!retractMouse).Invoke ()) |> ignore
-
-        let retractMouse = ref null
-        let mouseEnter args = mouseAvailable.Current <- true
-        let mouseExit args = mouseAvailable.Current <- false
-        let lock args =
-            mouseLocked.Current <- true
-            Retract.Single (fun () -> mouseLocked.Current <- false)
-        window.MouseEnter.Add mouseEnter
-        window.MouseLeave.Add mouseExit
-
-        // Create input context.
-        {
-            Probes = probes
-            Lock = lock
-        }
+        // All done
+        retract

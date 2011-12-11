@@ -1,5 +1,6 @@
-﻿namespace MD
+﻿namespace MD.UI
 
+open MD
 open System
 
 // Note: coordinates in "viewspace" are similar to the ones used in OpenGL (see ASCII art).
@@ -90,14 +91,8 @@ type ViewParameters = {
     /// The initial view state for the view.
     InitialState : ViewState
 
-    /// An event feed that will cause the view state to immediately change to recieved events.
-    ChangeState : ViewState event
-
     /// The bounds of the viewing area. The view will never allow a projection to an area outside these bounds.
     Bounds : Rectangle
-    
-    /// The input interface controlling the view, using viewport coordinates.
-    Input : Input
 
     /// The portion of velocity that is retained after each second.
     VelocityDamping : float
@@ -107,73 +102,73 @@ type ViewParameters = {
 
     }
 
-/// Contains information for a user-controlled, zoomable axis-aligned view.
-type View private (parameters : ViewParameters, retract : Retract byref) =
-    let input = parameters.Input
+/// Contains information for a user-controlled, zoomable axis-aligned view. Note that a view acts as an interface in
+/// worldspace.
+type View (parameters : ViewParameters) =
+    inherit Interface ()
     let bounds = parameters.Bounds
     let velocityDamping = parameters.VelocityDamping
     let zoomVelocityDamping = parameters.ZoomVelocityDamping
     let mutable state = parameters.InitialState.CheckBounds bounds
-    let mutable drag : (Probe * Point * Retract) option = None
+    let mutable drag = None : (Point signal * Point) option
 
     // Changes the state of the view to the given state after checking if it is
     // within bounds and correcting if needed.
     let changeState (newState : ViewState) = state <- newState.CheckBounds bounds
-    do retract <- retract + parameters.ChangeState.Register changeState
-
-    // Updates the state of the view by the given amount of time in seconds.
-    let update time = 
-        match drag with
-        | Some (probe, startPosition, retractLock) ->
-            if probe.Primary.Current then
-                let scale = state.Scale
-                let currentPosition = Point.Scale (probe.Position.Current, scale) + state.Center
-                let offset = currentPosition - startPosition
-                let pullCenter = state.Center - offset
-                let centerSmooth = 6.0
-                let newCenter = (state.Center * centerSmooth + pullCenter) / (centerSmooth + 1.0)
-                let pullVelocity = -new Point (offset.X / scale.X, offset.Y / scale.Y) / time
-                let velocitySmooth = 200.0
-                let newVelocity = (state.Velocity * velocitySmooth + pullVelocity) / (velocitySmooth + 1.0) 
-
-                let state = { state with Center = newCenter; Velocity = newVelocity; }
-                changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
-            else 
-                retractLock.Invoke ()
-                drag <- None
-                changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
-        | _ ->  changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
-    do retract <- retract + Update.register update
 
     // Handles a scroll wheel event.
     let scroll (amount, position : Point) = 
-        if Option.isNone drag then
-            let newVelocity = state.Velocity + position * (0.7 * amount)
-            let newZoomVelocity = state.ZoomVelocity - amount
-            changeState { state with Velocity = newVelocity; ZoomVelocity = newZoomVelocity }
-
-    // Handles a probe grab event.
-    let grab probe identifier () = 
-        
-        // Start dragging
-        if Option.isNone drag then
-            let retractLock = input.Lock identifier
-            drag <- Some (probe, state.Projection.Apply probe.Position.Current, retractLock)
-
-    /// Registers a new controlling probe for the view.
-    let registerProbe (probe : Probe, identifier) = 
-        (Feed.tag probe.Scroll probe.Position).Register scroll +
-        ((Feed.rising probe.Primary).Register (grab probe identifier))
-    do retract <- retract + input.Probes.Register registerProbe
+        let newVelocity = state.Velocity + position * (0.7 * amount)
+        let newZoomVelocity = state.ZoomVelocity - amount
+        changeState { state with Velocity = newVelocity; ZoomVelocity = newZoomVelocity }
 
     /// Creates a new view with the given parameters.
     static member Create parameters = 
-        let mutable retract = Retract.Nil
-        (new View (parameters, &retract), retract)
+        let view = new View (parameters)
+        let retract = Update.register view.Update
+        (view, retract)
+
+    /// Gets or sets the current state of this view.
+    member this.State 
+        with get () = state
+        and set state = changeState state
 
     /// Gets the projection feed for this view.
-    member this.Projection = this :> ViewState signal |> Feed.maps (fun vs -> vs.Projection)
+    member this.Projection = Feed.query (fun () -> state.Projection)
 
-    interface SignalFeed<ViewState> with
-        member this.Current = state
-        member this.Delta = None
+    /// Updates the state of this view by the given amount of time in seconds.
+    member this.Update time = 
+        match drag with
+        | Some (positionFeed, startPosition) ->
+            let scale = state.Scale
+            let currentPosition = positionFeed.Current
+            let offset = currentPosition - startPosition
+            let pullCenter = state.Center - offset
+            let centerSmooth = 6.0
+            let newCenter = (state.Center * centerSmooth + pullCenter) / (centerSmooth + 1.0)
+            let pullVelocity = -new Point (offset.X / scale.X, offset.Y / scale.Y) / time
+            let velocitySmooth = 200.0
+            let newVelocity = (state.Velocity * velocitySmooth + pullVelocity) / (velocitySmooth + 1.0) 
+            state <- { state with Center = newCenter; Velocity = newVelocity; }
+        | None -> ()
+        changeState (state.Update (velocityDamping, zoomVelocityDamping) time)
+
+    /// Handles a button down event for the view.
+    override this.ButtonDown (_, button, position) = 
+        match button with
+        | Primary ->
+            // Begin dragging
+            let lock positionFeed =
+                drag <- Some (positionFeed, position)
+                Retract.Single (fun () -> drag <- None)
+            Some lock
+        | _ -> None
+
+    /// Handles a button press event for the view.
+    override this.ButtonPress (_, _, _) = None
+
+    /// Handles a scroll event for the view.
+    override this.Scroll (_, position, amount) =
+        let newVelocity = state.Velocity + (state.Projection.Inverse.Apply position) * (0.7 * amount)
+        let newZoomVelocity = state.ZoomVelocity - amount
+        changeState { state with Velocity = newVelocity; ZoomVelocity = newZoomVelocity }

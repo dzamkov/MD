@@ -1,5 +1,6 @@
-﻿namespace MD
+﻿namespace MD.UI
 
+open MD
 open System
 
 /// Identifies an axis in two-dimensional space.

@@ -73,9 +73,16 @@ type BitmapImage (bitmap : Bitmap) =
         let data = Data.unsafe bd.Scan0 (bd.Scan0 + nativeint ds)
         Exclusive.custom (fun x -> bitmap.UnlockBits bd) data
 
-/// An image from a two-dimensional array of colors.
-type ColorBufferImage (buffer : MD.UI.Color[,]) =
-    inherit Image (buffer.GetLength 0, buffer.GetLength 1, ImageFormat.BGR24)
+/// A image with data from a buffer (array) of colors.
+type ColorBufferImage (width : int, height : int, buffer : MD.UI.Color[], offset : int) =
+    inherit Image (width, height, ImageFormat.BGR24)
+    new (width : int, height : int) = new ColorBufferImage (width, height, Array.zeroCreate (width * height), 0)
+
+    /// Gets or sets a pixel of this image. Note that images should only be modified during construction. When in
+    /// use, they are expected to be immutable.
+    member this.Item
+        with get (x, y) = buffer.[x + (y * width) + offset]
+        and set (x, y) value = buffer.[x + (y * width) + offset] <- value
 
     override this.LockData (left, top, width, height, format) =
         match format with
@@ -86,45 +93,21 @@ type ColorBufferImage (buffer : MD.UI.Color[,]) =
             let outputSize = height * stride
             let output = Array.zeroCreate outputSize
             let mutable pos = 0
+            let mutable offset = offset
             let mutable y = 0
             while y < height do
                 let mutable x = 0
                 while x < width do
-                    let color = buffer.[left + x, top + y]
+                    let color = buffer.[offset + x]
                     output.[pos + 0] <- color.BByte
                     output.[pos + 1] <- color.GByte
                     output.[pos + 2] <- color.RByte
                     pos <- pos + 3
                     x <- x + 1
+                offset <- offset + width
                 pos <- pos + lineOffset
                 y <- y + 1
             Data.buffer output 0 outputSize |> Exclusive.make
-
-/// An image from a two-dimensional array of paints.
-type PaintBufferImage (buffer : Paint[,]) =
-    inherit Image (buffer.GetLength 0, buffer.GetLength 1, ImageFormat.BGRA32)
-
-    override this.LockData (left, top, width, height, format) =
-        match format with
-        | ImageFormat.BGRA32 ->
-            let outputSize = width * height * 4
-            let output = Array.zeroCreate outputSize
-            let mutable pos = 0
-            let mutable y = 0
-            while y < height do
-                let mutable x = 0
-                while x < width do
-                    let paint = buffer.[left + x, top + y]
-                    let color = paint.Color
-                    output.[pos + 0] <- color.BByte
-                    output.[pos + 1] <- color.GByte
-                    output.[pos + 2] <- color.RByte
-                    output.[pos + 3] <- paint.AlphaByte
-                    pos <- pos + 4
-                    x <- x + 1
-                y <- y + 1
-            Data.buffer output 0 outputSize |> Exclusive.make
-        | ImageFormat.BGR24 -> new NotImplementedException () |> raise
 
 /// Contains functions for constructing and manipulating images.
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
@@ -132,12 +115,6 @@ module Image =
 
     /// Creates an image from a System.Drawing.Bitmap representation.
     let bitmap bitmap = new BitmapImage (bitmap) :> Image
-
-    /// Creates an image from a color buffer representation.
-    let colorBuffer buffer = new ColorBufferImage (buffer) :> Image
-
-    /// Creates an image from a paint buffer representation.
-    let paintBuffer buffer = new PaintBufferImage (buffer) :> Image
 
     /// Tries loading an image from the given apth.
     let load (file : Path) =

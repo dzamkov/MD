@@ -98,7 +98,7 @@ type Window () =
         let inputSize = windowSize * 1
         let inputDelta = (int floatData.Size - inputSize) / timeResolution
         let downsampleCount = log2 (uint32 inputSize) - log2 (uint32 freqResolution) - 1
-        let colorBuffer = Array2D.zeroCreate timeResolution freqResolution
+        let image = new ColorBufferImage (timeResolution, freqResolution)
 
         let parameters = new FFTParameters (freqResolution * 2, 8)
 
@@ -134,12 +134,12 @@ type Window () =
 
             // Write to image
             for y = 0 to freqResolution - 1 do
-                colorBuffer.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs * 100.0)
+                image.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs * 100.0)
 
         unpin inputHandle
         unpin windowHandle
         unpin outputHandle
-        let image = Image.colorBuffer colorBuffer
+        let image = image :> Image
 
         // Figure
         let getFigure playSample =

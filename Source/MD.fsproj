@@ -54,7 +54,6 @@
     <Compile Include="Update.fs" />
     <Compile Include="Exclusive.fs" />
     <Compile Include="Temporary.fs" />
-    <Compile Include="Identifier.fs" />
     <Compile Include="Plugin.fs" />
     <Compile Include="Stream.fs" />
     <Compile Include="Data.fs" />

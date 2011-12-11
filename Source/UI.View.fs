@@ -155,20 +155,17 @@ type View (parameters : ViewParameters) =
 
     /// Handles a button down event for the view.
     override this.ButtonDown (_, button, position) = 
-        match button with
-        | Primary ->
+        if button Grab then
             // Begin dragging
             let lock positionFeed =
                 drag <- Some (positionFeed, position)
                 Retract.Single (fun () -> drag <- None)
-            Some lock
-        | _ -> None
-
-    /// Handles a button press event for the view.
-    override this.ButtonPress (_, _, _) = None
+            Handled (Some lock)
+        else Unhandled
 
     /// Handles a scroll event for the view.
     override this.Scroll (_, position, amount) =
         let newVelocity = state.Velocity + (state.Projection.Inverse.Apply position) * (0.7 * amount)
         let newZoomVelocity = state.ZoomVelocity - amount
         changeState { state with Velocity = newVelocity; ZoomVelocity = newZoomVelocity }
+        Handled ()

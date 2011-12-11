@@ -16,7 +16,11 @@ type ModifierState = Modifier -> bool
 type Button = 
     | Primary
     | Secondary
-    | Extra of int
+    | Left
+    | Middle
+    | Right
+    | Grab
+    | Number of int
 
 /// Encapsulates the state of all mouse buttons. Buttons that are unavailable will have a state of "false".
 type ButtonState = Button -> bool
@@ -39,6 +43,8 @@ type Key =
     | Alt
     | Enter
     | Escape
+    | Space
+    | Modifier of Modifier
     | Function of int
     | Char of char
 
@@ -56,36 +62,38 @@ type Lock = Point signal -> Retract
 /// action for the last focus function will be called.
 type Focus = KeyState signal -> Retract
 
-/// Context information for a mouse event.
-type Context = ButtonState * ModifierState
+/// A possible response to an event.
+type Response<'a> =
+    | Handled of 'a
+    | Unhandled
 
 /// A two-dimensional interactive surface that accepts user input.
 [<AbstractClass>]
 type Interface () =
 
     /// The callback for a mouse button down event
-    abstract member ButtonDown : Context * Button * Point -> Lock option
-    default this.ButtonDown (_, _, _) = None
+    abstract member ButtonDown : ModifierState * ButtonState * Point -> Response<Lock option>
+    default this.ButtonDown (_, _, _) = Unhandled
 
     /// The callback for a mouse button press event.
-    abstract member ButtonPress : Context * Button * Point -> Focus option
-    default this.ButtonPress (_, _, _) = None
+    abstract member ButtonPress : ModifierState * ButtonState * Point -> Response<Focus option>
+    default this.ButtonPress (_, _, _) = Unhandled
 
     /// The callback for a mouse scroll event.
-    abstract member Scroll : Context * Point * float -> unit
-    default this.Scroll (_, _, _) = ()
+    abstract member Scroll : ModifierState * Point * float -> Response<unit>
+    default this.Scroll (_, _, _) = Unhandled
 
 /// A transformed form of a source interface.
 type TransformInterface (source : Interface, transform : Transform signal) =
     inherit Interface ()
 
-    override this.Scroll (context, point, amount) = source.Scroll (context, transform.Current.Apply point, amount)
-    override this.ButtonPress (context, button, point) = source.ButtonPress (context, button, transform.Current.Apply point)
-    override this.ButtonDown (context, button, point) =
+    override this.Scroll (modifier, point, amount) = source.Scroll (modifier, transform.Current.Apply point, amount)
+    override this.ButtonPress (modifier, button, point) = source.ButtonPress (modifier, button, transform.Current.Apply point)
+    override this.ButtonDown (modifier, button, point) =
         let newPointSignal pointSignal = pointSignal |> Feed.collate transform |> Feed.maps (fun (trans, point) -> trans.Apply point) 
-        match source.ButtonDown (context, button, transform.Current.Apply point) with
-        | Some lock -> Some (newPointSignal >> lock)
-        | None -> None
+        match source.ButtonDown (modifier, button, transform.Current.Apply point) with
+        | Handled (Some lock) -> Handled (Some (newPointSignal >> lock))
+        | x -> x
 
 /// Contains functions for constructing and manipulating inputs and interfaces.
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]

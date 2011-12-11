@@ -51,25 +51,22 @@ type MousePositionFeed (mouse : MouseDevice) =
 module Input =
 
     /// Gets the OpenTK mouse button for the given input button.
-    let getNativeButton (button : Button) =
+    let defaultButtonAlias (button : Button) =
         match button with
         | Primary -> MouseButton.Left
         | Secondary -> MouseButton.Right
-        | Extra x -> if x >= 0 && x < 8 then enum<MouseButton> (x + 3) else MouseButton.LastButton
-
-    /// Gets the input button for the given OpenTK mouse button.
-    let getButton (button : MouseButton) =
-        match button with
-        | MouseButton.Left -> Button.Primary
-        | MouseButton.Right -> Button.Secondary
-        | x -> Button.Extra (int button - 3)
+        | Left -> MouseButton.Left
+        | Middle -> MouseButton.Middle
+        | Right -> MouseButton.Right
+        | Grab -> MouseButton.Left
+        | Number x -> if x >= 0 && x < 8 then enum<MouseButton> (x + 3) else MouseButton.LastButton
 
     /// Links an interface to a window, returning a retract action to later undo the link.
     let link (window : GameWindow) (source : Interface) =
         let mouse = window.Mouse
         let sourceButtonState = new MouseButtonStateFeed (mouse)
         let position = new MousePositionFeed (mouse) :> Point signal
-        let buttonState = Feed.alias getNativeButton sourceButtonState
+        let buttonState = Feed.alias defaultButtonAlias sourceButtonState
         let modifierState = Feed.constant (fun x -> false)
         let keyState = Feed.constant (fun x -> false)
         let unlock = ref (None : (MouseButton * Retract) option)
@@ -79,13 +76,14 @@ module Input =
         let context () = (buttonState.Current, modifierState.Current)
 
         // Hook up mouse button events.
-        let buttonEvent args = 
+        let buttonEvent (args : MouseButtonEventArgs) = 
+            let isButton button = defaultButtonAlias button = args.Button
             sourceButtonState.ButtonEvent args
             if args.IsPressed then
                 if (!unlock).IsNone then
-                    match source.ButtonDown (context (), getButton args.Button, new Point (float args.X, float args.Y)) with
-                    | Some lock -> unlock := Some (args.Button, lock position)
-                    | None -> ()
+                    match source.ButtonDown (modifierState.Current, isButton, new Point (float args.X, float args.Y)) with
+                    | Handled (Some lock) -> unlock := Some (args.Button, lock position)
+                    | _ -> ()
             else
                 match !unlock with
                 | Some (button, runlock) -> 
@@ -93,19 +91,19 @@ module Input =
                         runlock.Invoke ()
                         unlock := None
                 | None ->
-                    match source.ButtonPress (context (), getButton args.Button, new Point (float args.X, float args.Y)) with
-                    | Some focus ->
+                    match source.ButtonPress (modifierState.Current, isButton, new Point (float args.X, float args.Y)) with
+                    | Handled (Some focus) ->
                         match !unfocus with
                         | Some runfocus -> runfocus.Invoke ()
                         | None -> ()
                         unfocus := Some (focus keyState)
-                    | None -> ()
+                    | _ -> ()
 
         let retract = (Feed.native mouse.ButtonUp).Register buttonEvent + (Feed.native mouse.ButtonDown).Register buttonEvent
 
         // Hook up scroll events.
         let scrollEvent (args : MouseWheelEventArgs) = 
-            source.Scroll (context (), new Point (float args.X, float args.Y), float args.DeltaPrecise)
+            source.Scroll (modifierState.Current, new Point (float args.X, float args.Y), float args.DeltaPrecise) |> ignore
 
         let retract = retract + (Feed.native mouse.WheelChanged).Register scrollEvent
 

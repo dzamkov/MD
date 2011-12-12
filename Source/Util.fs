@@ -2,6 +2,7 @@
 
 open System
 open System.Runtime.InteropServices
+open Microsoft.FSharp.NativeInterop
 
 /// Computes the greatest common divisor between two positive integers.
 let rec gcd a b =
@@ -19,10 +20,10 @@ let round a b =
     let t = a + b - 1
     t - (t % b)
 
-/// Creates a pinned handle to the given object and returns the handle and the address to the object.
-let pin obj = 
+/// Creates a pinned handle to the given array and returns the handle to it, along with the address of the first item.
+let pin (obj : 'a[]) = 
     let handle = GCHandle.Alloc (obj, GCHandleType.Pinned)
-    (handle, handle.AddrOfPinnedObject ())
+    (handle, handle.AddrOfPinnedObject () |> NativePtr.ofNativeInt<'a>)
 
 /// Releases the given pinned handle.
 let unpin (handle : GCHandle) = handle.Free()

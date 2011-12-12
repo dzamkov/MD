@@ -55,5 +55,7 @@ type Complex (real : float, imag : float) =
         /// Gets the complex conjugate of this number.
         member this.Conjugate = new Complex (real, -imag)
 
-        override this.ToString() = String.Format("{0} + {1}i", real, imag)
+        override this.ToString() = 
+            if imag >= 0.0 then String.Format("{0} + {1}i", real, imag)
+            else String.Format("{0} - {1}i", real, -imag)
     end

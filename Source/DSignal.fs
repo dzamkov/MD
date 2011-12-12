@@ -14,14 +14,14 @@ module DSignal =
             NativePtr.get source index |> NativePtr.set destination index
             index <- index + 1
 
-    /// Performs an in-place downsampling of the given signal by a factor of two.
-    let inline downsample (source : nativeptr<'a>) (half : 'b) size =
+    /// Performs an in-place downsampling of the given signal by an integer factor. Note that this will
+    /// cause aliasing if there is still high-frequency content present.
+    let inline downsample factor (source : nativeptr<'a>) size =
         let mutable sindex = 0
         let mutable dindex = 0
         while sindex < size do
-            let avg = ((NativePtr.get source sindex) + (NativePtr.get source (sindex + 1))) * half
-            NativePtr.set source dindex avg
-            sindex <- sindex + 2
+            NativePtr.get source sindex |> NativePtr.set source dindex
+            sindex <- sindex + factor
             dindex <- dindex + 1
 
     /// Performs an in-place scaling of the given signal by the given real factor.
@@ -85,10 +85,10 @@ module DSignal =
     let copyComplex (source : nativeptr<Complex>) (destination : nativeptr<Complex>) size = copy source destination size
         
     /// Performs an in-place downsampling of the given real signal by a factor of two.
-    let downsampleReal (source : nativeptr<float>) size = downsample source 0.5 size
+    let downsampleReal factor (source : nativeptr<float>) size = downsample factor source size
 
     /// Performs an in-place downsampling of the given complex signal by a factor of two.
-    let downsampleComplex (source : nativeptr<Complex>) size = downsample source 0.5 size
+    let downsampleComplex factor (source : nativeptr<Complex>) size = downsample factor source size
 
     /// Performs an in-place scaling of the given real signal by the given real factor.
     let scaleReal (factor : float) (source : nativeptr<float>) size = scale factor source size

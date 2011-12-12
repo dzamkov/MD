@@ -147,8 +147,8 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
             let mutable index = 0
             while index < width do
                 getData inputBuffer intermediateBuffer index
-                DSignal.windowReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt intermediatePtr) windowBufferSize
-                dftMethod.ComputeReal (NativePtr.ofNativeInt intermediatePtr, NativePtr.ofNativeInt outputPtr)
+                DSignal.windowReal windowPtr intermediatePtr windowBufferSize
+                dftMethod.ComputeReal (intermediatePtr, outputPtr)
                 blitLine outputBuffer image index
                 index <- index + 1
 

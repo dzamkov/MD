@@ -95,7 +95,7 @@ type Window () =
         let parameters = {
                 Samples = floatData
                 Window = Window.hamming
-                WindowSize = 1025.0
+                WindowSize = 512.0
                 Scaling = (fun x y -> y * 100.0)
                 Gradient = gradient
             }
@@ -106,7 +106,7 @@ type Window () =
 
         let image = ref None
         let gotImage (im : Image exclusive) = image := Some im.Object
-        spectrogramTile.RequestImage ((1024, 512), gotImage) |> ignore
+        spectrogramTile.RequestImage ((512, 512), gotImage) |> ignore
 
         // Figure
         let getFigure playSample =

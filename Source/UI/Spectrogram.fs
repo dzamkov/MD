@@ -39,8 +39,8 @@ type SpectrogramCache = {
     /// An instance of the window for the spectrogram.
     Window : float[]
 
-    /// Parameters for FFT's of various sizes.
-    FFTParameters : Dictionary<int, FFTParameters>
+    /// Methods for DFT's of various sizes.
+    DFTMethods : Dictionary<int, DFTMethod>
 
     } with
 
@@ -48,17 +48,17 @@ type SpectrogramCache = {
     static member Initialize (parameters : SpectrogramParameters) = {
             Parameters = parameters
             Window = Window.create parameters.Window parameters.WindowSize (parameters.WindowSize |> ceil |> uint32 |> npow2 |> int)
-            FFTParameters = new Dictionary<int, FFTParameters> ()
+            DFTMethods = new Dictionary<int, DFTMethod> ()
         }
 
-    /// Gets the FFT parmeters for a fourier transform of the given size.
-    member this.GetFFTParameters size =
-        let mutable parameters = Unchecked.defaultof<FFTParameters>
-        if this.FFTParameters.TryGetValue (size, &parameters) then parameters
+    /// Gets the DFT parmeters for a fourier transform of the given size.
+    member this.GetDFTMethod size =
+        let mutable dftMethod = Unchecked.defaultof<DFTMethod>
+        if this.DFTMethods.TryGetValue (size, &dftMethod) then dftMethod
         else
-            let parameters = new FFTParameters (size)
-            this.FFTParameters.Add (size, parameters)
-            parameters
+            let dftMethod = new CooleyTukeyDFTMethod (size) :> DFTMethod
+            this.DFTMethods.Add (size, dftMethod)
+            dftMethod
 
 /// A tile image for a spectrogram.
 type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCount : uint64, minFrequency : float, maxFrequency : float, area : Rectangle) =
@@ -78,8 +78,8 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
         let windowBufferSize = windowBuffer.Length
         let windowSize = parameters.WindowSize
         let inputSize = windowBufferSize
-        let fftSize = inputSize
-        let fftParameters = cache.GetFFTParameters fftSize
+        let dftSize = inputSize
+        let dftMethod = cache.GetDFTMethod dftSize
 
         let sampleCount = float sampleCount
         let inputDelta = sampleCount / float width
@@ -117,11 +117,11 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
                     samples.Read (readStart, intermediateBuffer, readOffset, readSize)
                 getBuffers, getData
 
-        // Determine how to blit FFT output data to an image.
+        // Determine how to blit DFT output data to an image.
         let gradient = parameters.Gradient
         let scaling = parameters.Scaling
-        let minOutputFrequency = int (minFrequency * float fftSize)
-        let maxOutputFrequency = int (maxFrequency * float fftSize)
+        let minOutputFrequency = int (minFrequency * float dftSize)
+        let maxOutputFrequency = int (maxFrequency * float dftSize)
         let height = maxOutputFrequency - minOutputFrequency
         let frequencyDelta = (maxFrequency - minFrequency) / float height 
         let blitLine (outputBuffer : Complex[]) (image : ColorBufferImage) x =
@@ -137,7 +137,7 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
         let task () =
             let image = new ColorBufferImage (width, height)
             let inputBuffer, intermediateBuffer = getBuffers ()
-            let outputBuffer = Array.zeroCreate<Complex> fftSize
+            let outputBuffer = Array.zeroCreate<Complex> dftSize
 
             // Pin buffers
             let outputHandle, outputPtr = pin outputBuffer
@@ -148,7 +148,7 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
             while index < width do
                 getData inputBuffer intermediateBuffer index
                 DSignal.windowReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt intermediatePtr) windowBufferSize
-                DFT.computeReal (NativePtr.ofNativeInt intermediatePtr) (NativePtr.ofNativeInt outputPtr) fftParameters
+                dftMethod.ComputeReal (NativePtr.ofNativeInt intermediatePtr, NativePtr.ofNativeInt outputPtr)
                 blitLine outputBuffer image index
                 index <- index + 1
 
@@ -169,18 +169,10 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
             let midSampleStart = sampleStart + leftSampleCount
             let midFrequency = (minFrequency + maxFrequency) / 2.0
             let center = area.Center
-            if minFrequency = 0.0 then 
-                Some [|
-                        new SpectrogramTile (cache, sampleStart, leftSampleCount, minFrequency, midFrequency, new Rectangle (area.Left, center.X, area.Bottom, center.Y))
-                        new SpectrogramTile (cache, sampleStart, leftSampleCount, midFrequency, maxFrequency, new Rectangle (area.Left, center.X, center.Y, area.Top))
-                        new SpectrogramTile (cache, midSampleStart, rightSampleCount, minFrequency, midFrequency, new Rectangle (center.X, area.Right, area.Bottom, center.Y))
-                        new SpectrogramTile (cache, midSampleStart, rightSampleCount, midFrequency, maxFrequency, new Rectangle (center.X, area.Right, center.Y, area.Top))
-                    |]
-            else
-                
-                // Only the lowest tiles of the spectrogram can have their frequency information refined.
-                Some [|
-                        new SpectrogramTile (cache, sampleStart, leftSampleCount, minFrequency, maxFrequency, new Rectangle (area.Left, center.X, area.Bottom, area.Top))
-                        new SpectrogramTile (cache, midSampleStart, rightSampleCount, minFrequency, maxFrequency, new Rectangle (center.X, area.Right, area.Bottom, area.Top))
-                    |]
+            Some [|
+                    new SpectrogramTile (cache, sampleStart, leftSampleCount, minFrequency, midFrequency, new Rectangle (area.Left, center.X, area.Bottom, center.Y))
+                    new SpectrogramTile (cache, sampleStart, leftSampleCount, midFrequency, maxFrequency, new Rectangle (area.Left, center.X, center.Y, area.Top))
+                    new SpectrogramTile (cache, midSampleStart, rightSampleCount, minFrequency, midFrequency, new Rectangle (center.X, area.Right, area.Bottom, center.Y))
+                    new SpectrogramTile (cache, midSampleStart, rightSampleCount, midFrequency, maxFrequency, new Rectangle (center.X, area.Right, center.Y, area.Top))
+                |]
         else None

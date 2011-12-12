@@ -24,7 +24,7 @@ type FFTParameters (size : int, unitSize : int) =
         for k = 0 to n - 1 do
             twiddles.[k] <- Complex.ExpImag (m * float k)
 
-    new (size : int) = new FFTParameters (size, 8)
+    new (size : int) = new FFTParameters (size, min size 8)
 
     /// Gets the magnitude of the FFT window. This is log2 of the total size.
     member this.Magnitude = magnitude

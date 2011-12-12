@@ -107,6 +107,9 @@ type Rectangle (left : float, right : float, bottom : float, top : float) =
         /// Gets the position of the bottom-right corner of this rectangle.
         member this.BottomRight = new Point (right, bottom)
 
+        /// Gets the position of the center of this rectangle.
+        member this.Center = new Point ((left + right) / 2.0, (bottom + top) / 2.0)
+
         /// Gets an offset for the size of this rectangle.
         member this.Size = new Point (right - left, top - bottom)
 

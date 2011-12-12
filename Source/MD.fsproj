@@ -46,6 +46,7 @@
   <ItemGroup>
     <Compile Include="Retract.fs" />
     <Compile Include="Util.fs" />
+    <Compile Include="Task.fs" />
     <Compile Include="Complex.fs" />
     <Compile Include="DSignal.fs" />
     <Compile Include="DFT.fs" />
@@ -66,6 +67,7 @@
     <Compile Include="UI\Figure.fs" />
     <Compile Include="UI\Input.fs" />
     <Compile Include="UI\View.fs" />
+    <Compile Include="UI\Spectrogram.fs" />
     <Compile Include="OpenTK\Audio2.fs" />
     <Compile Include="OpenTK\Input2.fs" />
     <Compile Include="OpenTK\Texture.fs" />

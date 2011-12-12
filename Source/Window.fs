@@ -37,3 +37,28 @@ module Window =
 
         // Normalize
         DSignal.scaleReal (1.0 / total) destination size
+
+    /// Creates a normalized instance of a window.
+    let create (window : Window) (windowSize : float) bufferSize =
+        let buffer = Array.zeroCreate bufferSize
+        let start = max 0 (int (float bufferSize / 2.0 - windowSize / 2.0))
+        let size = min (bufferSize - start) (int (ceil windowSize))
+        let delta = 1.0 / windowSize
+        let mutable parameter = (float bufferSize / 2.0 - float start) * delta + delta * 0.5
+        let mutable index = 0
+        let mutable total = 0.0
+        while index < size do
+            let value = window parameter
+            buffer.[start + index] <- value
+            total <- total + value
+            parameter <- parameter + delta
+            index <- index + 1
+
+        // Normalize
+        let mutable index = start
+        while index < size do
+            buffer.[start + index] <- buffer.[start + index] / total
+            index <- index + 1
+
+        // Return
+        buffer

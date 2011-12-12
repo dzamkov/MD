@@ -92,59 +92,28 @@ type Window () =
             |]
 
         // Spectrogram parameters
-        let timeResolution = 1024
-        let freqResolution = 512
-        let windowSize = freqResolution * 2
-        let inputSize = windowSize * 1
-        let inputDelta = (int floatData.Size - inputSize) / timeResolution
-        let downsampleCount = log2 (uint32 inputSize) - log2 (uint32 freqResolution) - 1
-        let image = new ColorBufferImage (timeResolution, freqResolution)
+        let parameters = {
+                Samples = floatData
+                Window = Window.hamming
+                WindowSize = 1024.0
+                Scaling = (fun x y -> y * 100.0)
+                Gradient = gradient
+            }
 
-        let parameters = new FFTParameters (freqResolution * 2, 8)
+        // Spectrogram
+        let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 
+        let spectrogramTile = new SpectrogramTile (parameters, area)
 
-        // Create buffers
-        let input : float[] = Array.zeroCreate inputSize
-        let window : float[] = Array.zeroCreate windowSize
-        let output : Complex[] = Array.zeroCreate windowSize
-        let inputHandle, inputPtr = pin input
-        let windowHandle, windowPtr = pin window
-        let outputHandle, outputPtr = pin output
-
-        // Construct window
-        Window.construct Window.hamming (NativePtr.ofNativeInt windowPtr) windowSize
-
-        // Make spectrogram
-        for x = 0 to timeResolution - 1 do
-
-            // Read input
-            let start = uint64 (inputDelta * x)
-            floatData.Read (start, input, 0, inputSize)
-
-            // Downsample input
-            let mutable curSize = inputSize
-            while curSize > freqResolution * 2 do
-                DSignal.downsampleReal (NativePtr.ofNativeInt inputPtr) curSize
-                curSize <- curSize / 2
-
-            // Apply window
-            DSignal.windowReal (NativePtr.ofNativeInt windowPtr) (NativePtr.ofNativeInt inputPtr) windowSize
-
-            // Compute DFT
-            DFT.computeReal (NativePtr.ofNativeInt inputPtr) (NativePtr.ofNativeInt outputPtr) parameters
-
-            // Write to image
-            for y = 0 to freqResolution - 1 do
-                image.[x, freqResolution - y - 1] <- gradient.GetColor (output.[y].Abs * 100.0)
-
-        unpin inputHandle
-        unpin windowHandle
-        unpin outputHandle
-        let image = image :> Image
+        let image = ref None
+        let gotImage (im : Image exclusive) = image := Some im.Object
+        spectrogramTile.RequestImage ((1024, 512), gotImage) |> ignore
 
         // Figure
         let getFigure playSample =
-            let image = Figure.image image ImageInterpolation.Nearest (new Rectangle (-1.0, 1.0, -1.0, 0.0))
-            let linex = 2.0 * float (playSample - uint64 (inputSize / 2)) / float (timeResolution * inputDelta) - 1.0
+            let image = match !image with
+                | Some image -> Figure.image image ImageInterpolation.Linear area
+                | None -> Figure.tile spectrogramTile
+            let linex = 2.0 * float playSample / float floatData.Size - 1.0
             let line = Figure.line (new Point (linex, -1.0)) (new Point (linex, 1.0)) 0.002 (Paint.ARGB (1.0, 1.0, 0.3, 0.0))
             Figure.composite image line
 

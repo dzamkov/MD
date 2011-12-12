@@ -29,7 +29,6 @@ let unpin (handle : GCHandle) = handle.Free()
 
 /// Reverses the order of the bits in an integer.
 let bitrev (x : uint32) =
-    let x = x
     let x = ((x &&& 0xaaaaaaaau) >>> 1) ||| ((x &&& 0x55555555u) <<< 1)
     let x = ((x &&& 0xccccccccu) >>> 2) ||| ((x &&& 0x33333333u) <<< 2)
     let x = ((x &&& 0xf0f0f0f0u) >>> 4) ||| ((x &&& 0x0f0f0f0fu) <<< 4)
@@ -44,3 +43,13 @@ let log2 (x : uint32) =
         i <- i + 1
         x <- x >>> 1
     i
+
+/// Gets the next highest power of two of an integer.
+let npow2 (x : uint32) =
+    let x = x - 1u
+    let x = x ||| (x >>> 1);
+    let x = x ||| (x >>> 2);
+    let x = x ||| (x >>> 4);
+    let x = x ||| (x >>> 8);
+    let x = x ||| (x >>> 16);
+    x + 1u

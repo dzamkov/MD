@@ -26,7 +26,7 @@ type Tile (area : Rectangle) =
 
     /// Subdivides this tile to get its children. The children collectively should occupy the same area as
     /// the parent, but they do not have to be placed in a regular pattern.
-    abstract member Children : seq<Tile> option
+    abstract member Children : Tile[] option
      
 
 /// Describes a visual object on a two-dimensional plane.
@@ -66,6 +66,9 @@ module Figure =
     /// Constructs a figure for an image placed in a rectangular area. Note that this figure will respect 
     /// the transparency information encoded in the image, if any.
     let image image interpolation area = Figure.Image (image, interpolation, area)
+
+    /// Constructs a figure for a tile image.
+    let tile tile = Figure.Tile tile
 
     /// Constructs a transformed form of a figure.
     let transform transform figure = Figure.Transform (transform, figure)

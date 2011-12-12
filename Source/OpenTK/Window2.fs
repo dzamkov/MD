@@ -95,7 +95,7 @@ type Window () =
         let parameters = {
                 Samples = floatData
                 Window = Window.hamming
-                WindowSize = 1024.0
+                WindowSize = 1025.0
                 Scaling = (fun x y -> y * 100.0)
                 Gradient = gradient
             }
@@ -110,7 +110,8 @@ type Window () =
 
         // Figure
         let getFigure playSample =
-            let image = match !image with
+            let image = 
+                match !image with
                 | Some image -> Figure.image image ImageInterpolation.Linear area
                 | None -> Figure.tile spectrogramTile
             let linex = 2.0 * float playSample / float floatData.Size - 1.0

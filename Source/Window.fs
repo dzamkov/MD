@@ -55,7 +55,7 @@ module Window =
             index <- index + 1
 
         // Normalize
-        let mutable index = start
+        let mutable index = 0
         while index < size do
             buffer.[start + index] <- buffer.[start + index] / total
             index <- index + 1

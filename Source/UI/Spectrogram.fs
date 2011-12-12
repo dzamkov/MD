@@ -120,12 +120,18 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
         // Determine how to blit FFT output data to an image.
         let gradient = parameters.Gradient
         let scaling = parameters.Scaling
+        let minOutputFrequency = int (minFrequency * float fftSize)
+        let maxOutputFrequency = int (maxFrequency * float fftSize)
+        let height = maxOutputFrequency - minOutputFrequency
+        let frequencyDelta = (maxFrequency - minFrequency) / float height 
         let blitLine (outputBuffer : Complex[]) (image : ColorBufferImage) x =
             let mutable y = 0
+            let mutable frequency = minFrequency + frequencyDelta * 0.5
             while y < height do
-                let scaling = scaling 0.0
+                let scaling = scaling frequency
                 image.[x, height - y - 1] <- gradient.GetColor (scaling outputBuffer.[y].Abs)
                 y <- y + 1
+                frequency <- frequency + frequencyDelta
 
         // Create image fill task.
         let task () =
@@ -158,17 +164,23 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
 
     override this.Children =
         if sampleCount > 1UL then
-
-            // Quadtree!
             let leftSampleCount = sampleCount / 2UL
             let rightSampleCount = sampleCount - leftSampleCount
             let midSampleStart = sampleStart + leftSampleCount
             let midFrequency = (minFrequency + maxFrequency) / 2.0
             let center = area.Center
-            Some [|
-                    new SpectrogramTile (cache, sampleStart, leftSampleCount, minFrequency, midFrequency, new Rectangle (area.Left, center.X, area.Bottom, center.Y))
-                    new SpectrogramTile (cache, sampleStart, leftSampleCount, midFrequency, maxFrequency, new Rectangle (area.Left, center.X, center.Y, area.Top))
-                    new SpectrogramTile (cache, midSampleStart, rightSampleCount, minFrequency, midFrequency, new Rectangle (center.X, area.Right, area.Bottom, center.Y))
-                    new SpectrogramTile (cache, midSampleStart, rightSampleCount, midFrequency, maxFrequency, new Rectangle (center.X, area.Right, center.Y, area.Top))
-                |]
+            if minFrequency = 0.0 then 
+                Some [|
+                        new SpectrogramTile (cache, sampleStart, leftSampleCount, minFrequency, midFrequency, new Rectangle (area.Left, center.X, area.Bottom, center.Y))
+                        new SpectrogramTile (cache, sampleStart, leftSampleCount, midFrequency, maxFrequency, new Rectangle (area.Left, center.X, center.Y, area.Top))
+                        new SpectrogramTile (cache, midSampleStart, rightSampleCount, minFrequency, midFrequency, new Rectangle (center.X, area.Right, area.Bottom, center.Y))
+                        new SpectrogramTile (cache, midSampleStart, rightSampleCount, midFrequency, maxFrequency, new Rectangle (center.X, area.Right, center.Y, area.Top))
+                    |]
+            else
+                
+                // Only the lowest tiles of the spectrogram can have their frequency information refined.
+                Some [|
+                        new SpectrogramTile (cache, sampleStart, leftSampleCount, minFrequency, maxFrequency, new Rectangle (area.Left, center.X, area.Bottom, area.Top))
+                        new SpectrogramTile (cache, midSampleStart, rightSampleCount, minFrequency, maxFrequency, new Rectangle (center.X, area.Right, area.Bottom, area.Top))
+                    |]
         else None

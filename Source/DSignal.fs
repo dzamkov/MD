@@ -34,6 +34,14 @@ module DSignal =
             source.[index] <- source.[index] * window.[index]
             index <- index + 1
 
+    /// Adds two signal together.
+    let inline add (source : Buffer<'a>) (destination : Buffer<'a>) size = 
+        let mutable destination = destination
+        let mutable index = 0
+        while index < size do
+            destination.[index] <- source.[index] + destination.[index]
+            index <- index + 1
+
     /// Converts a real signal to a complex signal.
     let convertComplex (source : Buffer<float>) (destination : Buffer<Complex>) size =
         let mutable destination = destination
@@ -94,3 +102,9 @@ module DSignal =
 
     /// Performs an in-place windowing of the given complex signal by the given window (of the size).
     let windowComplex (win : Buffer<float>) (destination : Buffer<Complex>) size = window win destination size
+
+    /// Adds two real signals together.
+    let addReal (source : Buffer<float>) (destination : Buffer<float>) size = add source destination size
+
+     /// Adds two complex signals together.
+    let addComplex (source : Buffer<Complex>) (destination : Buffer<Complex>) size = add source destination size

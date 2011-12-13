@@ -113,7 +113,6 @@ type SpectrogramTile (cache : SpectrogramCache, depth : int, time : int, frequen
         let timeRange = float totalSampleCount / float (1 <<< depth)
         let minTime = float time * timeRange
         let inputDelta = timeRange / float width
-        let readStart = uint64 (minTime + inputDelta * 0.5) - uint64 (inputSize / 2)
 
         // Determine how to blit DFT output data to an image.
         let gradient = parameters.Gradient
@@ -148,8 +147,9 @@ type SpectrogramTile (cache : SpectrogramCache, depth : int, time : int, frequen
 
         // Determine wether there is any overlap between windows. This decides wether separate sample
         // data is read for each window, or if the sample data is read (and processed) once for all
-        // windows.
-        if inputDelta > float inputSize then
+        // windows. Note that if the depth is zero, there is no benefit in doing the all at once approach
+        // because no decimation is required.
+        if inputDelta > float inputSize || depth = 0 then
 
             // Use the full window, since decimation comes after window application using this
             // method.
@@ -170,9 +170,9 @@ type SpectrogramTile (cache : SpectrogramCache, depth : int, time : int, frequen
                 while index < width do
 
                     // Load window data into input array.
-                    let readStart = readStart + uint64 (float index * inputDelta)
-                    let readOffset = max 0 -(int readStart)
-                    let readSize = int (min (uint64 inputSize) (totalSampleCount - readStart - uint64 readOffset))
+                    let readStart = int64 (minTime + inputDelta * (float index + 0.5)) - int64 (inputSize / 2)
+                    let readOffset, readStart = if readStart < 0L then (int -readStart, 0UL) else (0, uint64 readStart)
+                    let readSize = int (min (uint64 (inputSize - readOffset)) (totalSampleCount - readStart))
                     if readSize <> inputSize then Array.fill inputArray 0 inputSize 0.0
                     samples.ReadArray (readStart, inputArray, readOffset, readSize)
 

@@ -40,6 +40,9 @@ type SpectrogramCache = {
     /// next power-of-two size after the window size.
     InputSize : int
 
+    /// The full sized (InputSize) window for the spectrogram.
+    FullWindow : float[]
+
     /// Instances of the spectrogram window of various depths (downscaling factors). A window
     /// at depth x will have a size of (InputSize * 2 ^ -x).
     Windows : Dictionary<int, float[]>
@@ -50,10 +53,16 @@ type SpectrogramCache = {
     } with
 
     /// Initializes a new spectrogram cache based on the given parameters.
-    static member Initialize (parameters : SpectrogramParameters) = {
+    static member Initialize (parameters : SpectrogramParameters) = 
+        let inputSize = parameters.WindowSize |> uint32 |> npow2 |> int
+        let windows = new Dictionary<int, float[]> ()
+        let fullWindow = Window.create parameters.Window parameters.WindowSize inputSize
+        windows.Add (0, fullWindow)
+        {
             Parameters = parameters
-            InputSize = parameters.WindowSize |> uint32 |> npow2 |> int
-            Windows = new Dictionary<int, float[]> ()
+            InputSize = inputSize
+            FullWindow = fullWindow
+            Windows = windows
             DFTs = new Dictionary<int, DFT> ()
         }
 
@@ -78,9 +87,9 @@ type SpectrogramCache = {
             window
 
 /// A tile image for a spectrogram.
-type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCount : uint64, depth : int, frequency : int, area : Rectangle) =
+type SpectrogramTile (cache : SpectrogramCache, depth : int, time : int, frequency : int, area : Rectangle) =
     inherit Tile (area)
-    new (parameters : SpectrogramParameters, area : Rectangle) = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0UL, parameters.Samples.Size, 0, 0, area)
+    new (parameters : SpectrogramParameters, area : Rectangle) = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0, 0, 0, area)
 
     /// Gets the parameters for this spectrogram tile.
     member this.Parameters = cache.Parameters
@@ -90,37 +99,21 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
         let parameters = cache.Parameters
         let samples = parameters.Samples
         let totalSampleCount = samples.Size
-
-        let windowArray = cache.GetWindow depth
-        let windowArraySize = windowArray.Length
         let windowSize = parameters.WindowSize
         let inputSize = cache.InputSize
 
         // Height must be a power of two size in order to use an FFT.
         let height = height |> uint32 |> npow2 |> int
 
-        // The maximum possible height, without frequency interpolation, is one-half the window size for this 
-        // depth. The upper half of the frequency spectrum is ignored, since it is redundant.
-        let height = min height (windowArraySize / 2)
+        // Set an upper bound on height such that there is no frequency interpolation in
+        // the result.
+        let height = min height (inputSize / (1 <<< depth) / 2)
 
-        // Instead of doing one FFT on the whole window, we can break it down into multiple FFT's which we
-        // sum together. This reduces computation time at the cost of decreasing frequency resolution, but 
-        // since we only need a fixed amount of frequency samples, noone will notice.
-        let dftSize = height * 2
-        let dftCount = windowArraySize / dftSize
-        let multipleDFT = dftCount > 1
-        let dft = cache.GetDFT dftSize
-
-        // Determine how input data will be loaded.
-        let sampleCount = float sampleCount
-        let inputDelta = sampleCount / float width
-        let readStart = sampleStart + uint64 (inputDelta * 0.5) - uint64 (inputSize / 2)
-        let getData inputArray index =
-            let readStart = readStart + uint64 (float index * inputDelta)
-            let readOffset = max 0 -(int readStart)
-            let readSize = int (min (uint64 inputSize) (totalSampleCount - readStart - uint64 readOffset))
-            if readSize <> inputSize then Array.fill inputArray 0 inputSize 0.0
-            samples.ReadArray (readStart, inputArray, readOffset, readSize)
+        // Determine the time range and input delta for the spectrogram.
+        let timeRange = float totalSampleCount / float (1 <<< depth)
+        let minTime = float time * timeRange
+        let inputDelta = timeRange / float width
+        let readStart = uint64 (minTime + inputDelta * 0.5) - uint64 (inputSize / 2)
 
         // Determine how to blit DFT output data to an image.
         let gradient = parameters.Gradient
@@ -137,62 +130,93 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
                 y <- y + 1
                 frequency <- frequency + frequencyDelta
 
-        // Create image fill task.
-        let task () =
-            let image = new ColorBufferImage (width, height)
-            let inputArray = Array.zeroCreate<float> inputSize
-            let outputArray = Array.zeroCreate<Complex> (if dftCount > 1 then dftSize * 2 else dftSize)
+        // In every case, the DFT is the final operation before outputing color data and it is always
+        // twice the height of the spectrogram (the upper half in the output is redundant).
+        let dftSize = height * 2
+        let dft = cache.GetDFT dftSize
 
-            // Pin arrays
-            let inputBuffer, unpinInput = Buffer.PinArray inputArray
-            let outputBuffer, unpinOutput = Buffer.PinArray outputArray
-            let windowBuffer, unpinWindow = Buffer.PinArray windowArray
+        // Define the decimation function. This function will take a real time-domain signal and 
+        // remove all frequency components not of interest to the spectrogram. The signal will be downscaled by
+        // a factor of 2 ^ depth.
+        let decimate (signal : Buffer<float>) size =
+            let mutable size = size
+            let mutable depth = depth
+            while depth > 0 do
+                DSignal.downsampleReal 2 signal size
+                size <- size / 2
+                depth <- depth - 1
 
-            // If there are multiple DFTs, we need another section of the output buffer to store the temporary
-            // results before adding it to actual output buffer.
-            let tempOutputBuffer = outputBuffer.Advance dftSize
+        // Determine wether there is any overlap between windows. This decides wether separate sample
+        // data is read for each window, or if the sample data is read (and processed) once for all
+        // windows.
+        if inputDelta > float inputSize then
 
-            let mutable index = 0
-            while index < width do
-                getData inputArray index
-                DSignal.windowReal windowBuffer inputBuffer windowArraySize
+            // Use the full window, since decimation comes after window application using this
+            // method.
+            let windowArray = cache.FullWindow
 
-                // Perform initial DFT to the actual output buffer.
-                dft.ComputeReal (inputBuffer, outputBuffer)
+            // Define task.
+            let task () =
+                let image = new ColorBufferImage (width, height)
+                let inputArray = Array.zeroCreate<float> inputSize
+                let outputArray = Array.zeroCreate<Complex> dftSize
 
-                // Perform additional DFTs.
-                let mutable inputBuffer = inputBuffer.Advance dftSize
-                for dftIndex = 1 to dftCount - 1 do
-                    dft.ComputeReal (inputBuffer, tempOutputBuffer)
-                    DSignal.addComplex tempOutputBuffer outputBuffer dftSize
-                    inputBuffer <- inputBuffer.Advance dftSize
+                // Pin arrays.
+                let inputBuffer, unpinInput = Buffer.PinArray inputArray
+                let outputBuffer, unpinOutput = Buffer.PinArray outputArray
+                let windowBuffer, unpinWindow = Buffer.PinArray windowArray
 
-                blitLine outputArray image index
-                index <- index + 1
+                let mutable index = 0
+                while index < width do
 
-            // Unpin buffers
-            unpinInput ()
-            unpinOutput ()
-            unpinWindow ()
+                    // Load window data into input array.
+                    let readStart = readStart + uint64 (float index * inputDelta)
+                    let readOffset = max 0 -(int readStart)
+                    let readSize = int (min (uint64 inputSize) (totalSampleCount - readStart - uint64 readOffset))
+                    if readSize <> inputSize then Array.fill inputArray 0 inputSize 0.0
+                    samples.ReadArray (readStart, inputArray, readOffset, readSize)
 
-            // Return image
-            image :> Image |> Exclusive.make
+                    // Apply window function.
+                    DSignal.windowReal windowBuffer inputBuffer inputSize
 
-        Task.start (task >> callback)
+                    // Before decimation, we only need a signal with 2 * height * 2 ^ depth frequency samples, so
+                    // we can apply some frequency downsampling to make the rest of the process easier.
+                    let intermediateSize = height * (2 <<< depth)
+                    DSignal.downsampleFrequencyReal (inputSize / intermediateSize) inputBuffer inputSize
+
+                    // Now decimate to remove unwanted frequency content.
+                    decimate inputBuffer intermediateSize
+
+                    // Finally DFT!
+                    dft.ComputeReal (inputBuffer, outputBuffer)
+
+                    // And output the line.
+                    blitLine outputArray image index
+                    index <- index + 1
+
+                // Unpin buffers.
+                unpinInput ()
+                unpinOutput ()
+                unpinWindow ()
+
+                // Return image.
+                image :> Image |> Exclusive.make
+
+            Task.start (task >> callback)
+        else
+            new NotImplementedException () |> raise
+        
 
     override this.Children =
-        if sampleCount > 1UL then
-            let leftSampleCount = sampleCount / 2UL
-            let rightSampleCount = sampleCount - leftSampleCount
-            let midSampleStart = sampleStart + leftSampleCount
-            let nextDepth = depth + 1
-            let lowFrequency = frequency * 2
-            let highFrequency = lowFrequency + 1
-            let center = area.Center
-            Some [|
-                    new SpectrogramTile (cache, sampleStart, leftSampleCount, nextDepth, lowFrequency, new Rectangle (area.Left, center.X, area.Bottom, center.Y))
-                    new SpectrogramTile (cache, sampleStart, leftSampleCount, nextDepth, highFrequency, new Rectangle (area.Left, center.X, center.Y, area.Top))
-                    new SpectrogramTile (cache, midSampleStart, rightSampleCount, nextDepth, lowFrequency, new Rectangle (center.X, area.Right, area.Bottom, center.Y))
-                    new SpectrogramTile (cache, midSampleStart, rightSampleCount, nextDepth, highFrequency, new Rectangle (center.X, area.Right, center.Y, area.Top))
-                |]
-        else None
+        let nextDepth = depth + 1
+        let lowFrequency = frequency * 2
+        let highFrequency = lowFrequency + 1
+        let lowTime = time * 2
+        let highTime = lowTime + 1
+        let center = area.Center
+        Some [|
+                new SpectrogramTile (cache, nextDepth, lowTime, lowFrequency, new Rectangle (area.Left, center.X, area.Bottom, center.Y))
+                new SpectrogramTile (cache, nextDepth, lowTime, highFrequency, new Rectangle (area.Left, center.X, center.Y, area.Top))
+                new SpectrogramTile (cache, nextDepth, highTime, lowFrequency, new Rectangle (center.X, area.Right, area.Bottom, center.Y))
+                new SpectrogramTile (cache, nextDepth, highTime, highFrequency, new Rectangle (center.X, area.Right, center.Y, area.Top))
+            |]

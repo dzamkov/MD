@@ -106,7 +106,7 @@ type Window () =
 
         let image = ref None
         let gotImage (im : Image exclusive) = image := Some im.Object
-        spectrogramTile.RequestImage ((64, 64), gotImage) |> ignore
+        spectrogramTile.RequestImage ((256, 256), gotImage) |> ignore
 
         // Figure
         let getFigure playSample =

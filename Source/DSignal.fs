@@ -18,6 +18,22 @@ module DSignal =
             sindex <- sindex + factor
             dindex <- dindex + 1
 
+    /// Performs an in-place downsampling of the frequency-domain elements of the given time-domain signal 
+    /// by an integer factor.
+    let inline downsampleFrequency factor (source : Buffer<'a>) size = 
+        let mutable source = source
+
+        // Split the signal into chunks and add them all together at the beginning of the buffer. This will 
+        // retain frequency information across the entire spectrum, but will decrease the resolution of
+        // that information.
+        let chunkSize = size / factor
+        for chunkIndex = 1 to factor - 1 do
+            let chunk = source.Advance (chunkSize * chunkIndex)
+            let mutable index = 0
+            while index < chunkSize do
+                source.[index] <- source.[index] + chunk.[index]
+                index <- index + 1
+
     /// Performs an in-place scaling of the given signal by the given real factor.
     let inline scale (factor : 'b) (source : Buffer<'a>) size =
         let mutable source = source
@@ -85,11 +101,17 @@ module DSignal =
             imag.[index] <- imag.[index] * -1.0
             index <- index + 1
         
-    /// Performs an in-place downsampling of the given real signal by a factor of two.
+    /// Performs an in-place downsampling of the given real signal by an integer factor.
     let downsampleReal factor (source : Buffer<float>) size = downsample factor source size
 
-    /// Performs an in-place downsampling of the given complex signal by a factor of two.
+    /// Performs an in-place downsampling of the given complex signal by an integer factor.
     let downsampleComplex factor (source : Buffer<Complex>) size = downsample factor source size
+
+    /// Performs an in-place downsampling of the frequency components in the given real signal by an integer factor.
+    let downsampleFrequencyReal factor (source : Buffer<float>) size = downsampleFrequency factor source size
+
+    /// Performs an in-place downsampling of the frequency components in the given complex signal by an integer factor.
+    let downsampleFrequencyComplex factor (source : Buffer<Complex>) size = downsampleFrequency factor source size
 
     /// Performs an in-place scaling of the given real signal by the given real factor.
     let scaleReal (factor : float) (source : Buffer<float>) size = scale factor source size

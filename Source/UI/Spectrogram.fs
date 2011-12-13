@@ -14,7 +14,7 @@ type SpectrogramScaling = float -> float -> float
 type SpectrogramParameters = {
     
     /// The monochannel sample data for the spectrogram
-    Samples : float data
+    Samples : Data<float>
 
     /// The window to use for the spectrogram.
     Window : Window
@@ -97,7 +97,7 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
                 let readSize = int (min (uint64 totalInputSize) (totalSampleCount - readStart - uint64 readOffset))
                 let getBuffers () =
                     let inputBuffer = Array.zeroCreate totalInputSize
-                    samples.Read (readStart, inputBuffer, readOffset, readSize)
+                    samples.ReadArray (readStart, inputBuffer, readOffset, readSize)
                     inputBuffer, Array.zeroCreate inputSize // A seperate intermediate buffer is needed to allow scaling and windowing.
                 let getData inputBuffer intermediateBuffer index =
                     let start = min (int (float index * inputDelta)) (totalInputSize - inputSize)
@@ -114,7 +114,7 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
                     let readOffset = max 0 -(int readStart)
                     let readSize = int (min (uint64 inputSize) (totalSampleCount - readStart - uint64 readOffset))
                     if readSize <> inputSize then Array.fill intermediateBuffer 0 inputSize 0.0
-                    samples.Read (readStart, intermediateBuffer, readOffset, readSize)
+                    samples.ReadArray (readStart, intermediateBuffer, readOffset, readSize)
                 getBuffers, getData
 
         // Determine how to blit DFT output data to an image.

@@ -15,7 +15,7 @@ void CloseStreamContext(AVIOContext* Context) {
 
 int read_packet(void* opaque, uint8_t* buf, int buf_size) {
 	ExclusiveByteStream^ stream = *(gcroot<ExclusiveByteStream^>*)opaque;
-	return stream->Object->Read((IntPtr)buf, buf_size);
+	return stream->Object->ReadBuffer(MD::Buffer<Byte>::FromPointer((IntPtr)buf), buf_size);
 }
 
 _Context::_Context(array<MD::Content^>^ Content) : Context(Content) {
@@ -106,7 +106,7 @@ bool _Context::NextFrame(int% ContentIndex) {
 
 					// Decode audio
 					if (avcodec_decode_audio3(codeccontext, (int16_t*)this->_Buffer, &framesize, this->_Packet) >= 0) {
-						audio->Data = FSharpOption<MD::Data<Byte>^>::Some(gcnew UnsafeData<Byte>((IntPtr)this->_Buffer, (IntPtr)(this->_Buffer + framesize)));
+						audio->Data = FSharpOption<MD::Data<Byte>^>::Some(gcnew BufferData<Byte>(MD::Buffer<Byte>::FromPointer((IntPtr)this->_Buffer), framesize));
 						return true;
 					}
 
@@ -200,7 +200,7 @@ Retract^ ::Plugin::Load() {
 FSharpOption<Tuple<Container^, ExclusiveContext^>^>^ ::Plugin::_LoadContainer(ExclusiveByteData^ Data, String^ Filename) {
 	using namespace Runtime::InteropServices;
 
-	AVIOContext* io = InitStreamContext(Data::lock(Data->Object));
+	AVIOContext* io = InitStreamContext(Data->Object->Lock());
 
 	// Get file name if possible
 	char* filename = NULL;

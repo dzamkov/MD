@@ -40,7 +40,7 @@ type Container (name : string) =
 
     /// Tries loading a context from data (with an optionally specified filename) using a previously-registered load
     /// action. If no action is able to load the data, None is returned. 
-    static member Load (data : byte data exclusive, filename : string) = 
+    static member Load (data : Data<byte> exclusive, filename : string) = 
         loadRegistry |> Seq.tryPick (fun load -> load.Invoke (data, filename))
 
     /// Tries loading a context from the given file using a previously-registered load
@@ -52,14 +52,14 @@ type Container (name : string) =
     member this.Name = name
 
     /// Tries decoding content from the given input stream using this format.
-    abstract member Decode : stream : byte stream exclusive -> Context exclusive option
+    abstract member Decode : stream : Stream<byte> exclusive -> Context exclusive option
 
     /// Tries encoding content to the given stream using this format.
-    abstract member Encode : context : Context exclusive -> byte stream exclusive option
+    abstract member Encode : context : Context exclusive -> Stream<byte> exclusive option
 
 /// An action that loads a context from data (with an optionally-specified filename) using an unspecified container format. If
 /// the action can not load the container, None is returned.
-and LoadContainerAction = delegate of data : byte data exclusive * filename : string -> (Container * Context exclusive) option
+and LoadContainerAction = delegate of data : Data<byte> exclusive * filename : string -> (Container * Context exclusive) option
 
 
 /// Identifies an audio format for a sample of a single channel.
@@ -73,7 +73,7 @@ type AudioFormat =
 /// An interface to audio content in a container.
 type AudioContent (sampleRate : float, channels : int, format : AudioFormat) =
     inherit Content ()
-    let mutable data : byte data option = None
+    let mutable data : Data<byte> option = None
 
     /// Determines the amount of bytes in a sample of the given audio format.
     static member BytesPerSample (format : AudioFormat) =

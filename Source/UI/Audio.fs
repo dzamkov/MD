@@ -13,7 +13,7 @@ type AudioOutputSourceParameters = {
 
     /// The stream from which the raw audio data is read. Note that multichannel samples should be interleaved
     /// in this stream.
-    Stream : byte stream exclusive
+    Stream : Stream<byte> exclusive
 
     /// The sample rate, in samples per second for the audio output.
     SampleRate : int

@@ -32,8 +32,8 @@ type Texture (id : int) =
                 | ImageFormat.BGR24 -> (PixelInternalFormat.Rgb, PixelFormat.Bgr, PixelType.UnsignedByte)
                 | ImageFormat.BGRA32 -> (PixelInternalFormat.Rgba, PixelFormat.Bgra, PixelType.UnsignedByte)
             match image.Data with
-            | Data.Unsafe (start, _) -> GL.TexImage2D (TextureTarget.Texture2D, level, pif, image.Width, image.Height, 0, pf, pt, start)
-            | Data.BufferComplete buf -> GL.TexImage2D (TextureTarget.Texture2D, level, pif, image.Width, image.Height, 0, pf, pt, buf)
+            | Data.Buffer buffer when buffer.Stride = 1u -> GL.TexImage2D (TextureTarget.Texture2D, level, pif, image.Width, image.Height, 0, pf, pt, buffer.Start)
+            | Data.ArrayComplete array -> GL.TexImage2D (TextureTarget.Texture2D, level, pif, image.Width, image.Height, 0, pf, pt, array)
 
         /// Sets the image for the given mipmap level of the currently-bound 2d texture.
         static member SetImage (image : Image, level : int) =

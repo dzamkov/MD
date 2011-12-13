@@ -5,6 +5,7 @@ open MD.Util
 open System
 open System.Drawing
 open System.Drawing.Imaging
+open Microsoft.FSharp.NativeInterop
 
 /// Identifies a possible image format.
 type ImageFormat =
@@ -23,7 +24,7 @@ type ImageData = {
     Format : ImageFormat
 
     /// The data for the image.
-    Data : byte data
+    Data : Data<byte>
     }
 
 /// Represents an immutable image, a two-dimensional array of pixels containing color or paint data.
@@ -41,7 +42,7 @@ type Image (width : int, height : int, nativeFormat : ImageFormat) =
     member this.NativeFormat = nativeFormat
 
     /// Locks a rectangular region of this image for reading.
-    abstract member LockData : left : int * top : int * width : int * height : int * format : ImageFormat -> byte data exclusive
+    abstract member LockData : left : int * top : int * width : int * height : int * format : ImageFormat -> Data<byte> exclusive
 
     /// Locks the entirety of this image for reading.
     member this.LockData format = this.LockData (0, 0, width, height, format)
@@ -70,7 +71,7 @@ type BitmapImage (bitmap : Bitmap) =
             | ImageFormat.BGRA32 -> PixelFormat.Format32bppArgb
         let bd = bitmap.LockBits (new Rectangle (left, top, width, height), ImageLockMode.ReadOnly, rformat)
         let ds = height * bd.Stride
-        let data = Data.unsafe bd.Scan0 (bd.Scan0 + nativeint ds)
+        let data = Data.buffer (Buffer.FromPointer (NativePtr.ofNativeInt<byte> bd.Scan0)) ds
         Exclusive.custom (fun x -> bitmap.UnlockBits bd) data
 
 /// A image with data from a buffer (array) of colors.
@@ -107,7 +108,7 @@ type ColorBufferImage (width : int, height : int, buffer : MD.UI.Color[], offset
                 offset <- offset + width
                 pos <- pos + lineOffset
                 y <- y + 1
-            Data.buffer output 0 outputSize |> Exclusive.make
+            Data.array output 0 outputSize |> Exclusive.make
 
 /// Contains functions for constructing and manipulating images.
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]

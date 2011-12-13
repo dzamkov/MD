@@ -47,7 +47,7 @@ type Window () =
                 Stream.chunk 1 () (fun () -> 
                     let mutable index = 0
                     if context.NextFrame (&index)
-                    then Some (Data.lock audiocontent.Data.Value, ())
+                    then Some (audiocontent.Data.Value.Lock (), ())
                     else None)) 
         let data = Data.make 65536 stream
         let floatData = Data.combine 4 (fun (x, o) -> float (BitConverter.ToInt16 (x, o)) / 32768.0) data

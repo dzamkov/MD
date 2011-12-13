@@ -1,6 +1,7 @@
 ﻿namespace MD
 
 open System
+open System.Runtime.InteropServices
 open Microsoft.FSharp.NativeInterop
 
 /// A sizeless, unmanaged alternative to an array. Buffers are generally faster than array when it comes
@@ -9,9 +10,16 @@ type Buffer<'a when 'a : unmanaged> (start : nativeint, stride : uint32) =
     struct
         
         /// Creates a buffer for an array. Note that the array should be pinned in order to access it
-        /// from a buffer.
+        /// with a buffer.
         static member FromArray (array : 'a[], offset : int) = 
             new Buffer<'a> (Memory.AddressOf (array, offset), Memory.SizeOf<'a> ())
+
+        /// Pins an array and returns a buffer for it, along with a function to later unpin the array.
+        static member PinArray (array : 'a[]) =
+            let handle = GCHandle.Alloc (array, GCHandleType.Pinned)
+            let buffer = new Buffer<'a> (handle.AddrOfPinnedObject (), Memory.SizeOf<'a> ())
+            let unpin () = handle.Free ()
+            (buffer, unpin)
 
         /// Creates a buffer from a native pointer. The stride of the buffer will be the actual size of the items
         /// in the buffer.
@@ -25,6 +33,9 @@ type Buffer<'a when 'a : unmanaged> (start : nativeint, stride : uint32) =
 
         /// Advances this buffer by a certain amount of items, setting the new item zero to be the item at the specified index.
         member this.Advance index = new Buffer<'a> (start + nativeint stride * nativeint index, stride)
+
+        /// Modifies this buffer to skips over items sequential items by multiplying the stride by the given amount.
+        member this.Skip amount = new Buffer<'a> (start, stride * uint32 amount)
 
         /// Gets the pointer to the start of this buffer.
         member this.Start = start

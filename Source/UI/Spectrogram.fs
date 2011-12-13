@@ -40,7 +40,7 @@ type SpectrogramCache = {
     Window : float[]
 
     /// Methods for DFT's of various sizes.
-    DFTMethods : Dictionary<int, DFTMethod>
+    DFTs : Dictionary<int, DFT>
 
     } with
 
@@ -48,16 +48,16 @@ type SpectrogramCache = {
     static member Initialize (parameters : SpectrogramParameters) = {
             Parameters = parameters
             Window = Window.create parameters.Window parameters.WindowSize (parameters.WindowSize |> ceil |> uint32 |> npow2 |> int)
-            DFTMethods = new Dictionary<int, DFTMethod> ()
+            DFTs = new Dictionary<int, DFT> ()
         }
 
-    /// Gets the DFT parmeters for a fourier transform of the given size.
-    member this.GetDFTMethod size =
-        let mutable dftMethod = Unchecked.defaultof<DFTMethod>
-        if this.DFTMethods.TryGetValue (size, &dftMethod) then dftMethod
+    /// Gets the DFT method for a fourier transform of the given size.
+    member this.GetDFT size =
+        let mutable dftMethod = Unchecked.defaultof<DFT>
+        if this.DFTs.TryGetValue (size, &dftMethod) then dftMethod
         else
-            let dftMethod = new CooleyTukeyDFTMethod (size) :> DFTMethod
-            this.DFTMethods.Add (size, dftMethod)
+            let dftMethod = new CooleyTukeyDFT (size) :> DFT
+            this.DFTs.Add (size, dftMethod)
             dftMethod
 
 /// A tile image for a spectrogram.
@@ -74,18 +74,18 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
         let samples = parameters.Samples
         let totalSampleCount = samples.Size
 
-        let windowBuffer = cache.Window
-        let windowBufferSize = windowBuffer.Length
+        let windowArray = cache.Window
+        let windowArraySize = windowArray.Length
         let windowSize = parameters.WindowSize
-        let inputSize = windowBufferSize
+        let inputSize = windowArraySize
         let dftSize = inputSize
-        let dftMethod = cache.GetDFTMethod dftSize
+        let dft = cache.GetDFT dftSize
 
         let sampleCount = float sampleCount
         let inputDelta = sampleCount / float width
 
         // Determine how input data will be loaded.
-        let getBuffers, getData =
+        let getDataArrays, getData =
             let readStart = sampleStart + uint64 (inputDelta * 0.5) - uint64 (inputSize / 2)
             if float inputSize > inputDelta then
 
@@ -95,27 +95,27 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
                 let totalInputSize = int (ceil (inputDelta * (float width - 1.0))) + inputSize
                 let readOffset = max 0 -(int readStart)
                 let readSize = int (min (uint64 totalInputSize) (totalSampleCount - readStart - uint64 readOffset))
-                let getBuffers () =
-                    let inputBuffer = Array.zeroCreate totalInputSize
-                    samples.ReadArray (readStart, inputBuffer, readOffset, readSize)
-                    inputBuffer, Array.zeroCreate inputSize // A seperate intermediate buffer is needed to allow scaling and windowing.
-                let getData inputBuffer intermediateBuffer index =
+                let getDataArrays () =
+                    let inputArray = Array.zeroCreate totalInputSize
+                    samples.ReadArray (readStart, inputArray, readOffset, readSize)
+                    inputArray, Array.zeroCreate inputSize // A seperate intermediate array is needed to allow scaling and windowing.
+                let getData inputArray intermediateArray index =
                     let start = min (int (float index * inputDelta)) (totalInputSize - inputSize)
-                    Array.blit inputBuffer start intermediateBuffer 0 inputSize
-                getBuffers, getData
+                    Array.blit inputArray start intermediateArray 0 inputSize
+                getDataArrays, getData
             else
 
                 // Size of delta is greater than the size of the input, read data in chunks.
-                let getBuffers () = 
-                    let buffer = Array.zeroCreate inputSize
-                    buffer, buffer
-                let getData inputBuffer intermediateBuffer index =
+                let getDataArrays () = 
+                    let array = Array.zeroCreate inputSize
+                    array, array
+                let getData inputArray intermediateArray index =
                     let readStart = readStart + uint64 (float index * inputDelta)
                     let readOffset = max 0 -(int readStart)
                     let readSize = int (min (uint64 inputSize) (totalSampleCount - readStart - uint64 readOffset))
-                    if readSize <> inputSize then Array.fill intermediateBuffer 0 inputSize 0.0
-                    samples.ReadArray (readStart, intermediateBuffer, readOffset, readSize)
-                getBuffers, getData
+                    if readSize <> inputSize then Array.fill intermediateArray 0 inputSize 0.0
+                    samples.ReadArray (readStart, intermediateArray, readOffset, readSize)
+                getDataArrays, getData
 
         // Determine how to blit DFT output data to an image.
         let gradient = parameters.Gradient
@@ -136,26 +136,26 @@ type SpectrogramTile (cache : SpectrogramCache, sampleStart : uint64, sampleCoun
         // Create image fill task.
         let task () =
             let image = new ColorBufferImage (width, height)
-            let inputBuffer, intermediateBuffer = getBuffers ()
-            let outputBuffer = Array.zeroCreate<Complex> dftSize
+            let inputArray, intermediateArray = getDataArrays ()
+            let outputArray = Array.zeroCreate<Complex> dftSize
 
-            // Pin buffers
-            let outputHandle, outputPtr = pin outputBuffer
-            let intermediateHandle, intermediatePtr = pin intermediateBuffer
-            let windowHandle, windowPtr = pin windowBuffer
+            // Pin arrays
+            let outputBuffer, unpinOutput = Buffer.PinArray outputArray
+            let intermediateBuffer, unpinIntermediate = Buffer.PinArray intermediateArray
+            let windowBuffer, unpinWindow = Buffer.PinArray windowArray
 
             let mutable index = 0
             while index < width do
-                getData inputBuffer intermediateBuffer index
-                DSignal.windowReal windowPtr intermediatePtr windowBufferSize
-                dftMethod.ComputeReal (intermediatePtr, outputPtr)
-                blitLine outputBuffer image index
+                getData inputArray intermediateArray index
+                DSignal.windowReal windowBuffer intermediateBuffer windowArraySize
+                dft.ComputeReal (intermediateBuffer, outputBuffer)
+                blitLine outputArray image index
                 index <- index + 1
 
             // Unpin buffers
-            unpin outputHandle
-            unpin intermediateHandle
-            unpin windowHandle
+            unpinOutput ()
+            unpinIntermediate ()
+            unpinWindow ()
 
             // Return image
             image :> Image |> Exclusive.make

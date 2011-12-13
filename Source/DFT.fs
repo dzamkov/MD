@@ -6,19 +6,19 @@ open Microsoft.FSharp.NativeInterop
 
 /// A method of computing a DFT (Discrete Fourier Transform) and corresponding IDFT of a certain size.
 [<AbstractClass>]
-type DFTMethod (size : int) =
+type DFT (size : int) =
     
     /// Gets the sample size this DFT method is for.
     member this.Size = size
 
     /// Computes the DFT on real input using this method.
-    abstract member ComputeReal : nativeptr<float> * nativeptr<Complex> -> unit
+    abstract member ComputeReal : Buffer<float> * Buffer<Complex> -> unit
 
     /// Computes the DFT on complex input using this method.
-    abstract member ComputeComplex : nativeptr<Complex> * nativeptr<Complex> -> unit
+    abstract member ComputeComplex : Buffer<Complex> * Buffer<Complex> -> unit
 
     /// Computes the IDFT on complex input using this method.
-    abstract member ComputeInverse : nativeptr<Complex> * nativeptr<Complex> -> unit
+    abstract member ComputeInverse : Buffer<Complex> * Buffer<Complex> -> unit
 
     default this.ComputeInverse (source, destination) =
         DSignal.conjugate source size
@@ -29,8 +29,8 @@ type DFTMethod (size : int) =
 
 /// A radix-2 Cooley Tukey FFT method. Note that both the total size and unit size of the
 /// FFT must be a power of two.
-type CooleyTukeyDFTMethod (size : int, unitSize : int) =
-    inherit DFTMethod (size)
+type CooleyTukeyDFT (size : int, unitSize : int) =
+    inherit DFT (size)
     let magnitude = log2 (uint32 size)
     let rounds = magnitude - log2 (uint32 unitSize)
     let units = size / unitSize
@@ -49,7 +49,7 @@ type CooleyTukeyDFTMethod (size : int, unitSize : int) =
         for k = 0 to n - 1 do
             twiddles.[k] <- Complex.ExpImag (m * float k)
 
-    new (size : int) = new CooleyTukeyDFTMethod (size, min size 8)
+    new (size : int) = new CooleyTukeyDFT (size, min size 8)
 
     /// Gets the magnitude of the FFT window. This is log2 of the total size.
     member this.Magnitude = magnitude
@@ -74,12 +74,12 @@ type CooleyTukeyDFTMethod (size : int, unitSize : int) =
     member this.Twiddles = twiddles
 
     /// Initializes units from a generic source.
-    static member inline InitializeUnitsGeneric (dft : CooleyTukeyDFTMethod, source : nativeptr<'a>, destination : nativeptr<Complex>) =
+    static member inline InitializeUnitsGeneric (dft : CooleyTukeyDFT, source : Buffer<'a>, destination : Buffer<Complex>) =
         let twiddles = dft.Twiddles
         let unitOffsets = dft.UnitOffsets
         let unitSize = int dft.UnitSize
         let units = dft.Units
-        let mutable curDestination = destination
+        let mutable destination = destination
         let mutable unit = 0
         while unit < unitOffsets.Length do
             let offset = int unitOffsets.[unit]
@@ -88,21 +88,21 @@ type CooleyTukeyDFTMethod (size : int, unitSize : int) =
                 let mutable total = Complex.Zero
                 let mutable n = 0
                 while n < unitSize do
-                    total <- total + twiddles.[k * n * (twiddles.Length / unitSize) % twiddles.Length] * NativePtr.get source (n * units + offset)
+                    total <- total + twiddles.[k * n * (twiddles.Length / unitSize) % twiddles.Length] * source.[n * units + offset]
                     n <- n + 1
-                NativePtr.write curDestination total
-                curDestination <- NativePtr.add curDestination 1
+                destination.[k] <- total
                 k <- k + 1
+            destination <- destination.Advance unitSize
             unit <- unit + 1
 
     /// Initializes units from a real source.
-    static member InitializeUnitsReal (dft, source : nativeptr<float>, destination) = CooleyTukeyDFTMethod.InitializeUnitsGeneric (dft, source, destination)
+    static member InitializeUnitsReal (dft, source : Buffer<float>, destination) = CooleyTukeyDFT.InitializeUnitsGeneric (dft, source, destination)
 
     /// Initializes units from a complex source.
-    static member InitializeUnitsComplex (dft, source : nativeptr<Complex>, destination) = CooleyTukeyDFTMethod.InitializeUnitsGeneric (dft, source, destination)
+    static member InitializeUnitsComplex (dft, source : Buffer<Complex>, destination) = CooleyTukeyDFT.InitializeUnitsGeneric (dft, source, destination)
 
     /// Applies the "butterfly" rounds for a FFT.
-    static member ApplyRounds (dft : CooleyTukeyDFTMethod, destination : nativeptr<Complex>) =
+    static member ApplyRounds (dft : CooleyTukeyDFT, destination : Buffer<Complex>) =
         let twiddles = dft.Twiddles
         let unitSize = int dft.UnitSize
         let units = dft.Units
@@ -110,26 +110,26 @@ type CooleyTukeyDFTMethod (size : int, unitSize : int) =
         let mutable halfSize = unitSize
         let mutable units = units >>> 1
         while units > 0 do
-            let mutable curDestination = destination
+            let mutable destination = destination
             let mutable unit = 0
             while unit < units do
                 let mutable k = 0
                 while k < halfSize do
-                    let e = NativePtr.get curDestination k
-                    let o = NativePtr.get curDestination (k + halfSize)
+                    let e = destination.[k]
+                    let o = destination.[k + halfSize]
                     let twiddle = twiddles.[k * (twiddles.Length / halfSize) / 2]
-                    NativePtr.set curDestination k (e + twiddle * o)
-                    NativePtr.set curDestination (k + halfSize) (e - twiddle * o)
+                    destination.[k] <- (e + twiddle * o)
+                    destination.[k + halfSize] <- (e - twiddle * o)
                     k <- k + 1
-                curDestination <- NativePtr.add curDestination (halfSize * 2)
+                destination <- destination.Advance (halfSize * 2)
                 unit <- unit + 1
             units <- units >>> 1
             halfSize <- halfSize <<< 1
 
     override this.ComputeReal (source, destination) =
-        CooleyTukeyDFTMethod.InitializeUnitsReal (this, source, destination)
-        CooleyTukeyDFTMethod.ApplyRounds (this, destination)
+        CooleyTukeyDFT.InitializeUnitsReal (this, source, destination)
+        CooleyTukeyDFT.ApplyRounds (this, destination)
 
     override this.ComputeComplex (source, destination) =
-        CooleyTukeyDFTMethod.InitializeUnitsComplex (this, source, destination)
-        CooleyTukeyDFTMethod.ApplyRounds (this, destination)
+        CooleyTukeyDFT.InitializeUnitsComplex (this, source, destination)
+        CooleyTukeyDFT.ApplyRounds (this, destination)

@@ -47,7 +47,15 @@ type QuickDFT private () =
         output.[3] <- new Complex(sample0 - sample2, sample3 - sample1)
 
     override this.ComputeComplex (input : Buffer<Complex>, output : Buffer<Complex>) =
-        new NotImplementedException() |> raise
+        let mutable output = output
+        let sample0 = input.[0]
+        let sample1 = input.[1]
+        let sample2 = input.[2]
+        let sample3 = input.[3]
+        output.[0] <- new Complex(sample0.Real + sample1.Real + sample2.Real + sample3.Real, sample0.Imag + sample1.Imag + sample2.Imag + sample3.Imag)
+        output.[1] <- new Complex(sample0.Real - sample1.Imag - sample2.Real + sample3.Imag, sample0.Imag + sample1.Real - sample2.Imag - sample3.Real)
+        output.[2] <- new Complex(sample0.Real - sample1.Real + sample2.Real - sample3.Real, sample0.Imag - sample1.Imag + sample2.Imag - sample3.Imag)
+        output.[3] <- new Complex(sample0.Real + sample1.Imag - sample2.Real - sample3.Imag, sample0.Imag - sample1.Real - sample2.Imag + sample3.Real)
 
 /// A radix-2 Cooley Tukey FFT method. The given unit DFT method will be used to compute the DFT of
 /// small sections of the input, which are then combined using the Cooley Tukey method. The total

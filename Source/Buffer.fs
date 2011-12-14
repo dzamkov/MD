@@ -31,6 +31,11 @@ type Buffer<'a when 'a : unmanaged> (start : nativeint, stride : uint32) =
             with get index = NativePtr.read<'a> (NativePtr.ofNativeInt (this.Start + nativeint this.Stride * nativeint index))
             and set index value = NativePtr.write<'a> (NativePtr.ofNativeInt (this.Start + nativeint this.Stride * nativeint index)) value
 
+            /// Gets or sets an item in this buffer.
+        member inline this.Item
+            with get (index : uint32) = NativePtr.read<'a> (NativePtr.ofNativeInt (this.Start + nativeint this.Stride * nativeint index))
+            and set (index : uint32) value = NativePtr.write<'a> (NativePtr.ofNativeInt (this.Start + nativeint this.Stride * nativeint index)) value
+
         /// Advances this buffer by a certain amount of items, setting the new item zero to be the item at the specified index.
         member this.Advance index = new Buffer<'a> (start + nativeint stride * nativeint index, stride)
 

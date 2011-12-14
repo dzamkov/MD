@@ -34,8 +34,23 @@ type Window () =
         this.VSync <- VSyncMode.Off
         Graphics.Initialize ()
 
+        // Sinc
+        let sincArray = Array.zeroCreate<float> 10
+        sincArray.[0] <- 1.0
+        let sinc x = sin (Math.PI * x) / (Math.PI * x)
+        let mutable total = 0.5
+        for index = 1 to sincArray.Length - 1 do
+            let value = sinc (float index * 0.5)
+            sincArray.[index] <- value
+            total <- total + value
+        let mutable values = ""
+        for index = 0 to sincArray.Length - 1 do
+            let value = sincArray.[index] * total
+            values <- values + "\n" + value.ToString ()
+
+
         // Get audio container
-        let music = new Path (@"N:\Music\Me\19.mp3")
+        let music = new Path (@"F:\Music\Me\19.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -95,18 +110,18 @@ type Window () =
         let parameters = {
                 Samples = floatData
                 Window = Window.hamming
-                WindowSize = 4096.0 * 4.0
+                WindowSize = 4096.0
                 Scaling = (fun x y -> y * 100.0)
                 Gradient = gradient
             }
 
         // Spectrogram
         let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 
-        let spectrogramTile = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0, 0, 0, area)
+        let spectrogramTile = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0.0, 0.5, 4, 3, area)
 
         let image = ref None
         let gotImage (im : Image exclusive) = image := Some im.Object
-        spectrogramTile.RequestImage ((512, 512), gotImage) |> ignore
+        spectrogramTile.RequestImage ((1024, 1024), gotImage) |> ignore
 
         // Figure
         let getFigure playSample =

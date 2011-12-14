@@ -18,7 +18,7 @@ module DSignal =
             sindex <- sindex + factor
             dindex <- dindex + 1
 
-    /// Performs an in-place downsampling of the frequency-domain elements of the given time-domain signal 
+    /// Performs an in-place downsampling in the frequency-domain of the given signal 
     /// by an integer factor.
     let inline downsampleFrequency factor (source : Buffer<'a>) size = 
         let mutable source = source
@@ -33,6 +33,15 @@ module DSignal =
             while index < chunkSize do
                 source.[index] <- source.[index] + chunk.[index]
                 index <- index + 1
+
+    /// Performs an in-place element reversal in the frequency-domain of the given signal. This can be thought of as
+    /// swapping all frequencies below the Nyquist frequency with the frequencies above the Nyquist frequency.
+    let inline reverseFrequency negativeOne (source : Buffer<'a>) size =
+        let mutable source = source
+        let mutable index = 1
+        while index < size do
+            source.[index] <- source.[index] * negativeOne
+            index <- index + 2
 
     /// Performs an in-place scaling of the given signal by the given real factor.
     let inline scale (factor : 'b) (source : Buffer<'a>) size =
@@ -95,10 +104,10 @@ module DSignal =
 
     /// Performs an in-place conjugation of a complex signal.
     let conjugate (source : Buffer<Complex>) size =
-        let mutable imag = source.Cast<float>().Advance(1).Skip 2
+        let mutable source = source
         let mutable index = 0
         while index < size do
-            imag.[index] <- imag.[index] * -1.0
+            source.[index] <- source.[index].Conjugate
             index <- index + 1
         
     /// Performs an in-place downsampling of the given real signal by an integer factor.
@@ -112,6 +121,12 @@ module DSignal =
 
     /// Performs an in-place downsampling of the frequency components in the given complex signal by an integer factor.
     let downsampleFrequencyComplex factor (source : Buffer<Complex>) size = downsampleFrequency factor source size
+
+    /// Performs an in-place element reversal in the frequency domain of the given real signal.
+    let reverseFrequencyReal (source : Buffer<float>) size = reverseFrequency -1.0 source size
+
+    /// Performs an in-place element reversal in the frequency domain of the given complex signal.
+    let reverseFrequencyComplex (source : Buffer<Complex>) size = reverseFrequency -1.0 source size
 
     /// Performs an in-place scaling of the given real signal by the given real factor.
     let scaleReal (factor : float) (source : Buffer<float>) size = scale factor source size

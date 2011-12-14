@@ -87,9 +87,9 @@ type SpectrogramCache = {
             window
 
 /// A tile image for a spectrogram.
-type SpectrogramTile (cache : SpectrogramCache, depth : int, time : int, frequency : int, area : Rectangle) =
+type SpectrogramTile (cache : SpectrogramCache, minTime : float, maxTime : float, depth : int, frequency : int, area : Rectangle) =
     inherit Tile (area)
-    new (parameters : SpectrogramParameters, area : Rectangle) = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0, 0, 0, area)
+    new (parameters : SpectrogramParameters, area : Rectangle) = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0.0, 1.0, 0, 0, area)
 
     /// Gets the parameters for this spectrogram tile.
     member this.Parameters = cache.Parameters
@@ -110,8 +110,9 @@ type SpectrogramTile (cache : SpectrogramCache, depth : int, time : int, frequen
         let height = min height (inputSize / (1 <<< depth) / 2)
 
         // Determine the time range and input delta for the spectrogram.
-        let timeRange = float totalSampleCount / float (1 <<< depth)
-        let minTime = float time * timeRange
+        let minTime = minTime * float totalSampleCount
+        let maxTime = maxTime * float totalSampleCount
+        let timeRange = maxTime - minTime
         let inputDelta = timeRange / float width
 
         // Determine how to blit DFT output data to an image.
@@ -137,13 +138,74 @@ type SpectrogramTile (cache : SpectrogramCache, depth : int, time : int, frequen
         // Define the decimation function. This function will take a real time-domain signal and 
         // remove all frequency components not of interest to the spectrogram. The signal will be downscaled by
         // a factor of 2 ^ depth.
-        let decimate (signal : Buffer<float>) size =
+        let decimate (signal : Buffer<float>) (temp : Buffer<float>) size =
+
+            // Precomputed, positive values of sinc, normalized to sum to 1.0
+            let sinc1 = 1.030563412320212
+            let sinc2 = 0.969436587679788
+            let sinc3 = 0.617162499773511
+            let sinc4 = 0.205720833257837
+            let sinc5 = 0.123432499954702
+            let sinc6 = 0.0881660713962159
+            let sinc7 = 0.0685736110859457
+
+            // Downsamples a signal by a factor of two, leaving only low frequency content.
+            let decimateLow (input : Buffer<float>) (output : Buffer<float>) (size : int) =
+                let mutable output = output
+                let mutable index = 0
+                while index < size / 2 do
+                    let dindex = index * 2
+                    let value = input.[dindex] * sinc2
+                    let value = value + (input.[(dindex + size - 1) % size] + input.[(dindex + 1) % size]) * sinc3
+                    let value = value - (input.[(dindex + size - 3) % size] + input.[(dindex + 3) % size]) * sinc4
+                    let value = value + (input.[(dindex + size - 5) % size] + input.[(dindex + 5) % size]) * sinc5
+                    let value = value - (input.[(dindex + size - 7) % size] + input.[(dindex + 7) % size]) * sinc6
+                    let value = value + (input.[(dindex + size - 9) % size] + input.[(dindex + 9) % size]) * sinc7
+                    output.[index] <- value
+                    index <- index + 1
+
+            // Downsamples a signal by a factor of two, leaving only high frequency content.
+            let decimateHigh (input : Buffer<float>) (output : Buffer<float>) (size : int) =
+                let mutable output = output
+                let mutable index = 0
+                while index < size / 2 do
+                    let dindex = index * 2
+                    let value = input.[dindex] * sinc1
+                    let value = value - (input.[(dindex + size - 1) % size] + input.[(dindex + 1) % size]) * sinc3
+                    let value = value + (input.[(dindex + size - 3) % size] + input.[(dindex + 3) % size]) * sinc4
+                    let value = value - (input.[(dindex + size - 5) % size] + input.[(dindex + 5) % size]) * sinc5
+                    let value = value + (input.[(dindex + size - 7) % size] + input.[(dindex + 7) % size]) * sinc6
+                    let value = value - (input.[(dindex + size - 9) % size] + input.[(dindex + 9) % size]) * sinc7
+
+                    // Normally, the high frequency content would appear upside-down, but, by negating every other
+                    // other sample, the frequency components (below and above the Nyquist frequency) are reversed.
+                    let value = if index % 2 = 0 then value else -value
+
+                    output.[index] <- value
+                    index <- index + 1
+
+            let mutable signal = signal
+            let mutable temp = temp
             let mutable size = size
             let mutable depth = depth
+            let mutable frequency = frequency
             while depth > 0 do
-                DSignal.downsampleReal 2 signal size
-                size <- size / 2
                 depth <- depth - 1
+                if frequency &&& (1 <<< depth) = 1 then
+                    decimateHigh signal temp size
+                else
+                    decimateLow signal temp size
+
+                // Swap temp and source signals for the next operation.
+                let newSignal, newTemp = (temp, signal)
+                signal <- newSignal
+                temp <- newTemp
+
+                size <- size / 2
+
+            // Return the buffer with the decimated signal.
+            signal
+                
 
         // Determine wether there is any overlap between windows. This decides wether separate sample
         // data is read for each window, or if the sample data is read (and processed) once for all
@@ -159,10 +221,12 @@ type SpectrogramTile (cache : SpectrogramCache, depth : int, time : int, frequen
             let task () =
                 let image = new ColorBufferImage (width, height)
                 let inputArray = Array.zeroCreate<float> inputSize
+                let tempArray = Array.zeroCreate<float> (inputSize / 2)
                 let outputArray = Array.zeroCreate<Complex> dftSize
 
                 // Pin arrays.
                 let inputBuffer, unpinInput = Buffer.PinArray inputArray
+                let tempBuffer, unpinTemp = Buffer.PinArray tempArray
                 let outputBuffer, unpinOutput = Buffer.PinArray outputArray
                 let windowBuffer, unpinWindow = Buffer.PinArray windowArray
 
@@ -185,16 +249,17 @@ type SpectrogramTile (cache : SpectrogramCache, depth : int, time : int, frequen
                     DSignal.downsampleFrequencyReal (inputSize / intermediateSize) inputBuffer inputSize
 
                     // Now decimate to remove unwanted frequency content.
-                    decimate inputBuffer intermediateSize
+                    let intermediateBuffer = decimate inputBuffer tempBuffer intermediateSize
 
                     // Finally DFT!
-                    dft.ComputeReal (inputBuffer, outputBuffer)
+                    dft.ComputeReal (intermediateBuffer, outputBuffer)
 
                     // And output the line.
                     blitLine outputArray image index
                     index <- index + 1
 
                 // Unpin buffers.
+                unpinTemp ()
                 unpinInput ()
                 unpinOutput ()
                 unpinWindow ()
@@ -211,12 +276,11 @@ type SpectrogramTile (cache : SpectrogramCache, depth : int, time : int, frequen
         let nextDepth = depth + 1
         let lowFrequency = frequency * 2
         let highFrequency = lowFrequency + 1
-        let lowTime = time * 2
-        let highTime = lowTime + 1
+        let midTime = (minTime + maxTime) / 2.0
         let center = area.Center
         Some [|
-                new SpectrogramTile (cache, nextDepth, lowTime, lowFrequency, new Rectangle (area.Left, center.X, area.Bottom, center.Y))
-                new SpectrogramTile (cache, nextDepth, lowTime, highFrequency, new Rectangle (area.Left, center.X, center.Y, area.Top))
-                new SpectrogramTile (cache, nextDepth, highTime, lowFrequency, new Rectangle (center.X, area.Right, area.Bottom, center.Y))
-                new SpectrogramTile (cache, nextDepth, highTime, highFrequency, new Rectangle (center.X, area.Right, center.Y, area.Top))
+                new SpectrogramTile (cache, minTime, midTime, nextDepth, lowFrequency, new Rectangle (area.Left, center.X, area.Bottom, center.Y))
+                new SpectrogramTile (cache, minTime, midTime, nextDepth, highFrequency, new Rectangle (area.Left, center.X, center.Y, area.Top))
+                new SpectrogramTile (cache, midTime, maxTime, nextDepth, lowFrequency, new Rectangle (center.X, area.Right, area.Bottom, center.Y))
+                new SpectrogramTile (cache, midTime, maxTime, nextDepth, highFrequency, new Rectangle (center.X, area.Right, center.Y, area.Top))
             |]

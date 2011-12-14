@@ -85,10 +85,10 @@ module DSignal =
             index <- index + 1
 
     /// Gets the real part of the given complex signal. Note that this references the source buffer directly.
-    let real (source : Buffer<Complex>) = (source.Cast<float> ()).Skip 2
+    let real (source : Buffer<Complex>) = source.Field<float> 0
 
     /// Gets the imaginary part of the given complex signal. Note that this references the source buffer directly.
-    let imag (source : Buffer<Complex>) = ((source.Cast<float> ()).Advance 1).Skip 2
+    let imag (source : Buffer<Complex>) = source.Field<float> 8
 
     /// Performs an in-place conjugation of a complex signal.
     let conjugate (source : Buffer<Complex>) size =

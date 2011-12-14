@@ -117,11 +117,11 @@ type Window () =
 
         // Spectrogram
         let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 
-        let spectrogramTile = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0.0, 1.0, 4, 3, area)
+        let spectrogramTile = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0.0, 1.0, 0, 0, area)
 
         let image = ref None
         let gotImage (im : Image exclusive) = image := Some im.Object
-        spectrogramTile.RequestImage ((2048, 2048), gotImage) |> ignore
+        spectrogramTile.RequestImage ((512, 512), gotImage) |> ignore
 
         // Figure
         let getFigure playSample =

@@ -51,6 +51,10 @@ type Buffer<'a when 'a : unmanaged> (start : nativeint, stride : uint32) =
         /// Casts this buffer to a buffer of another type.
         member this.Cast () = new Buffer<'b> (start, Memory.SizeOf<'b> ())
 
+        /// Gets a buffer for a certain field of the items in this buffer, given the byte offset of the
+        /// field from the start of an item.
+        member this.Field offset = new Buffer<'b> (start + nativeint offset, stride)
+
         /// Copies the items in this buffer into another buffer.
         member this.CopyTo (buffer : Buffer<'a>, size : int) =
             if size > 0 then

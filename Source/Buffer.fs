@@ -49,7 +49,7 @@ type Buffer<'a when 'a : unmanaged> (start : nativeint, stride : uint32) =
         member this.Stride = stride
 
         /// Casts this buffer to a buffer of another type.
-        member this.Cast () = new Buffer<'b> (start, stride)
+        member this.Cast () = new Buffer<'b> (start, Memory.SizeOf<'b> ())
 
         /// Copies the items in this buffer into another buffer.
         member this.CopyTo (buffer : Buffer<'a>, size : int) =

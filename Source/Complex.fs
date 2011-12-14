@@ -1,8 +1,10 @@
 ﻿namespace MD
 
 open System
+open System.Runtime.InteropServices
 
 /// Represents a complex number.
+[<StructLayout (LayoutKind.Sequential)>]
 type Complex (real : float, imag : float) =
     struct
 

@@ -50,7 +50,7 @@ type Window () =
 
 
         // Get audio container
-        let music = new Path (@"F:\Music\Me\19.mp3")
+        let music = new Path (@"N:\Music\Me\19.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -110,18 +110,18 @@ type Window () =
         let parameters = {
                 Samples = floatData
                 Window = Window.hamming
-                WindowSize = 4096.0
+                WindowSize = 4096.0 * 4.0
                 Scaling = (fun x y -> y * 100.0)
                 Gradient = gradient
             }
 
         // Spectrogram
         let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 
-        let spectrogramTile = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0.0, 0.5, 4, 3, area)
+        let spectrogramTile = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0.0, 1.0, 4, 3, area)
 
         let image = ref None
         let gotImage (im : Image exclusive) = image := Some im.Object
-        spectrogramTile.RequestImage ((1024, 1024), gotImage) |> ignore
+        spectrogramTile.RequestImage ((2048, 2048), gotImage) |> ignore
 
         // Figure
         let getFigure playSample =

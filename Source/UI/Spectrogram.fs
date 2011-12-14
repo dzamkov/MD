@@ -149,7 +149,7 @@ type SpectrogramTile (cache : SpectrogramCache, depth : int, time : int, frequen
         // data is read for each window, or if the sample data is read (and processed) once for all
         // windows. Note that if the depth is zero, there is no benefit in doing the all at once approach
         // because no decimation is required.
-        if inputDelta > float inputSize || depth = 0 then
+        if inputDelta > float inputSize || true then
 
             // Use the full window, since decimation comes after window application using this
             // method.

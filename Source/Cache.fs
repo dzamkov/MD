@@ -36,13 +36,13 @@ type AutoCache<'a, 'b when 'a : equality> () =
     override this.Submit (key, item) =
         items.Add (key, new WeakReference (item :> obj))
 
-/// A cache that removes items with explicit collection.
-type CollectCache<'a, 'b when 'a : equality> (remove : 'b -> unit) =
+/// A cache that removes items during explicit collection cycles at regular intervals.
+type CyclicCache<'a, 'b when 'a : equality> (remove : 'b -> unit) =
     inherit Cache<'a, 'b> ()
-    let items = new Dictionary<'a, CollectCacheItem<'b>> ()
+    let items = new Dictionary<'a, CyclicCacheItem<'b>> ()
 
     override this.Fetch key =
-        let mutable item = Unchecked.defaultof<CollectCacheItem<'b>>
+        let mutable item = Unchecked.defaultof<CyclicCacheItem<'b>>
         if items.TryGetValue (key, &item) then
             item.Used <- true
             Some (item.Item)
@@ -67,8 +67,44 @@ type CollectCache<'a, 'b when 'a : equality> (remove : 'b -> unit) =
         for key in toRemove do
             items.Remove key |> ignore
 
-/// The internal representation of an item in a collect cache.
-and CollectCacheItem<'b> = {
+/// The internal representation of an item in a Cyclic cache.
+and CyclicCacheItem<'b> = {
         Item : 'b
         mutable Used : bool
     }
+
+/// A cache that removes items (in order of age and disuse) when explicitly requested. 
+type ManualCache<'a, 'b when 'a : equality> (remove : 'b -> unit) =
+    inherit Cache<'a, 'b> ()
+    let items = new LinkedList<'a * 'b> ()
+    let index = new Dictionary<'a, LinkedListNode<'a * 'b>> ()
+
+    override this.Fetch key =
+        let mutable node = null
+        if index.TryGetValue (key, &node) then
+
+            // Bring the node to the front of the items list to delay its collection.
+            items.Remove node
+            items.AddFirst node
+
+            let _, value = node.Value
+            Some value
+        else None
+
+    override this.Submit (key, item) =
+        let node = new LinkedListNode<'a * 'b> ((key, item))
+        items.AddFirst node
+        index.Add (key, node)
+
+    /// Removes the given amount of items from this cache. Items will be removed in the order
+    /// of the last time they fetched.
+    member this.Collect count =
+        let mutable count = count
+        let mutable node = items.Last
+        while count > 0 && node <> null do
+            let next = node.Previous
+            let key, value = node.Value
+            index.Remove key |> ignore
+            items.Remove node
+            remove value
+            node <- next

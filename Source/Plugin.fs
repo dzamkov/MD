@@ -31,15 +31,15 @@ type Plugin () =
         |> Seq.collect (fun file -> 
             if file.DirectoryExists then Plugin.Enumerate file
             elif file.Extension = "dll" then
-                match file.Name.LastIndexOf '_' with
-                | -1 -> Seq.empty
-                | x -> 
-                    match file.Name.Substring (0, x) with
-                    | "Plugin" -> Plugin.Load file
-                    | "Plugin32" when not Environment.Is64BitProcess -> Plugin.Load file
-                    | "Plugin64" when Environment.Is64BitProcess -> Plugin.Load file
-                    | _ -> None
-                    |> Option.toList |> seq
+                let nameParts = file.Name.Split [| '.'; '_' |]
+                let shouldLoad (name : string) =
+                    match name.ToLower () with
+                    | "plugin" -> true
+                    | "plugin32" -> not Environment.Is64BitOperatingSystem
+                    | "plugin64" -> Environment.Is64BitOperatingSystem
+                    | _ -> false
+                let shouldLoad = Array.exists shouldLoad nameParts
+                if shouldLoad then Plugin.Load file |> Option.toList :> seq<Plugin> else Seq.empty
             else Seq.empty)
 
     /// Gets the user-friendly name of this plugin.

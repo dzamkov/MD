@@ -67,25 +67,25 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>Plugin$(PlatformArchitecture)_$(ProjectName)</TargetName>
+    <TargetName>ffmpeg_plugin$(PlatformArchitecture)</TargetName>
     <OutDir>$(SolutionDir)bin\$(Configuration)\$(PlatformArchitecture)\</OutDir>
     <IntDir>$(SolutionDir)obj\$(Configuration)\$(PlatformArchitecture)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>Plugin$(PlatformArchitecture)_$(ProjectName)</TargetName>
+    <TargetName>ffmpeg_plugin$(PlatformArchitecture)</TargetName>
     <OutDir>$(SolutionDir)bin\$(Configuration)\$(PlatformArchitecture)\</OutDir>
     <IntDir>$(SolutionDir)obj\$(Configuration)\$(PlatformArchitecture)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>Plugin$(PlatformArchitecture)_$(ProjectName)</TargetName>
+    <TargetName>ffmpeg_plugin$(PlatformArchitecture)</TargetName>
     <OutDir>$(SolutionDir)bin\$(Configuration)\$(PlatformArchitecture)\</OutDir>
     <IntDir>$(SolutionDir)obj\$(Configuration)\$(PlatformArchitecture)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>Plugin$(PlatformArchitecture)_$(ProjectName)</TargetName>
+    <TargetName>ffmpeg_plugin$(PlatformArchitecture)</TargetName>
     <OutDir>$(SolutionDir)bin\$(Configuration)\$(PlatformArchitecture)\</OutDir>
     <IntDir>$(SolutionDir)obj\$(Configuration)\$(PlatformArchitecture)\</IntDir>
   </PropertyGroup>

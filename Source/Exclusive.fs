@@ -2,7 +2,7 @@
 
 open System
 
-/// An exclusive handle to a value or object that will need to be released at some point. Exclusive handles
+/// An exclusive handle to a value or object that will need to be explicitly released at some point. Exclusive handles
 /// may not be shared or copied. They can be transfered by being passed as arguments or returned from methods,
 /// in which case the original handle must be forgotten. A handle can only be destroyed after Finish is called
 /// on it.

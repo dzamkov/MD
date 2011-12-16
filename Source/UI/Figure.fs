@@ -27,19 +27,30 @@ type Tile (area : Rectangle) =
     /// Subdivides this tile to get its children. The children collectively should occupy the same area as
     /// the parent, but they do not have to be placed in a regular pattern.
     abstract member Children : Tile[] option
-     
+
+/// Indentifies a hint for how a figure should be rendered or managed.
+type RenderHint =
+
+    /// Indicates that the figure is persistent, and will likely appear again.
+    | Static
+
+    /// Indicates that the figure is dynamic, and is not likely to appear again.
+    | Dynamic
 
 /// Describes a visual object on a two-dimensional plane.
+[<ReferenceEquality>]
 type Figure =
     | Null
+    | Solid of Color
     | Line of Point * Point * double * Paint
-    | Image of Image * ImageInterpolation * Rectangle
-    | Sample of (Point -> Paint)
-    | Tile of Tile
+    | Image of Image * ImageInterpolation
     | Modulate of Paint * Figure
     | Transform of Transform * Figure
     | Composite of Figure * Figure
     | Clip of Rectangle * Figure
+    | Hint of RenderHint * Figure
+    | Sample of (Point -> Paint)
+    | Tile of Tile
 
     /// Constructs a transformed figure.
     static member (*) (a : Figure, b : Transform) =
@@ -59,13 +70,20 @@ module Figure =
 
     /// Gets the null figure, a figure that is completely transparent.
     let ``null`` = Figure.Null
+
+    /// Constructs a figure that has a solid color over the entire render plane.
+    let solid color = Figure.Solid color
     
     /// Constructs a figure for a colored line.
     let line start stop weight paint = Figure.Line (start, stop, weight, paint)
 
-    /// Constructs a figure for an image placed in a rectangular area. Note that this figure will respect 
+    /// Constructs a figure for an image placed in the unit square. Note that this figure will respect 
     /// the transparency information encoded in the image, if any.
-    let image image interpolation area = Figure.Image (image, interpolation, area)
+    let image image interpolation = Figure.Image (image, interpolation)
+
+    /// Constructs a figure for an image placed in the given rectangular area. Note that this figure will respect 
+    /// the transparency information encoded in the image, if any.
+    let placeImage area image interpolation = Figure.Transform (Transform.Place area, Figure.Image (image, interpolation))
 
     /// Constructs a figure for a tile image.
     let tile tile = Figure.Tile tile
@@ -83,3 +101,6 @@ module Figure =
     /// Constructs a clipped form of a figure. This will cause all paints of the figure outside the given area to
     /// be completely transparent.
     let clip area figure = Figure.Clip (area, figure)
+
+    /// Provides a hint for the given figure.
+    let hint hint figure = Figure.Hint (hint, figure)

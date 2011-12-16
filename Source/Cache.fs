@@ -96,6 +96,9 @@ type ManualCache<'a, 'b when 'a : equality> (remove : 'b -> unit) =
         items.AddFirst node
         index.Add (key, node)
 
+    /// Gets the amount of items in this cache.
+    member this.Size = items.Count
+
     /// Removes the given amount of items from this cache. Items will be removed in the order
     /// of the last time they fetched.
     member this.Collect count =

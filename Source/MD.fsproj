@@ -56,6 +56,7 @@
     <Compile Include="Path.fs" />
     <Compile Include="Update.fs" />
     <Compile Include="Exclusive.fs" />
+    <Compile Include="Shared.fs" />
     <Compile Include="Temporary.fs" />
     <Compile Include="Plugin.fs" />
     <Compile Include="Stream.fs" />
@@ -73,6 +74,8 @@
     <Compile Include="OpenTK\Audio2.fs" />
     <Compile Include="OpenTK\Input2.fs" />
     <Compile Include="OpenTK\Texture.fs" />
+    <Compile Include="OpenTK\Geometry2.fs" />
+    <Compile Include="OpenTK\Procedure.fs" />
     <Compile Include="OpenTK\Graphics.fs" />
     <Compile Include="OpenTK\Window2.fs" />
     <Compile Include="Program.fs" />

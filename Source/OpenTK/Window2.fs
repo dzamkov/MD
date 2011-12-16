@@ -127,11 +127,11 @@ type Window () =
         let getFigure playSample =
             let image = 
                 match !image with
-                | Some image -> Figure.image image ImageInterpolation.Linear area
+                | Some image -> Figure.placeImage area image ImageInterpolation.Linear
                 | None -> Figure.tile spectrogramTile
             let linex = 2.0 * float playSample / float floatData.Size - 1.0
             let line = Figure.line (new Point (linex, -1.0)) (new Point (linex, 1.0)) 0.002 (Paint.ARGB (1.0, 1.0, 0.3, 0.0))
-            Figure.composite image line
+            image + line
 
         // Start
         Input.link (this :> GameWindow) (view :> Interface |> Input.transform worldspaceProjection) |> ignore
@@ -140,15 +140,10 @@ type Window () =
         control.Fire AudioControl.Play
 
     override this.OnRenderFrame args =
-        Graphics.Setup (projection.Current, this.Width, this.Height, false)
-        Graphics.Clear (Color.RGB (0.6, 0.8, 1.0))
-
-        graphics.Render figure.Current
-
+        graphics.Render (this.Width, this.Height, figure.Current * projection.Current.Inverse)
         this.SwapBuffers ()
 
     override this.OnUpdateFrame args =
-        // Update program time
         Update.invoke args.Time
 
     override this.OnResize args =

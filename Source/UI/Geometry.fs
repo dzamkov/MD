@@ -143,6 +143,10 @@ type Transform (offset : Point, x : Point, y : Point) =
         static member Translate (offset : Point) =
             new Transform (offset, new Point (1.0, 0.0), new Point (0.0, 1.0))
 
+        /// Creates a transform from the unit square to the given rectangle.
+        static member Place (rect : Rectangle) =
+            new Transform (new Point (rect.Left, rect.Bottom), new Point (rect.Right - rect.Left, 0.0), new Point (0.0, rect.Top - rect.Bottom))
+
         /// Gets the offset of this transform (the position of the origin when transformed).
         member this.Offset = offset
 

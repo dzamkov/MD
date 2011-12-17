@@ -74,9 +74,10 @@
     <Compile Include="OpenTK\Audio2.fs" />
     <Compile Include="OpenTK\Input2.fs" />
     <Compile Include="OpenTK\Texture.fs" />
-    <Compile Include="OpenTK\Geometry2.fs" />
-    <Compile Include="OpenTK\Procedure.fs" />
+    <Compile Include="OpenTK\VBO.fs" />
     <Compile Include="OpenTK\Graphics.fs" />
+    <Compile Include="OpenTK\Fixed.fs" />
+    <Compile Include="OpenTK\Programmable.fs" />
     <Compile Include="OpenTK\Window2.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

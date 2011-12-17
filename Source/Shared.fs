@@ -23,3 +23,15 @@ type Shared<'a> (source : 'a exclusive) =
 
 // Create type abbreviation.
 type 'a shared = Shared<'a>
+
+/// Contains functions for constructing and manipulating shared handles.
+module Shared =
+
+    /// Gets a shared handle for the given exclusive handle.
+    let share (handle : 'a exclusive) =
+        match handle with
+        | :? Shared<'a> as shared -> shared
+        | _ -> new Shared<'a> (handle)
+
+    /// Splits a shared handle to get another handle for its object.
+    let split (handle : 'a shared) = handle.Split ()

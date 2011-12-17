@@ -28,6 +28,35 @@ type Tile (area : Rectangle) =
     /// the parent, but they do not have to be placed in a regular pattern.
     abstract member Children : Tile[] option
 
+/// A figure for a solid, colored line.
+type Line = {
+
+    /// One of the endpoints of the line.
+    A : Point
+
+    /// One of the endpoints of the line.
+    B : Point
+
+    /// The weight, or thickness of the line.
+    Weight : float
+
+    /// The paint for the line.
+    Paint : Paint
+
+    }
+
+/// A sampled image that defines an infinitely detailed mapping of points to colors.
+[<ReferenceEquality>]
+type Sample = {
+
+    /// The mapping function for the sample.
+    Map : Point -> Paint
+
+    /// The bounds of the sample, such that all points outside the bounds are transparent.
+    Bounds : Rectangle
+
+    }
+
 /// Indentifies a hint for how a figure should be rendered or managed.
 type RenderHint =
 
@@ -38,18 +67,17 @@ type RenderHint =
     | Dynamic
 
 /// Describes a visual object on a two-dimensional plane.
-[<ReferenceEquality>]
 type Figure =
     | Null
     | Solid of Color
-    | Line of Point * Point * double * Paint
     | Image of Image * ImageInterpolation
     | Modulate of Paint * Figure
     | Transform of Transform * Figure
     | Composite of Figure * Figure
     | Clip of Rectangle * Figure
     | Hint of RenderHint * Figure
-    | Sample of (Point -> Paint)
+    | Sample of Sample
+    | Line of Line
     | Tile of Tile
 
     /// Constructs a transformed figure.
@@ -75,7 +103,7 @@ module Figure =
     let solid color = Figure.Solid color
     
     /// Constructs a figure for a colored line.
-    let line start stop weight paint = Figure.Line (start, stop, weight, paint)
+    let line line = Figure.Line line
 
     /// Constructs a figure for an image placed in the unit square. Note that this figure will respect 
     /// the transparency information encoded in the image, if any.

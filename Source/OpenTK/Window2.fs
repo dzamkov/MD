@@ -14,10 +14,10 @@ open OpenTK.Input
 type Window () =
     inherit GameWindow (640, 480, GraphicsMode.Default, "MD")
     let audiooutput = AudioOutput.Create () |> Option.get :> MD.UI.AudioOutput
-    let graphics = Graphics.Create ()
     let size = new ControlSignalFeed<Point> (new Point (float 640, float 480))
     let programTime = Feed.time
 
+    let mutable graphics = Unchecked.defaultof<Graphics>
     let mutable figure = Unchecked.defaultof<Figure signal>
     let mutable projection = Unchecked.defaultof<Transform signal>
 
@@ -32,7 +32,8 @@ type Window () =
     override this.OnLoad args =
         this.MakeCurrent ()
         this.VSync <- VSyncMode.Off
-        Graphics.Initialize ()
+        graphics <- new FixedGraphics () :> Graphics
+        graphics.Initialize ()
 
         // Sinc
         let sincArray = Array.zeroCreate<float> 10
@@ -130,7 +131,7 @@ type Window () =
                 | Some image -> Figure.placeImage area image ImageInterpolation.Linear
                 | None -> Figure.tile spectrogramTile
             let linex = 2.0 * float playSample / float floatData.Size - 1.0
-            let line = Figure.line (new Point (linex, -1.0)) (new Point (linex, 1.0)) 0.002 (Paint.ARGB (1.0, 1.0, 0.3, 0.0))
+            let line = Figure.line { A = new Point (linex, -1.0); B = (new Point (linex, 1.0)); Weight = 0.002; Paint = Paint.ARGB (1.0, 1.0, 0.3, 0.0) }
             image + line
 
         // Start
@@ -140,11 +141,12 @@ type Window () =
         control.Fire AudioControl.Play
 
     override this.OnRenderFrame args =
-        graphics.Render (this.Width, this.Height, figure.Current * projection.Current.Inverse)
+        graphics.Render (figure.Current * projection.Current.Inverse)
         this.SwapBuffers ()
 
     override this.OnUpdateFrame args =
         Update.invoke args.Time
 
     override this.OnResize args =
+        graphics.Setup (this.Width, this.Height)
         size.Update (new Point (double this.Width, double this.Height))

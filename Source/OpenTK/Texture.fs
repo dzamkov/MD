@@ -52,6 +52,9 @@ type Texture (id : int) =
     /// Creates a mipmap for the currently-bound texture.
     static member CreateMipmap (target) =
         GL.Ext.GenerateMipmap target
+
+    /// Gets the ID for this texture.
+    member this.ID = id
     
     /// Sets this as the current texture for the given texture target.
     member this.Bind target = GL.BindTexture (target, id)

@@ -127,6 +127,9 @@ type Transform (offset : Point, x : Point, y : Point) =
         static member (*) (a : Transform, b : Transform) =
             new Transform (b.Apply a.Offset, b.ApplyDirection a.X, b.ApplyDirection a.Y)
 
+         /// Applies a transform to a point.
+        static member (*) (a : Transform, b : Point) = a.Apply b
+
         /// Creates a rotation transform for a certain angle in radians.
         static member Rotate (angle : double) =
             new Transform (new Point (0.0, 0.0), new Point (cos angle, sin angle), new Point (-(sin angle), cos angle))

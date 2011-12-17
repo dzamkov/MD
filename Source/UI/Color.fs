@@ -25,6 +25,10 @@ type Color (r : float, g : float, b : float) =
         static member (*) (a : Color, b : float) =
             new Color (a.R * b, a.G * b, a.B * b)
 
+        /// Modulates a color with another color.
+        static member (*) (a : Color, b : Color) =
+            new Color (a.R * b.R, a.G * b.G, a.B * b.B)
+
         /// Gets the red component of this color.
         member this.R = r
 
@@ -92,7 +96,7 @@ type Gradient (stops : GradientStop[]) =
                     
 
 /// Represents a color with transparency information.
-type Paint (a : float, pre : Color) =
+type Paint (alpha : float, pre : Color) =
     struct
 
         /// Gets a completely white paint.
@@ -112,6 +116,14 @@ type Paint (a : float, pre : Color) =
         static member ARGB (a : float, r : float, g : float, b : float) =
             new Paint (a, new Color (a * r, a * g, a * b))
 
+        /// Modulates a paint with a color.
+        static member (*) (a : Paint, b : Color) =
+            new Paint (a.Alpha, a.AdditiveColor * b)
+
+        // Modulates a paint with another paint.
+        static member (*) (a : Paint, b : Paint) =
+            new Paint (a.Alpha * b.Alpha, a.AdditiveColor * b.AdditiveColor)
+
         /// Blends two paints using the given amount (between 0.0 and 1.0) to determine
         /// what portion of the final paint is the second paint.
         static member Blend (a : Paint, b : Paint, amount : float) =
@@ -121,24 +133,24 @@ type Paint (a : float, pre : Color) =
             let bc : Color = b.AdditiveColor
             new Paint (a.Alpha * am + b.Alpha * bm, new Color (ac.R * am + bc.R * bm, ac.G * am + bc.G * bm, ac.B * am + bc.B * bm))
 
-        /// Gets the color added by this paint when composited, that is, the visible color multiplied by alpha.
+        /// Gets the color added by this paint when composited, that is, the actual color multiplied by alpha.
         member this.AdditiveColor = pre
 
         /// Gets the color this paint appears as, or white if this paint is completely transparent.
         member this.Color = 
-            if a = 0.0 
+            if alpha = 0.0 
             then new Color (1.0, 1.0, 1.0)
-            else pre * (1.0 / a)
+            else pre * (1.0 / alpha)
 
         /// Gets the transparency of this paint, with 1.0 indicating fully opaque and 0.0 indicating fully transparent.
-        member this.Alpha = a
+        member this.Alpha =alpha
 
         /// Gets the byte representation of the alpha component of this paint.
-        member this.AlphaByte = byte (a * 255.99)
+        member this.AlphaByte = byte (alpha * 255.99)
 
         /// Gets wether this paint is fully opaque.
-        member this.IsOpaque = (a = 1.0)
+        member this.IsOpaque = (alpha = 1.0)
 
         /// Gets wether this paint is fully transparent.
-        member this.IsTransparent = (a = 0.0)
+        member this.IsTransparent = (alpha = 0.0)
     end

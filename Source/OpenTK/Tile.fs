@@ -21,7 +21,7 @@ type TileData = {
 
     /// The image for this tile, if it is available and has yet to be converted
     /// into a texture.
-    mutable Image : Image exclusive option
+    mutable Image : Image<Paint> exclusive option
 
     /// A retract action to cancel the image request for this tile, if one is active.
     mutable RetractRequest : Retract option
@@ -88,9 +88,9 @@ type TileData = {
 
                 // Only generate mipmaps for the root tile.
                 Texture.CreateMipmap GenerateMipmapTarget.Texture2D
-                Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
+                Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
             else
-                Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.Linear, TextureMagFilter.Linear)
+                Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.Linear, TextureMagFilter.Nearest)
             this.Texture <- Some (texture |> Exclusive.custom (fun texture -> texture.Delete ()))
 
             // Free image.
@@ -119,7 +119,7 @@ type TileProcedure (tile : Tile) =
     member this.Deleted = deleted
 
     /// Handles the loading of an image into tile data.
-    member this.Load (tile : TileData) (image : Image exclusive) =
+    member this.Load (tile : TileData) (image : Image<Paint> exclusive) =
         if deleted then image.Finish ()
         else 
             tile.Image <- Some image
@@ -139,7 +139,7 @@ type TileProcedure (tile : Tile) =
             let area = tile.Area
             if context.IsVisible area then
                 let tilePixelScale = Point.Scale (area.Size, resolution)
-                if tilePixelScale.Length > 600.0 then 
+                if tilePixelScale.Length > 900.0 then 
                     let mutable shouldRender = false
                     for subTile in tile.GetDivision resolution do
                         let opaque = update false subTile

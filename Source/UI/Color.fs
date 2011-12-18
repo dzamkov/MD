@@ -116,6 +116,14 @@ type Paint (alpha : float, pre : Color) =
         static member ARGB (a : float, r : float, g : float, b : float) =
             new Paint (a, new Color (a * r, a * g, a * b))
 
+        /// Creates an opaque paint based on its rgb representation.
+        static member RGB (source : Color) =
+            new Paint (1.0, source)
+
+        /// Creates an opaque paint based on its rgb representation.
+        static member RGB (r : float, g : float, b : float) =
+            new Paint (1.0, new Color (r, g, b))
+
         /// Modulates a paint with a color.
         static member (*) (a : Paint, b : Color) =
             new Paint (a.Alpha, a.AdditiveColor * b)

@@ -22,7 +22,7 @@ type Tile (area : Rectangle) =
     /// Requests an image for this tile. A suggested size for the image is given. When the image 
     /// is available, the provided callback should be called with it. If the returned retract action is
     /// called, the image is no longer needed, but the callback may still be called.
-    abstract member RequestImage : suggestedSize : (int * int) * callback : (Image exclusive -> unit) -> Retract
+    abstract member RequestImage : suggestedSize : (int * int) * callback : (Image<Paint> exclusive -> unit) -> Retract
 
     /// A list of available non-trivial divisions of this tile such that the tiles in a division do not overlap
     /// and collectively occupy the entire area of the root tile. These tiles can be queried for more accurate images
@@ -71,7 +71,7 @@ type RenderHint =
 type Figure =
     | Null
     | Solid of Color
-    | Image of Image * ImageInterpolation
+    | Image of Image<Paint> * ImageInterpolation
     | Modulate of Paint * Figure
     | Transform of Transform * Figure
     | Composite of Figure * Figure

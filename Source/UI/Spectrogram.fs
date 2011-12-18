@@ -121,12 +121,12 @@ type SpectrogramTile (cache : SpectrogramCache, minTime : float, maxTime : float
         let frequencyRange = 1.0 / float (1 <<< depth)
         let minFrequency = float frequency * frequencyRange
         let frequencyDelta = frequencyRange / float height 
-        let blitLine (outputBuffer : Complex[]) (image : ColorBufferImage) x =
+        let blitLine (outputBuffer : Complex[]) (image : ArrayImage<float>) x =
             let mutable y = 0
             let mutable frequency = minFrequency + frequencyDelta * 0.5
             while y < height do
                 let scaling = scaling frequency
-                image.[x, height - y - 1] <- gradient.GetColor (scaling outputBuffer.[y].Abs)
+                image.[x, height - y - 1] <- scaling outputBuffer.[y].Abs
                 y <- y + 1
                 frequency <- frequency + frequencyDelta
 
@@ -219,7 +219,7 @@ type SpectrogramTile (cache : SpectrogramCache, minTime : float, maxTime : float
 
             // Define task.
             let task () =
-                let image = new ColorBufferImage (width, height)
+                let image = new ArrayImage<float> (width, height)
                 let inputArray = Array.zeroCreate<float> inputSize
                 let tempArray = Array.zeroCreate<float> (inputSize / 2)
                 let outputArray = Array.zeroCreate<Complex> dftSize
@@ -238,7 +238,7 @@ type SpectrogramTile (cache : SpectrogramCache, minTime : float, maxTime : float
                     let readOffset, readStart = if readStart < 0L then (int -readStart, 0UL) else (0, uint64 readStart)
                     let readSize = int (min (uint64 (inputSize - readOffset)) (totalSampleCount - readStart))
                     if readSize <> inputSize then Array.fill inputArray 0 inputSize 0.0
-                    samples.ReadArray (readStart, inputArray, readOffset, readSize)
+                    samples.Read (readStart, inputArray, readOffset, readSize)
 
                     // Apply window function.
                     DSignal.windowReal windowBuffer inputBuffer inputSize
@@ -265,7 +265,7 @@ type SpectrogramTile (cache : SpectrogramCache, minTime : float, maxTime : float
                 unpinWindow ()
 
                 // Return image.
-                image :> Image |> Exclusive.make
+                image |> Image.gradient gradient |> Image.opaque |> Exclusive.make
 
             Task.start (task >> callback)
         else

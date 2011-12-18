@@ -15,7 +15,11 @@ void CloseStreamContext(AVIOContext* Context) {
 
 int read_packet(void* opaque, uint8_t* buf, int buf_size) {
 	ExclusiveByteStream^ stream = *(gcroot<ExclusiveByteStream^>*)opaque;
-	return stream->Object->ReadBuffer(MD::Buffer<Byte>::FromPointer((IntPtr)buf), buf_size);
+	array<Byte>^ temparray = gcnew array<Byte>(buf_size);
+	int readsize = stream->Object->Read(temparray, 0, buf_size);
+	pin_ptr<Byte> ptr = &temparray[0];
+	memcpy(buf, ptr, readsize);
+	return readsize;
 }
 
 _Context::_Context(array<MD::Content^>^ Content) : Context(Content) {

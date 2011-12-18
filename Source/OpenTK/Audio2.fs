@@ -161,7 +161,7 @@ and private AudioOutputSource (parameters : AudioOutputSourceParameters, format 
     /// Writes the next set of data from the stream into the OpenAL buffer with the given id. Returns false if there is no
     /// more data to be written.
     let write bid =
-        let readsize = stream.Object.ReadArray (buffer, 0, bufferSize)
+        let readsize = stream.Object.Read (buffer, 0, bufferSize)
         if readsize > 0 then
             AL.BufferData (bid, format, buffer, readsize, sampleRate)
             AL.SourceQueueBuffer (sid, bid)

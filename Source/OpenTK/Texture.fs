@@ -5,6 +5,7 @@ open MD.UI
 open global.OpenTK
 open OpenTK.Graphics
 open OpenTK.Graphics.OpenGL
+open MD.UI.Image
 
 /// An interface to a OpenGL texture.
 type Texture (id : int) =
@@ -17,27 +18,20 @@ type Texture (id : int) =
         new Texture (id)
 
     /// Creates and binds a 2d texture for the given image. This will not set any parameters or generate bitmaps.
-    static member Create (image : Image) =
+    static member Create (image : Image<Paint>) =
         let tex = Texture.Create ()
         Texture.SetImage (image, 0)
         tex
 
     /// Sets the image for the given mipmap level of the currently-bound 2d texture.
-    static member SetImage (image : ImageData, level : int) =
-        let pif, pf, pt = 
-            match image.Format with
-            | ImageFormat.BGR24 -> (PixelInternalFormat.Rgb, PixelFormat.Bgr, PixelType.UnsignedByte)
-            | ImageFormat.BGRA32 -> (PixelInternalFormat.Rgba, PixelFormat.Bgra, PixelType.UnsignedByte)
-        match image.Data with
-        | Data.Buffer buffer when buffer.Stride = 1u -> GL.TexImage2D (TextureTarget.Texture2D, level, pif, image.Width, image.Height, 0, pf, pt, buffer.Start)
-        | Data.ArrayComplete array -> GL.TexImage2D (TextureTarget.Texture2D, level, pif, image.Width, image.Height, 0, pf, pt, array)
-
-    /// Sets the image for the given mipmap level of the currently-bound 2d texture.
-    static member SetImage (image : Image, level : int) =
-        let format = image.NativeFormat
-        let edata = image.Lock format
-        Texture.SetImage (edata.Object, level)
-        edata.Finish ()
+    static member SetImage (image : Image<Paint>, level : int) =
+        match image with
+        | Opaque image -> 
+            let data = image.Source |> Image.toArray |> Image.toBGR24
+            GL.TexImage2D (TextureTarget.Texture2D, level, PixelInternalFormat.Rgb, image.Width, image.Height, 0, PixelFormat.Bgr, PixelType.UnsignedByte, data)
+        | image ->
+            let data = image |> Image.toArray |> Image.toBGRA32
+            GL.TexImage2D (TextureTarget.Texture2D, level, PixelInternalFormat.Rgba, image.Width, image.Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, data)
 
     /// Sets the wrap mode for the currently-bound texture.
     static member SetWrapMode (target, horizontal : TextureWrapMode, vertical : TextureWrapMode) =

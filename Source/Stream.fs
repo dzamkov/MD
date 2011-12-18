@@ -16,12 +16,7 @@ type Stream<'a when 'a : unmanaged> (alignment : int) =
     /// Copies items from this stream into a array and returns the amount of
     /// items read. If the returned amount is under the requested size, the end of
     /// the stream has been reached.
-    abstract member ReadArray : array : 'a[] * offset : int * size : int -> int
-
-    /// Copies items from this stream to the given buffer and returns the amount
-    /// of items read. If the returned amount is under the requested size, the end of
-    /// the stream has been reached.
-    abstract member ReadBuffer : buffer : Buffer<'a> * size : int -> int
+    abstract member Read : array : 'a[] * offset : int * size : int -> int
 
 /// A stream that reads from an array.
 type ArrayStream<'a when 'a : unmanaged> (array : 'a[], offset : int) =
@@ -34,15 +29,9 @@ type ArrayStream<'a when 'a : unmanaged> (array : 'a[], offset : int) =
     /// Gets the current offset of the stream in the source array.
     member this.Offset = offset
 
-    override this.ReadArray (targetArray, targetOffset, size) =
+    override this.Read (targetArray, targetOffset, size) =
         let readSize = min size (array.Length - offset)
         Array.blit array offset targetArray targetOffset readSize
-        offset <- offset + readSize
-        readSize
-
-    override this.ReadBuffer (buffer, size) =
-        let readSize = min size (array.Length - offset)
-        buffer.CopyFrom (array, offset, size)
         offset <- offset + readSize
         readSize
 
@@ -56,13 +45,8 @@ type BufferStream<'a when 'a : unmanaged> (buffer : Buffer<'a>) =
     /// advances in memory location with each read operation.
     member this.Buffer = buffer
 
-    override this.ReadArray (array, offset, size) =
+    override this.Read (array, offset, size) =
         buffer.CopyTo (array, offset, size)
-        buffer <- buffer.Advance size
-        size
-
-    override this.ReadBuffer (targetBuffer, size) =
-        buffer.CopyTo (targetBuffer, size)
         buffer <- buffer.Advance size
         size
 
@@ -75,13 +59,8 @@ type LimitStream<'a when 'a : unmanaged> (source : Stream<'a>, size : uint64) =
     /// Gets the remaining size of this stream.
     member this.Size = size
 
-    override this.ReadArray (array, offset, readSize) =
-        let readSize = source.ReadArray (array, offset, int (min (uint64 readSize) (uint64 size)))
-        size <- size - uint64 readSize
-        readSize
-
-    override this.ReadBuffer (buffer, readSize) =
-        let readSize = source.ReadBuffer (buffer, int (min (uint64 readSize) (uint64 size)))
+    override this.Read (array, offset, readSize) =
+        let readSize = source.Read (array, offset, int (min (uint64 readSize) (uint64 size)))
         size <- size - uint64 readSize
         readSize
 
@@ -101,11 +80,11 @@ type ChunkStream<'a, 'b when 'a : unmanaged> (alignment : int, initial : (Stream
         | Some (stream, _) -> stream.Finish ()
         | None -> ()
 
-    override this.ReadArray (array, offset, size) = 
+    override this.Read (array, offset, size) = 
         let rec read (array : 'a[], offset: int, size : int) (totalReadSize : int) =
             match current with
             | Some (stream, state) ->
-                let readSize = stream.Object.ReadArray (array, offset, size)
+                let readSize = stream.Object.Read (array, offset, size)
                 if readSize < size then
                     stream.Finish ()
                     current <- retrieve state
@@ -114,106 +93,42 @@ type ChunkStream<'a, 'b when 'a : unmanaged> (alignment : int, initial : (Stream
             | None -> totalReadSize
         read (array, offset, size) 0
 
-    override this.ReadBuffer (buffer, size) = 
-        let itemSize = Memory.SizeOf<'a> ()
-        let rec read (buffer, size : int) (totalReadSize : int) =
-            match current with
-            | Some (stream, state) ->
-                let readSize = stream.Object.ReadBuffer (buffer, size)
-                if readSize < size then
-                    stream.Finish ()
-                    current <- retrieve state
-                    read (buffer.Advance readSize, size - readSize) (totalReadSize + readSize)
-                else totalReadSize + size
-            | None -> totalReadSize
-        read (buffer, size) 0
-
 /// A stream that maps items with a mapping function.
 [<Sealed>]
 type MapStream<'a, 'b when 'a : unmanaged and 'b : unmanaged> (source : Stream<'b>, map : 'b -> 'a) =
     inherit Stream<'a> (source.Alignment)
-    let chunk = Array.zeroCreate base.Alignment
-    let loadChunk () = source.ReadArray (chunk, 0, chunk.Length) = chunk.Length
 
-    override this.ReadArray (array, offset, size) = 
-        let mutable size = size
-        let mutable cur = offset
-        while size > 0 && loadChunk() do
-            for index = 0 to chunk.Length - 1 do
-                array.[cur] <- map chunk.[index]
-                cur <- cur + 1
-            size <- size - chunk.Length
-        cur - offset
-
-    override this.ReadBuffer (buffer, size) = 
-        let mutable buffer = buffer
-        let mutable size = size
-        let mutable cur = 0
-        while size > 0 && loadChunk() do
-            for index = 0 to this.Alignment - 1 do
-                buffer.[cur] <- map chunk.[index]
-                cur <- cur + 1
-            size <- size - this.Alignment
-        cur
+    override this.Read (array, offset, size) =
+        let tempArray = Array.zeroCreate size
+        let readSize = source.Read (tempArray, 0, tempArray.Length)
+        for index = 0 to readSize - 1 do
+            array.[offset + index] <- map tempArray.[index]
+        readSize
 
 /// A stream that combines fixed-size groups of items into single items.
 [<Sealed>]
 type CombineStream<'a, 'b when 'a : unmanaged and 'b : unmanaged> (source : Stream<'b>, groupSize : int, combine : 'b[] * int -> 'a) =
     inherit Stream<'a> (fit groupSize source.Alignment)
-    let chunk = Array.zeroCreate (base.Alignment * groupSize)
-    let loadChunk () = source.ReadArray (chunk, 0, chunk.Length) = chunk.Length
 
-    override this.ReadArray (array, offset, size) = 
-        let mutable size = size
-        let mutable cur = offset
-        while size > 0 && loadChunk() do
-            for index = 0 to this.Alignment - 1 do
-                array.[cur] <- combine (chunk, index * groupSize)
-                cur <- cur + 1
-            size <- size - this.Alignment
-        cur - offset
-
-    override this.ReadBuffer (buffer, size) = 
-        let mutable buffer = buffer
-        let mutable size = size
-        let mutable cur = 0
-        while size > 0 && loadChunk() do
-            for index = 0 to this.Alignment - 1 do
-                buffer.[index] <- combine (chunk, index * groupSize)
-                cur <- cur + 1
-            size <- size - this.Alignment
-        cur
+    override this.Read (array, offset, size) =
+        let tempArray = Array.zeroCreate (size * groupSize)
+        let readSize = source.Read (tempArray, 0, tempArray.Length)
+        let readSize = readSize / groupSize
+        for index = 0 to readSize - 1 do
+            array.[offset + index] <- combine (tempArray, index * groupSize)
+        readSize
 
 /// A stream that splits single items into fixed-size groups.
 [<Sealed>]
 type SplitStream<'a, 'b when 'a : unmanaged and 'b : unmanaged> (source : Stream<'b>, groupSize : int, split : 'b * 'a[] * int -> unit) =
     inherit Stream<'a> (source.Alignment * groupSize)
-    let chunk = Array.zeroCreate (source.Alignment)
-    let loadChunk () = source.ReadArray (chunk, 0, chunk.Length) = chunk.Length
 
-    override this.ReadArray (array, offset, size) =
-        let mutable size = size
-        let mutable cur = offset
-        while size > 0 && loadChunk() do
-            for index = 0 to chunk.Length - 1 do
-                split (chunk.[index], array, cur)
-                cur <- cur + groupSize
-            size <- size - this.Alignment
-        cur - offset
-
-    override this.ReadBuffer (buffer, size) =
-        let initialSize = size
-        let mutable buffer = buffer
-        let mutable size = size
-        let mutable cur = 0
-        let tempArray = Array.zeroCreate (this.Alignment)
-        while size > 0 && loadChunk() do
-            for index = 0 to chunk.Length - 1 do
-                split (chunk.[index], tempArray, index * groupSize)
-                buffer.CopyFrom (tempArray, 0, groupSize)
-                buffer <- buffer.Advance groupSize
-            size <- size - this.Alignment
-        initialSize - size
+    override this.Read (array, offset, size) =
+        let tempArray = Array.zeroCreate (size / groupSize)
+        let readSize = source.Read (tempArray, 0, tempArray.Length)
+        for index = 0 to readSize - 1 do
+            split (tempArray.[index], array, offset + index * groupSize)
+        readSize * groupSize
 
 /// A stream that cast items in a source stream by reinterpreting the byte representations of sequential items.
 [<Sealed>]
@@ -221,14 +136,12 @@ type CastStream<'a, 'b when 'a : unmanaged and 'b : unmanaged> (source : Stream<
     inherit Stream<'a> (fit (int asize) (source.Alignment * int bsize))
     new (source) = new CastStream<'a, 'b> (source, Memory.SizeOf<'a> (), Memory.SizeOf<'b> ())
     
-    override this.ReadArray (array, offset, size) = 
+    override this.Read (array, offset, size) = 
         let sourceSize = size * int asize / int bsize
-        let readArray = Array.zeroCreate sourceSize
-        let readSize = source.ReadArray (readArray, 0, sourceSize)
-        Memory.Copy (readArray, 0, array, offset, bsize * uint32 readSize)
+        let tempArray = Array.zeroCreate sourceSize
+        let readSize = source.Read (tempArray, 0, sourceSize)
+        Memory.Copy (tempArray, 0, array, offset, bsize * uint32 readSize)
         readSize * int bsize / int asize
-
-    override this.ReadBuffer (buffer, size) = source.ReadBuffer (buffer.Cast (), size * int asize / int bsize) * int bsize / int asize
 
 /// A byte stream based on a System.IO stream.
 [<Sealed>]
@@ -238,13 +151,7 @@ type IOStream (source : Stream) =
     /// Gets the System.IO stream source for this stream.
     member this.Source = source
 
-    override this.ReadArray (array, offset, size) = source.Read (array, offset, size)
-
-    override this.ReadBuffer (buffer, size) =
-        let readArray = Array.zeroCreate size
-        let readSize = source.Read (readArray, 0, size)
-        buffer.CopyFrom (readArray, 0, readSize)
-        readSize
+    override this.Read (array, offset, size) = source.Read (array, offset, size)
 
 /// Contains functions for constructing and manipulating streams.
 module Stream =
@@ -253,7 +160,7 @@ module Stream =
     /// amount of items, a smaller array of only the read items will be returned.
     let read size (stream : Stream<'a>) =
         let array = Array.zeroCreate size
-        let readSize = stream.ReadArray (array, 0, size)
+        let readSize = stream.Read (array, 0, size)
         if readSize < size then
             let newArray = Array.zeroCreate readSize
             Array.blit array 0 newArray 0 readSize
@@ -303,3 +210,8 @@ module Stream =
 
     /// Constructs a size-limited form of the given stream.
     let limit size source = new LimitStream<'a> (source, size) :> Stream<'a>
+
+    /// Returns a version of the given stream whose alignment is a factor of the requested stream.
+    let checkAlignment alignment (stream : Stream<'a>) =
+        if stream.Alignment % alignment = 0 then stream
+        else new NotImplementedException() |> raise

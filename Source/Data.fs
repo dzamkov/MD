@@ -30,10 +30,7 @@ type Data<'a when 'a : unmanaged> (alignment : int) =
     member this.SizeString = Data<'a>.GetSizeString (this.Size * uint64 (Memory.SizeOf<'a> ()))
 
     /// Copies items from this data (starting at the given index) into the given array.
-    abstract member ReadArray : index : uint64 * array : 'a[] * offset : int * size : int -> unit
-
-    /// Copies items from this data (starting at the given index) into the given buffer.
-    abstract member ReadBuffer : index : uint64 * buffer : Buffer<'a> * size : int -> unit
+    abstract member Read : index : uint64 * array : 'a[] * offset : int * size : int -> unit
 
     /// Creates a stream to read this data beginning at the given index. The given
     /// size sets a limit on the amount of items that can be read from the resulting
@@ -62,15 +59,9 @@ type DataStream<'a when 'a : unmanaged> (source : Data<'a>, index : uint64) =
     /// Gets the current index in the source data this stream is reading from.
     member this.Index = index
 
-    override this.ReadArray (array, offset, size) =
+    override this.Read (array, offset, size) =
         let readSize = int (min (uint64 size) (source.Size - index))
-        source.ReadArray (index, array, offset, readSize)
-        index <- index + uint64 readSize
-        readSize
-
-    override this.ReadBuffer (buffer, size) =
-        let readSize = int (min (uint64 size) (source.Size - index))
-        source.ReadBuffer (index, buffer, readSize)
+        source.Read (index, array, offset, readSize)
         index <- index + uint64 readSize
         readSize
 
@@ -86,8 +77,7 @@ type BufferData<'a when 'a : unmanaged> (buffer : Buffer<'a>, size : int) =
     member this.NativeSize = size
 
     override this.Size = uint64 size
-    override this.ReadArray (index, array, offset, size) = buffer.CopyTo (array, offset, size)
-    override this.ReadBuffer (index, targetBuffer, size) = buffer.CopyTo (targetBuffer, size)
+    override this.Read (index, array, offset, size) = buffer.CopyTo (array, offset, size)
     override this.Lock (index, size) = Stream.buffer (buffer.Advance (int index)) |> Exclusive.make
 
 /// Data from an array.
@@ -105,8 +95,7 @@ type ArrayData<'a when 'a : unmanaged> (array : 'a[], offset : int, size : int) 
     member this.NativeSize = size
 
     override this.Size = uint64 size
-    override this.ReadArray (index, targetArray, targetOffset, size) = Array.blit array (offset + int index) targetArray targetOffset size
-    override this.ReadBuffer (index, buffer, size) = buffer.CopyFrom (array, offset + int index, size)
+    override this.Read (index, targetArray, targetOffset, size) = Array.blit array (offset + int index) targetArray targetOffset size
     override this.Lock (index, size) = Stream.array array (offset + int index) |> Exclusive.make
 
 /// Data that applies a mapping function to source data.
@@ -115,18 +104,11 @@ type MapData<'a, 'b when 'a : unmanaged and 'b : unmanaged> (source : Data<'b>, 
 
     override this.Size = source.Size
 
-    override this.ReadArray (index, array, offset, size) =
+    override this.Read (index, array, offset, size) =
         let tempArray = Array.zeroCreate size
-        source.ReadArray (index, tempArray, 0, size)
+        source.Read (index, tempArray, 0, size)
         for index = 0 to tempArray.Length - 1 do
             array.[offset + index] <- map tempArray.[index]
-
-    override this.ReadBuffer (index, buffer, size) = 
-        let mutable buffer = buffer
-        let tempArray = Array.zeroCreate size
-        source.ReadArray (index, tempArray, 0, size)
-        for index = 0 to tempArray.Length - 1 do
-            buffer.[index] <- map tempArray.[index]
 
     override this.Lock (index, size) = source.Lock (index, size) |> Exclusive.map (Stream.map map)
 
@@ -136,20 +118,12 @@ type CombineData<'a, 'b when 'a : unmanaged and 'b : unmanaged> (source : Data<'
 
     override this.Size = source.Size / uint64 groupSize
 
-    override this.ReadArray (index, array, offset, size) =
+    override this.Read (index, array, offset, size) =
         let sourceSize = size * groupSize
         let tempArray = Array.zeroCreate sourceSize
-        source.ReadArray (index * uint64 groupSize, tempArray, 0, sourceSize)
+        source.Read (index * uint64 groupSize, tempArray, 0, sourceSize)
         for index = 0 to size - 1 do
             array.[offset + index] <- combine (tempArray, index * groupSize)
-
-    override this.ReadBuffer (index, buffer, size) = 
-        let mutable buffer = buffer
-        let sourceSize = size * groupSize
-        let tempArray = Array.zeroCreate sourceSize
-        source.ReadArray (index * uint64 groupSize, tempArray, 0, sourceSize)
-        for index = 0 to size - 1 do
-            buffer.[index] <- combine (tempArray, index * groupSize)
     
     override this.Lock (index, size) = source.Lock (index * uint64 groupSize, size * uint64 groupSize) |> Exclusive.map (Stream.combine groupSize combine)
 
@@ -176,27 +150,16 @@ type ChunkData<'a when 'a : unmanaged> (alignment : int) =
 
     override this.Size = size
 
-    override this.ReadArray (index, array, offset, size) =
+    override this.Read (index, array, offset, size) =
         let chunk, chunkIndex, chunkOffset = find index
         let rec read offset size (chunk : Data<'a>) chunkIndex chunkOffset =
             let chunkReadSize = chunk.Size - chunkOffset
             if size > int chunkReadSize then
-                chunk.ReadArray (chunkOffset, array, offset, int chunkReadSize)
+                chunk.Read (chunkOffset, array, offset, int chunkReadSize)
                 read (offset + int chunkReadSize) (size - int chunkReadSize) (snd chunks.[chunkIndex + 1]) (chunkIndex + 1) 0UL
             else
-                chunk.ReadArray (chunkOffset, array, offset, size)
+                chunk.Read (chunkOffset, array, offset, size)
         read offset size chunk chunkIndex chunkOffset
-
-    override this.ReadBuffer (index, buffer, size) =
-        let chunk, chunkIndex, chunkOffset = find index
-        let rec read buffer size (chunk : Data<'a>) chunkIndex chunkOffset =
-            let chunkReadSize = chunk.Size - chunkOffset
-            if size > int chunkReadSize then
-                chunk.ReadBuffer (chunkOffset, buffer, int chunkReadSize)
-                read (buffer.Advance (int chunkReadSize)) (size - int chunkReadSize) (snd chunks.[chunkIndex + 1]) (chunkIndex + 1) 0UL
-            else
-                chunk.ReadBuffer (chunkOffset, buffer, size)
-        read buffer size chunk chunkIndex chunkOffset
 
     override this.Lock (index, size) =
         let chunk, chunkIndex, chunkOffset = find index
@@ -219,15 +182,9 @@ type IOData (source : Stream) =
 
     override this.Size = uint64 source.Length
 
-    override this.ReadArray (index, array, offset, size) =
+    override this.Read (index, array, offset, size) =
         source.Position <- int64 index
         source.Read (array, offset, size) |> ignore
-
-    override this.ReadBuffer (index, buffer, size) =
-        source.Position <- int64 index
-        let readArray = Array.zeroCreate size
-        let readSize = source.Read (readArray, 0, size)
-        buffer.CopyFrom (readArray, 0, readSize)
 
     override this.Lock (index, size) = 
         source.Position <- int64 index
@@ -250,7 +207,7 @@ module Data =
         let streamobj = stream.Object
         let rec readChunk () =
             let array = Array.zeroCreate chunkSize
-            let size = streamobj.ReadArray (array, 0, chunkSize)
+            let size = streamobj.Read (array, 0, chunkSize)
             data.Append (new ArrayData<'a> (array, 0, size) :> Data<'a>)
             if size = chunkSize then readChunk ()
         readChunk ()
@@ -275,26 +232,31 @@ module Data =
     let split groupSize split source = new NotImplementedException () |> raise
 
     /// Gets a complete array copy of the given data. This should only be used on relatively small data.
-    let getArray (data : Data<'a>) =
+    let toArray (data : Data<'a>) =
         let array = Array.zeroCreate (int data.Size)
         let stream = lock data
-        data.ReadArray (0UL, array, 0, array.Length)
-        array
+        data.Read (0UL, array, 0, array.Length)
+        new ArrayData<'a> (array, 0, array.Length)
+
+    /// Returns a version of the given data whose alignment is a factor of the requested alignment.
+    let checkAlignment alignment (data : Data<'a>) =
+        if data.Alignment % alignment = 0 then data
+        else new NotImplementedException() |> raise
 
     /// Matches data for a buffer representation, if possible.
     let (|Buffer|_|) (data : Data<'a>) =
         match data with
-        | :? BufferData<'a> as x -> Some (x.Buffer)
+        | :? BufferData<'a> as data -> Some data
         | _ -> None
 
-    /// Matches data for a complete (no offset) array representation.
-    let (|ArrayComplete|) (data : Data<'a>) =
+    /// Matches data for a complete (no offset, matching size) array representation, if possible.
+    let (|ArrayComplete|_|) (data : Data<'a>) =
         match data with
-        | :? ArrayData<'a> as data when data.Offset = 0 && data.NativeSize = data.Array.Length -> data.Array
-        | _ -> getArray data
+        | :? ArrayData<'a> as data when data.Offset = 0 && data.NativeSize = data.Array.Length -> Some data
+        | _ -> None
 
-    /// Matches data for an array representation.
-    let (|Array|) (data : Data<'a>) =
+    /// Matches data for an array representation, if possible.
+    let (|Array|_|) (data : Data<'a>) =
         match data with
-        | :? ArrayData<'a> as data -> data
-        | _ -> new ArrayData<'a> (getArray data, 0, int data.Size)
+        | :? ArrayData<'a> as data -> Some data
+        | _ -> None

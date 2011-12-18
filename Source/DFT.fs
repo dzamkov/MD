@@ -147,7 +147,7 @@ type CooleyTukeyDFT (size : int, unit : DFT) =
                 while k < halfSize do
                     let e = output.[k]
                     let o = output.[k + halfSize]
-                    let twiddle = twiddles.[k * twiddles.Length / halfSize]
+                    let twiddle = twiddles.[k * (twiddles.Length / halfSize)]
                     output.[k] <- (e + twiddle * o)
                     output.[k + halfSize] <- (e - twiddle * o)
                     k <- k + 1

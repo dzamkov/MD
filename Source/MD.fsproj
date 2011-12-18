@@ -76,6 +76,7 @@
     <Compile Include="OpenTK\Texture.fs" />
     <Compile Include="OpenTK\VBO.fs" />
     <Compile Include="OpenTK\Graphics.fs" />
+	<Compile Include="OpenTK\Tile.fs" />
     <Compile Include="OpenTK\Fixed.fs" />
     <Compile Include="OpenTK\Programmable.fs" />
     <Compile Include="OpenTK\Window2.fs" />

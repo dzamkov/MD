@@ -191,7 +191,7 @@ type SpectrogramTile (cache : SpectrogramCache, minTime : float, maxTime : float
             let mutable frequency = frequency
             while depth > 0 do
                 depth <- depth - 1
-                if frequency &&& (1 <<< depth) = 1 then
+                if frequency &&& (1 <<< depth) > 0 then
                     decimateHigh signal temp size
                 else
                     decimateLow signal temp size
@@ -272,13 +272,13 @@ type SpectrogramTile (cache : SpectrogramCache, minTime : float, maxTime : float
             new NotImplementedException () |> raise
         
 
-    override this.Children =
+    override this.Divisions =
         let nextDepth = depth + 1
         let lowFrequency = frequency * 2
         let highFrequency = lowFrequency + 1
         let midTime = (minTime + maxTime) / 2.0
         let center = area.Center
-        Some [|
+        Seq.singleton [|
                 new SpectrogramTile (cache, minTime, midTime, nextDepth, lowFrequency, new Rectangle (area.Left, center.X, area.Bottom, center.Y))
                 new SpectrogramTile (cache, minTime, midTime, nextDepth, highFrequency, new Rectangle (area.Left, center.X, center.Y, area.Top))
                 new SpectrogramTile (cache, midTime, maxTime, nextDepth, lowFrequency, new Rectangle (center.X, area.Right, area.Bottom, center.Y))

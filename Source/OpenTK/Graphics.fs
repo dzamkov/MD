@@ -42,6 +42,9 @@ type Context () =
 
     /// Pops the most recent effect on the effect stack.
     abstract member Pop : unit -> unit
+    
+    /// Gets a point that gives the resolution (pixel area per unit) of each axis in worldspace.
+    abstract member Resolution : Point
 
     /// Gets the current transform from worldspace to viewspace.
     abstract member Transform : Transform
@@ -51,6 +54,22 @@ type Context () =
 
     /// Renders a 2D texture to the unit square using this context.
     abstract member RenderTexture : Texture -> unit
+
+    /// Determines wether the given rectangle is in the current view.
+    member this.IsVisible (rect : Rectangle) =
+
+        // Checks if one of the edges of rectangle "A" is a separating axis for rectangle "B" when
+        // the given transform is applied to "B".
+        let check (A : Rectangle) (B : Rectangle) (transform : Transform) =
+            let a, b, c, d = B.BottomLeft, B.BottomRight, B.TopLeft, B.TopRight
+            let a, b, c, d = transform * a, transform * b, transform * c, transform * d
+            (a.X < A.Left && b.X < A.Left && c.X < A.Left && d.X < A.Left) ||
+            (a.Y < A.Bottom && b.Y < A.Bottom && c.Y < A.Bottom && d.Y < A.Bottom) ||
+            (a.X > A.Right && b.X > A.Right && c.X > A.Right && d.X > A.Right) ||
+            (a.Y > A.Top && b.Y > A.Top && c.Y > A.Top && d.Y > A.Top)
+
+        let transform = this.Transform
+        not (check Rectangle.View rect transform || check rect Rectangle.View transform.Inverse)
 
 /// Describes a rendering procedure that manipulates a graphics context in order to produce a visual object or
 /// effect. Procedures are used for rendering operations that occur often, are complex, or require continuity.

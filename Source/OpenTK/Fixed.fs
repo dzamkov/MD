@@ -10,7 +10,7 @@ open OpenTK.Graphics.OpenGL
 open GLExtensions
 
 /// A render context for a graphics interface using a fixed-function pipeline.
-type FixedContext () =
+type FixedContext (width, height) =
     inherit OpenTK.Context ()
     let effectRemoveStack = new Stack<unit -> unit> ()
     let mutable transform = Transform.Identity
@@ -33,6 +33,14 @@ type FixedContext () =
         let removeEffect = effectRemoveStack.Pop ()
         removeEffect ()
 
+    override this.Resolution =
+        let hRes = transform.X
+        let vRes = transform.Y
+        let unitArea = hRes.Normal ^^ vRes.Normal
+        let hRes = hRes.Length * unitArea
+        let vRes = vRes.Length * unitArea
+        new Point (hRes * float width / 2.0, vRes * float height / 2.0)
+
     override this.Transform = transform
 
     override this.RenderLine line =
@@ -52,7 +60,7 @@ type FixedContext () =
     override this.RenderTexture texture =
         
         // Use immediate mode, for now.
-        GL.Color4 Paint.White
+        GL.Color3 (1.0, 1.0, 1.0)
         GL.BindTexture2D texture
         GL.Begin BeginMode.Quads
         GL.TexCoord2 (0.0, 0.0)
@@ -75,7 +83,10 @@ type FixedGraphics () =
         GL.Enable EnableCap.Blend
         GL.BlendFunc (BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha)
 
-    override this.CreateContext () = new FixedContext () :> OpenTK.Context
+    override this.CreateContext () = 
+        let viewport = Array.zeroCreate 4
+        GL.GetInteger (GetPName.Viewport, viewport)
+        new FixedContext (viewport.[2], viewport.[3]) :> OpenTK.Context
 
     override this.CreateProcedure figure =
         match figure with
@@ -89,4 +100,5 @@ type FixedGraphics () =
             | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
             | _ -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
             new TextureProcedure (texture |> Exclusive.custom (fun tex -> tex.Delete ())) :> Procedure
+        | Tile tile -> new TileProcedure (tile) :> Procedure
         | _ -> NullProcedure.Instance :> Procedure

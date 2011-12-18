@@ -111,7 +111,7 @@ type Window () =
         let parameters = {
                 Samples = floatData
                 Window = Window.hamming
-                WindowSize = 4096.0 * 4.0
+                WindowSize = 4096.0 * 2.0
                 Scaling = (fun x y -> y * 100.0)
                 Gradient = gradient
             }
@@ -120,16 +120,9 @@ type Window () =
         let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 
         let spectrogramTile = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0.0, 1.0, 0, 0, area)
 
-        let image = ref None
-        let gotImage (im : Image exclusive) = image := Some im.Object
-        spectrogramTile.RequestImage ((512, 512), gotImage) |> ignore
-
         // Figure
         let getFigure playSample =
-            let image = 
-                match !image with
-                | Some image -> Figure.placeImage area image ImageInterpolation.Linear
-                | None -> Figure.tile spectrogramTile
+            let image = Figure.tile spectrogramTile
             let linex = 2.0 * float playSample / float floatData.Size - 1.0
             let line = Figure.line { A = new Point (linex, -1.0); B = (new Point (linex, 1.0)); Weight = 0.002; Paint = Paint.ARGB (1.0, 1.0, 0.3, 0.0) }
             image + line
@@ -141,6 +134,7 @@ type Window () =
         control.Fire AudioControl.Play
 
     override this.OnRenderFrame args =
+        GL.Clear ClearBufferMask.ColorBufferBit
         graphics.Render (figure.Current * projection.Current.Inverse)
         this.SwapBuffers ()
 

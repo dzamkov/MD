@@ -27,6 +27,12 @@ type Point (x : float, y : float) =
         static member (/) (a : Point, b : double) =
             new Point (a.X / b, a.Y / b)
 
+        /// Computes the dot product of two offsets.
+        static member (*) (a : Point, b : Point) = a.X * b.X + a.Y * b.Y
+
+        /// Computes the wedge product of two offsets.
+        static member (^^) (a : Point, b : Point) = a.X * b.Y - a.Y * b.X
+
         /// Doesn't do anything.
         static member (~+) (a : Point) = a
 
@@ -71,6 +77,12 @@ type Rectangle (left : float, right : float, bottom : float, top : float) =
 
         /// Gets a rectangle that contains all points.
         static member Unbound = new Rectangle (-infinity, infinity, -infinity, infinity)
+
+        /// Gets the unit square in the first quadrant.
+        static member Unit = new Rectangle (0.0, 1.0, 0.0, 1.0)
+
+        /// A square with edge length 2.0 centered on the origin.
+        static member View = new Rectangle (-1.0, 1.0, -1.0, 1.0)
 
         /// Gets a rectangle that contains no points.
         static member Null = new Rectangle (infinity, -infinity, infinity, -infinity)

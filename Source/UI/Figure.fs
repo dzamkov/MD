@@ -24,9 +24,10 @@ type Tile (area : Rectangle) =
     /// called, the image is no longer needed, but the callback may still be called.
     abstract member RequestImage : suggestedSize : (int * int) * callback : (Image exclusive -> unit) -> Retract
 
-    /// Subdivides this tile to get its children. The children collectively should occupy the same area as
-    /// the parent, but they do not have to be placed in a regular pattern.
-    abstract member Children : Tile[] option
+    /// A list of available non-trivial divisions of this tile such that the tiles in a division do not overlap
+    /// and collectively occupy the entire area of the root tile. These tiles can be queried for more accurate images
+    /// of their respective areas.
+    abstract member Divisions : seq<Tile[]>
 
 /// A figure for a solid, colored line.
 type Line = {

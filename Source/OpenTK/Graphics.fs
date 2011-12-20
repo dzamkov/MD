@@ -55,6 +55,17 @@ type Context () =
     /// Renders a 2D texture to the unit square using this context.
     abstract member RenderTexture : Texture -> unit
 
+    /// Gets the smallest rectangle that contains all points visible by the current view.
+    member this.ViewBounds = 
+        let view = this.Transform.Inverse
+        let a, b, c, d = new Point (-1.0, -1.0), new Point (1.0, -1.0), new Point (-1.0, 1.0), new Point (1.0, 1.0)
+        let a, b, c, d = view * a, view * b, view * c, view * d
+        let minX = a.X |> min b.X |> min c.X |> min d.X
+        let minY = a.Y |> min b.Y |> min c.Y |> min d.Y
+        let maxX = a.X |> max b.X |> max c.X |> max d.X
+        let maxY = a.Y |> max b.Y |> max c.Y |> max d.Y
+        new Rectangle (minX, maxX, minY, maxY)
+
     /// Determines wether the given rectangle is in the current view.
     member this.IsVisible (rect : Rectangle) =
 

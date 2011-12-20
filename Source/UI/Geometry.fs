@@ -94,6 +94,10 @@ type Rectangle (left : float, right : float, bottom : float, top : float) =
         /// Adds an offset from this rectangle.
         static member (-) (a : Rectangle, b : Point) =
             new Rectangle (a.Left - b.X, a.Right - b.X, a.Bottom - b.Y, a.Top - b.Y)
+
+        /// Gets the intersection of two rectangles.
+        static member (&&&) (a : Rectangle, b : Rectangle) =
+            new Rectangle (max a.Left b.Left, min a.Right b.Right, max a.Bottom b.Bottom, min a.Top b.Top)
         
         /// Gets the horizontal component of the left edge of this rectangle.
         member this.Left = left
@@ -124,6 +128,12 @@ type Rectangle (left : float, right : float, bottom : float, top : float) =
 
         /// Gets an offset for the size of this rectangle.
         member this.Size = new Point (right - left, top - bottom)
+
+        /// Gets the width of this rectangle.
+        member this.Width = right - left
+
+        /// Gets the height of this rectangle.
+        member this.Height = top - bottom
 
         /// Gets the area of this rectangle.
         member this.Area = (right - left) * (top - bottom)

@@ -118,11 +118,11 @@ type Window () =
 
         // Spectrogram
         let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 
-        let spectrogramTile = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0.0, 1.0, 0, 0, area)
+        let spectrogram = new SpectrogramTileImage (parameters, area)
 
         // Figure
         let getFigure playSample =
-            let image = Figure.tile spectrogramTile
+            let image = Figure.tileImage spectrogram
             let linex = 2.0 * float playSample / float floatData.Size - 1.0
             let line = Figure.line { A = new Point (linex, -1.0); B = (new Point (linex, 1.0)); Weight = 0.002; Paint = Paint.ARGB (1.0, 1.0, 0.3, 0.0) }
             image + line

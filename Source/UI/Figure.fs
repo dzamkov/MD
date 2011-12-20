@@ -1,6 +1,7 @@
 ﻿namespace MD.UI
 
 open MD
+open Util
 
 /// Identifies an interpolation mode for an image.
 type ImageInterpolation = 
@@ -8,26 +9,31 @@ type ImageInterpolation =
     | Linear
     | Cubic
 
-/// A tile in a dynamically-loaded image. Tile-based figures should be used when
-/// there is a large amount of image data that isn't immediately available and needs
-/// to be requested on-the-fly.
+/// A large or complex dynamically-loaded image made up of tiles containing images that can
+/// be loaded upon request.
 [<AbstractClass>]
-type Tile (area : Rectangle) =
+type TileImage (area : Rectangle) =
 
-    /// Gets the rectangular area this tile occupies. Note that it is possible for the area to be
-    /// infinite, in which case, requesting an image for the tile is not valid, but there may be
-    /// a child tile with a finite area for which an image can be requested.
+    /// Gets the rectangular area this image occupies. Note that this can be infinite.
     member this.Area = area
 
-    /// Requests an image for this tile. A suggested size for the image is given. When the image 
-    /// is available, the provided callback should be called with it. If the returned retract action is
-    /// called, the image is no longer needed, but the callback may still be called.
-    abstract member RequestImage : suggestedSize : (int * int) * callback : (Image<Paint> exclusive -> unit) -> Retract
+/// A tile image with a specific tile type.
+[<AbstractClass>]
+type TileImage<'a when 'a : equality> (area : Rectangle) =
+    inherit TileImage (area)
 
-    /// A list of available non-trivial divisions of this tile such that the tiles in a division do not overlap
-    /// and collectively occupy the entire area of the root tile. These tiles can be queried for more accurate images
-    /// of their respective areas.
-    abstract member Divisions : seq<Tile[]>
+    /// Gets the tiles of the most appropriate resolution that intersect the given area with resolution
+    /// given in pixels per unit along each axis. The returned tiles should not overlap each other and should
+    /// collectively cover the entire area given.
+    abstract member GetTiles : area : Rectangle * resolution : Point -> seq<'a>
+
+    /// Gets the area occupied by the given tile.
+    abstract member GetTileArea : tile : 'a -> Rectangle
+
+    /// Requests the image for the given tile. When the image is available, the provided callback
+    /// should be called with an exclusive handle to it. If the returned retract action is
+    /// called, the image is no longer needed, but may still be provided.
+    abstract member RequestTileImage : tile : 'a * callback : (Image exclusive -> unit) -> Retract
 
 /// A figure for a solid, colored line.
 type Line = {
@@ -71,7 +77,6 @@ type RenderHint =
 type Figure =
     | Null
     | Solid of Color
-    | Image of Image<Paint> * ImageInterpolation
     | Modulate of Paint * Figure
     | Transform of Transform * Figure
     | Composite of Figure * Figure
@@ -79,7 +84,8 @@ type Figure =
     | Hint of RenderHint * Figure
     | Sample of Sample
     | Line of Line
-    | Tile of Tile
+    | Image of Image * ImageInterpolation
+    | TileImage of TileImage
 
     /// Constructs a transformed figure.
     static member (*) (a : Figure, b : Transform) =
@@ -115,7 +121,7 @@ module Figure =
     let placeImage area image interpolation = Figure.Transform (Transform.Place area, Figure.Image (image, interpolation))
 
     /// Constructs a figure for a tile image.
-    let tile tile = Figure.Tile tile
+    let tileImage tile = Figure.TileImage tile
 
     /// Constructs a transformed form of a figure.
     let transform transform figure = Figure.Transform (transform, figure)

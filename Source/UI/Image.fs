@@ -22,6 +22,9 @@ type Image<'a when 'a : unmanaged> (width : int, height : int) =
     /// Reads the entirety of this image into the given row-major array, starting at the given offset.
     abstract member Read : array : 'a[] * offset : int -> unit
 
+/// Create type abbreviation for image (since an "image" is usually an image of paints).
+type Image = Image<Paint>
+
 /// A color image from a System.Drawing.Bitmap.
 [<Sealed>]
 type BitmapColorImage (bitmap : Bitmap) =
@@ -81,6 +84,7 @@ type GradientImage (source : Image<float>, gradient : Gradient) =
             array.[index + offset] <- gradient.GetColor tempArray.[index]
 
 /// Contains functions for constructing and manipulating images.
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Image =
 
     /// Creates a color image from a System.Drawing.Bitmap representation.

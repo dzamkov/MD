@@ -86,16 +86,44 @@ type SpectrogramCache = {
             this.Windows.Add (depth, window)
             window
 
+/// A tile for a spectrogram tile image.
+type SpectrogramTile = {
+    MinTime : float
+    MaxTime : float
+    Depth : int
+    Frequency : int
+    }
+
 /// A tile image for a spectrogram.
-type SpectrogramTile (cache : SpectrogramCache, minTime : float, maxTime : float, depth : int, frequency : int, area : Rectangle) =
-    inherit Tile (area)
-    new (parameters : SpectrogramParameters, area : Rectangle) = new SpectrogramTile (SpectrogramCache.Initialize parameters, 0.0, 1.0, 0, 0, area)
+type SpectrogramTileImage (parameters : SpectrogramParameters, area : Rectangle) =
+    inherit TileImage<SpectrogramTile> (area)
+    let cache = SpectrogramCache.Initialize parameters
 
     /// Gets the parameters for this spectrogram tile.
     member this.Parameters = cache.Parameters
 
-    override this.RequestImage (suggestedSize, callback) =
-        let width, height = suggestedSize
+    override this.GetTiles (area, resolution) =
+        
+        // Just use one big tile for now, for testing purposes.
+        Seq.singleton {
+                MinTime = 0.0
+                MaxTime = 1.0
+                Depth = 0
+                Frequency = 0
+            }
+
+    override this.GetTileArea tile =
+        let area = this.Area
+        let depth = tile.Depth
+        let height = area.Height / float (1 <<< depth)
+        new Rectangle (
+            area.Left + area.Width * tile.MinTime, 
+            area.Left + area.Width * tile.MaxTime, 
+            area.Bottom + height * float tile.Frequency, 
+            area.Bottom + height * float (tile.Frequency + 1))
+
+    override this.RequestTileImage (tile, callback) =
+        let width, height = 256, 256
         let parameters = cache.Parameters
         let samples = parameters.Samples
         let totalSampleCount = samples.Size
@@ -107,17 +135,19 @@ type SpectrogramTile (cache : SpectrogramCache, minTime : float, maxTime : float
 
         // Set an upper bound on height such that there is no frequency interpolation in
         // the result.
+        let depth = tile.Depth
         let height = min height (inputSize / (1 <<< depth) / 2)
 
         // Determine the time range and input delta for the spectrogram.
-        let minTime = minTime * float totalSampleCount
-        let maxTime = maxTime * float totalSampleCount
+        let minTime = tile.MinTime * float totalSampleCount
+        let maxTime = tile.MaxTime * float totalSampleCount
         let timeRange = maxTime - minTime
         let inputDelta = timeRange / float width
 
         // Determine how to blit DFT output data to an image.
         let gradient = parameters.Gradient
         let scaling = parameters.Scaling
+        let frequency = tile.Frequency
         let frequencyRange = 1.0 / float (1 <<< depth)
         let minFrequency = float frequency * frequencyRange
         let frequencyDelta = frequencyRange / float height 
@@ -270,17 +300,3 @@ type SpectrogramTile (cache : SpectrogramCache, minTime : float, maxTime : float
             Task.start (task >> callback)
         else
             new NotImplementedException () |> raise
-        
-
-    override this.Divisions =
-        let nextDepth = depth + 1
-        let lowFrequency = frequency * 2
-        let highFrequency = lowFrequency + 1
-        let midTime = (minTime + maxTime) / 2.0
-        let center = area.Center
-        Seq.singleton [|
-                new SpectrogramTile (cache, minTime, midTime, nextDepth, lowFrequency, new Rectangle (area.Left, center.X, area.Bottom, center.Y))
-                new SpectrogramTile (cache, minTime, midTime, nextDepth, highFrequency, new Rectangle (area.Left, center.X, center.Y, area.Top))
-                new SpectrogramTile (cache, midTime, maxTime, nextDepth, lowFrequency, new Rectangle (center.X, area.Right, area.Bottom, center.Y))
-                new SpectrogramTile (cache, midTime, maxTime, nextDepth, highFrequency, new Rectangle (center.X, area.Right, center.Y, area.Top))
-            |]

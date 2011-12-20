@@ -100,5 +100,5 @@ type FixedGraphics () =
             | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
             | _ -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
             new TextureProcedure (texture |> Exclusive.custom (fun tex -> tex.Delete ())) :> Procedure
-        | Tile tile -> new TileProcedure (tile) :> Procedure
+        | TileImage tileImage -> TileProcedure.create tileImage
         | _ -> NullProcedure.Instance :> Procedure

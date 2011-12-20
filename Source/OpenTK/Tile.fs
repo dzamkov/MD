@@ -3,6 +3,7 @@
 open MD
 open MD.UI
 open MD.OpenTK
+open MD.Reflection
 open System
 open System.Collections.Generic
 open global.OpenTK
@@ -10,52 +11,46 @@ open OpenTK.Graphics
 open OpenTK.Graphics.OpenGL
 open GLExtensions
 
-/// Cached information about a tile for a tile procedure.
-type TileData = {
+/// Cached information about a tile in a tile procedure.
+type TileData<'a> = {
     
     /// The tile this data is for.
-    Tile : Tile
+    Tile : 'a
 
-    /// The texture for this tile, if one is loaded.
+    /// The texture for this tile, if loaded.
     mutable Texture : Texture exclusive option
 
-    /// The image for this tile, if it is available and has yet to be converted
-    /// into a texture.
-    mutable Image : Image<Paint> exclusive option
+    /// The image for this tile, if loaded. Note that the image will be released as
+    /// soon as a texture is created for it.
+    mutable Image : Image exclusive option
 
-    /// A retract action to cancel the image request for this tile, if one is active.
-    mutable RetractRequest : Retract option
-    
-    /// The tile data for the tiles of the selected division of this tile, if loaded.
-    mutable Division : TileData[] option
+    /// A retract action to quit loading the tile data, if it is currently loading.
+    mutable RetractLoad : Retract option
 
     } with
 
-    /// Creates an empty tile data record for the given tile.
-    static member Create (tile : Tile) = {
-            Tile = tile
-            Texture = None
-            Image = None
-            RetractRequest = None
-            Division = None
-        }
+    /// Initializes tile data for the given tile.
+    static member Initialize (tile : 'a) = { Tile = tile; Texture = None; Image = None; RetractLoad = None }
 
-    /// Gets the area this tile occupies.
-    member this.Area = this.Tile.Area
+    /// Processes this tile data in order to find its texture. If not available, None is
+    /// returned.
+    member this.Process () =
+        match this.Image, this.Texture with
+        | Some image, _ ->
+            let texture = Texture.Create !!image
+            Texture.CreateMipmap GenerateMipmapTarget.Texture2D
+            Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
+            image.Finish ()
+            this.Image <- None
+            this.Texture <- Some (texture |> Exclusive.custom (fun texture -> texture.Delete ()))
+            Some texture
+        | _, Some texture -> Some !!texture
+        | _, _ -> None
 
-    /// Gets the tile data for the tiles in the selected division of this tile. If a division has
-    /// not yet been selected, one will be chosen based on the current render resolution. If there are
-    /// no available divisions, None is returned.
-    member this.GetDivision (resolution : Point) =
-        match this.Division with
-        | Some division -> division
-        | None ->
-            let division = Seq.head this.Tile.Divisions
-            let division = Array.map TileData.Create division
-            this.Division <- Some division
-            division
+    /// Gets wether the image data for this tile is currently loading.
+    member this.Loading = this.RetractLoad.IsSome
 
-    /// Deletes this tile data and all of its children.
+    /// Deletes this tile data.
     member this.Delete () =
         match this.Texture with
         | Some texture -> texture.Finish ()
@@ -63,104 +58,57 @@ type TileData = {
         match this.Image with
         | Some image -> image.Finish ()
         | None -> ()
-        match this.Division with
-        | Some division -> for tile in division do tile.Delete ()
-        | None -> ()
-        this.Texture <- None
-        this.Image <- None
-        this.Division <- None
-
-    /// Processes this tile and returns true if it is ready to render.
-    member this.Process isRoot = 
-
-        // If there is image data, load it as a texture.
-        match this.Image with
-        | Some image ->
-
-            // Release current texture.
-            match this.Texture with
-            | Some texture -> texture.Finish ()
-            | None -> ()
-
-            // Create new texture.
-            let texture = Texture.Create !!image
-            if isRoot then
-
-                // Only generate mipmaps for the root tile.
-                Texture.CreateMipmap GenerateMipmapTarget.Texture2D
-                Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
-            else
-                Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.Linear, TextureMagFilter.Nearest)
-            this.Texture <- Some (texture |> Exclusive.custom (fun texture -> texture.Delete ()))
-
-            // Free image.
-            image.Finish ()
-            this.Image <- None
-            true
-
-        | None -> this.Texture.IsSome
-
-    /// Tries rendering this tile with the given context.
-    member this.Render (context : Context) = 
-        match this.Texture with
-        | Some texture -> 
-            context.PushTransform (Transform.Place this.Area)
-            context.RenderTexture texture.Object
-            context.Pop ()
-        | None -> ()
-
-/// A procedure for rendering a tiled image.
-type TileProcedure (tile : Tile) =
-    inherit Procedure ()
-    let mutable deleted = false
-    let root = TileData.Create tile : TileData
-
-    /// Indicates wether this procedure has been deleted.
-    member this.Deleted = deleted
-
-    /// Handles the loading of an image into tile data.
-    member this.Load (tile : TileData) (image : Image<Paint> exclusive) =
-        if deleted then image.Finish ()
-        else 
-            tile.Image <- Some image
-            tile.RetractRequest <- None
-
-    /// Begins loading image data for the given tile.
-    member this.BeginLoad (tile : TileData) suggestedSize =
-        tile.RetractRequest <- Some (tile.Tile.RequestImage (suggestedSize, this.Load tile))
-
-    override this.Invoke context =
-        let resolution = context.Resolution
-        let toRender = new Stack<TileData> ()
-
-        // Updates the given tile and its subtiles and prepares them for rendering. Returns true if the tile will
-        // be completely opaque when rendered.
-        let rec update isRoot (tile : TileData) =
-            let area = tile.Area
-            if context.IsVisible area then
-                let tilePixelScale = Point.Scale (area.Size, resolution)
-                if tilePixelScale.Length > 900.0 then 
-                    let mutable shouldRender = false
-                    for subTile in tile.GetDivision resolution do
-                        let opaque = update false subTile
-                        shouldRender <- shouldRender || not opaque
-                    if shouldRender then
-                        if tile.Process isRoot then
-                            toRender.Push tile
-                            true
-                        else
-                            if tile.RetractRequest.IsNone then this.BeginLoad tile (256, 256)
-                            false
-                    else false
-                else false
-            else false
-
-        update true root |> ignore
-        for tile in toRender do
-            tile.Render context
-
         
 
-    override this.Delete () = 
+/// A procedure for rendering a tile image (with a specific tile type).
+type TileProcedure<'a when 'a : equality> (image : TileImage<'a>) =
+    inherit Procedure ()
+    let tileCache = new Dictionary<'a, TileData<'a>> ()
+    let mutable deleted = false
+
+    /// Gets wether this tile procedure has been deleted.
+    member this.Deleted = deleted
+
+    /// Begins loading the image for the given tile data.
+    member this.BeginLoad (tileData : TileData<'a>) =
+        let tile = tileData.Tile
+        let onLoad (image : Image exclusive) =
+            if this.Deleted then image.Finish ()
+            else 
+                tileData.Image <- Some image
+                tileData.RetractLoad <- None
+        tileData.RetractLoad <- Some (image.RequestTileImage (tile, onLoad))
+
+    /// Gets the cached tile data for the given tile, creating it if needed.
+    member this.GetTileData (tile : 'a) =
+        let mutable tileData = Unchecked.defaultof<TileData<'a>>
+        if tileCache.TryGetValue (tile, &tileData) then tileData
+        else
+            let tileData = TileData.Initialize tile
+            tileCache.Add (tile, tileData)
+            tileData
+
+    override this.Invoke context = 
+        let tiles = image.GetTiles (context.ViewBounds &&& image.Area, context.Resolution)
+        for tile in tiles do
+            let tileData = this.GetTileData tile
+            match tileData.Process () with
+            | Some texture ->
+                context.PushTransform (Transform.Place (image.GetTileArea tile))
+                context.RenderTexture texture
+                context.Pop ()
+            | None -> if not tileData.Loading then this.BeginLoad tileData
+
+    override this.Delete () =
         deleted <- true
-        root.Delete ()
+        for kvp in tileCache do
+            kvp.Value.Delete ()
+
+/// Contains functions for constructing and manipulating tile procedures.
+module TileProcedure =
+
+    let genericTileImageType = typeof<TileImage<unit>>.GetGenericTypeDefinition ()
+    let genericTileProcedureType = typeof<TileProcedure<unit>>.GetGenericTypeDefinition ()
+
+    /// Creates a tile procedure for the given image.
+    let create : TileImage -> Procedure = mapType genericTileImageType genericTileProcedureType

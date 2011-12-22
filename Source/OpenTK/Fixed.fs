@@ -93,8 +93,8 @@ type FixedGraphics () =
         | Transform (transform, figure) -> new TransformProcedure (this.GetProcedure figure, transform) :> Procedure
         | Composite (a, b) -> new SequentialProcedure [| this.GetProcedure a; this.GetProcedure b |] :> Procedure
         | Line line -> new LineProcedure (line) :> Procedure
-        | Image (image, interpolation) ->
-            let texture = Texture.Create image
+        | Image (image, size, interpolation) ->
+            let texture = Texture.Create (image, size)
             Texture.CreateMipmap GenerateMipmapTarget.Texture2D
             match interpolation with
             | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)

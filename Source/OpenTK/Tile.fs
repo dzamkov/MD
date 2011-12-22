@@ -22,7 +22,7 @@ type TileData<'a> = {
 
     /// The image for this tile, if loaded. Note that the image will be released as
     /// soon as a texture is created for it.
-    mutable Image : Image exclusive option
+    mutable Image : (Image exclusive * ImageSize) option
 
     /// A retract action to quit loading the tile data, if it is currently loading.
     mutable RetractLoad : Retract option
@@ -36,8 +36,8 @@ type TileData<'a> = {
     /// returned.
     member this.Process () =
         match this.Image, this.Texture with
-        | Some image, _ ->
-            let texture = Texture.Create !!image
+        | Some (image, imageSize), _ ->
+            let texture = Texture.Create (!!image, imageSize)
             Texture.CreateMipmap GenerateMipmapTarget.Texture2D
             Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
             image.Finish ()
@@ -56,7 +56,7 @@ type TileData<'a> = {
         | Some texture -> texture.Finish ()
         | None -> ()
         match this.Image with
-        | Some image -> image.Finish ()
+        | Some (image, _) -> image.Finish ()
         | None -> ()
         
 
@@ -72,10 +72,10 @@ type TileProcedure<'a when 'a : equality> (image : TileImage<'a>) =
     /// Begins loading the image for the given tile data.
     member this.BeginLoad (tileData : TileData<'a>) =
         let tile = tileData.Tile
-        let onLoad (image : Image exclusive) =
+        let onLoad (image : Image exclusive, imageSize) =
             if this.Deleted then image.Finish ()
             else 
-                tileData.Image <- Some image
+                tileData.Image <- Some (image, imageSize)
                 tileData.RetractLoad <- None
         tileData.RetractLoad <- Some (image.RequestTileImage (tile, onLoad))
 

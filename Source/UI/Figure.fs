@@ -33,7 +33,7 @@ type TileImage<'a when 'a : equality> (area : Rectangle) =
     /// Requests the image for the given tile. When the image is available, the provided callback
     /// should be called with an exclusive handle to it. If the returned retract action is
     /// called, the image is no longer needed, but may still be provided.
-    abstract member RequestTileImage : tile : 'a * callback : (Image exclusive -> unit) -> Retract
+    abstract member RequestTileImage : tile : 'a * callback : (Image exclusive * ImageSize -> unit) -> Retract
 
 /// A figure for a solid, colored line.
 type Line = {
@@ -84,7 +84,7 @@ type Figure =
     | Hint of RenderHint * Figure
     | Sample of Sample
     | Line of Line
-    | Image of Image * ImageInterpolation
+    | Image of Image * ImageSize * ImageInterpolation
     | TileImage of TileImage
 
     /// Constructs a transformed figure.
@@ -114,11 +114,11 @@ module Figure =
 
     /// Constructs a figure for an image placed in the unit square. Note that this figure will respect 
     /// the transparency information encoded in the image, if any.
-    let image image interpolation = Figure.Image (image, interpolation)
+    let image (image, size) interpolation = Figure.Image (image, size, interpolation)
 
     /// Constructs a figure for an image placed in the given rectangular area. Note that this figure will respect 
     /// the transparency information encoded in the image, if any.
-    let placeImage area image interpolation = Figure.Transform (Transform.Place area, Figure.Image (image, interpolation))
+    let placeImage area (image, size) interpolation = Figure.Transform (Transform.Place area, Figure.Image (image, size, interpolation))
 
     /// Constructs a figure for a tile image.
     let tileImage tile = Figure.TileImage tile

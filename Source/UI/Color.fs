@@ -1,5 +1,7 @@
 ﻿namespace MD.UI
 
+open MD
+
 /// Represents a color (with no transparency information).
 type Color (r : float, g : float, b : float) =
     struct
@@ -13,6 +15,14 @@ type Color (r : float, g : float, b : float) =
         /// Creates a color based on its RGB representation.
         static member RGB (r : float, g : float, b : float) =
             new Color (r, g, b)
+
+        /// Creates a color based on its RGB representation.
+        static member RGB (r : int, g : int, b : int) =
+            new Color (float r / 256.0, float g / 256.0, float b / 256.0)
+
+        /// Creates a color based on its RGB representation.
+        static member RGB (r : byte, g : byte, b : byte) =
+            new Color (float r / 256.0, float g / 256.0, float b / 256.0)
 
         /// Blends two colors using the given amount (between 0.0 and 1.0) to determine
         /// what portion of the final color is the second color.
@@ -64,6 +74,7 @@ type GradientStop = {
 
 /// A continuous mapping of real values to colors.
 type Gradient (stops : GradientStop[]) =
+    inherit Map<float, Color> ()
     
     /// Gets the stops for this gradient. Note that there must be at least one stop and the stop(s)
     /// are given in order of ascending value.
@@ -75,8 +86,7 @@ type Gradient (stops : GradientStop[]) =
     /// Gets the maximum value for which this gradient has a unique color.
     member this.Maximum = stops.[stops.Length - 1].Value
 
-    /// Gets the color of the gradient for the given value.
-    member this.GetColor value = 
+    override this.Get value = 
         let rec search low lowStop high highStop value =
             if high = low + 1 then 
                 Color.Blend (lowStop.Color, highStop.Color, (value - lowStop.Value) / (highStop.Value - lowStop.Value))
@@ -109,20 +119,38 @@ type Paint (alpha : float, pre : Color) =
         static member Transparent = new Paint (0.0, Color.White)
 
         /// Creates a paint based on its post-multiplied argb representation.
-        static member ARGB (a : float, source : Color) =
-            new Paint (a, source * a)
-
-        /// Creates a paint based on its post-multiplied argb representation.
         static member ARGB (a : float, r : float, g : float, b : float) =
             new Paint (a, new Color (a * r, a * g, a * b))
 
-        /// Creates an opaque paint based on its rgb representation.
-        static member RGB (source : Color) =
-            new Paint (1.0, source)
+        /// Creates a paint based on its post-multiplied argb representation.
+        static member ARGB (a : int, r : int, g : int, b : int) =
+            let a = float a / 256.0
+            new Paint (a, new Color (a * float r / 256.0, a * float g / 256.0, a * float b / 256.0))
+
+        /// Creates a paint based on its post-multiplied argb representation.
+        static member ARGB (a : byte, r : byte, g : byte, b : byte) =
+            let a = float a / 256.0
+            new Paint (a, new Color (a * float r / 256.0, a * float g / 256.0, a * float b / 256.0))
 
         /// Creates an opaque paint based on its rgb representation.
         static member RGB (r : float, g : float, b : float) =
             new Paint (1.0, new Color (r, g, b))
+
+        /// Creates an opaque paint based on its rgb representation.
+        static member RGB (r : int, g : int, b : int) =
+            new Paint (1.0, new Color (float r / 256.0, float g / 256.0, float b / 256.0))
+
+        /// Creates an opaque paint based on its rgb representation.
+        static member RGB (r : byte, g : byte, b : byte) =
+            new Paint (1.0, new Color (float r / 256.0, float g / 256.0, float b / 256.0))
+
+        /// Creates an opaque paint for the given color.
+        static member Opaque (source : Color) =
+            new Paint (1.0, source)
+
+        /// Creates a paint with the given (post-multiplied) color and alpha.
+        static member Make (alpha : float, source : Color) =
+            new Paint (alpha, source * alpha)
 
         /// Modulates a paint with a color.
         static member (*) (a : Paint, b : Color) =

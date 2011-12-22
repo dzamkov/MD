@@ -94,6 +94,32 @@ type SpectrogramTile = {
     Frequency : int
     }
 
+(* For the next version of the spectrogram
+/// A tile for a spectrogram tile image.
+type SpectrogramTile = {
+
+    /// The first time sample in the range of this spectrogram tile.
+    MinTime : uint64
+
+    /// The amount of time samples this spectrogram tile covers.
+    TimeRange : uint64
+
+    /// The first frequency sample in the range of this spectrogram tile.
+    MinFrequency : int
+
+    /// The amount of frequency samples this spectrogram tile covers. This must be a power
+    /// of two less than or equal to the window size.
+    FrequencyRange : int
+
+    /// The width, in pixels, of the tile.
+    Width : int
+
+    /// The height, in pixels, of the tile.
+    Height : int
+
+    }
+*)
+
 /// A tile image for a spectrogram.
 type SpectrogramTileImage (parameters : SpectrogramParameters, area : Rectangle) =
     inherit TileImage<SpectrogramTile> (area)
@@ -249,7 +275,8 @@ type SpectrogramTileImage (parameters : SpectrogramParameters, area : Rectangle)
 
             // Define task.
             let task () =
-                let image = new ArrayImage<float> (width, height)
+                let imageSize = new ImageSize (width, height)
+                let image = new ArrayImage<float> (imageSize)
                 let inputArray = Array.zeroCreate<float> inputSize
                 let tempArray = Array.zeroCreate<float> (inputSize / 2)
                 let outputArray = Array.zeroCreate<Complex> dftSize
@@ -295,7 +322,8 @@ type SpectrogramTileImage (parameters : SpectrogramParameters, area : Rectangle)
                 unpinWindow ()
 
                 // Return image.
-                image |> Image.gradient gradient |> Image.opaque |> Exclusive.make
+                let image = Map.compose image gradient |> Image.opaque |> Exclusive.make
+                (image, imageSize)
 
             Task.start (task >> callback)
         else

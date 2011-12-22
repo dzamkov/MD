@@ -47,6 +47,7 @@
     <Compile Include="Retract.fs" />
     <Compile Include="Util.fs" />
     <Compile Include="Reflection.fs" />
+    <Compile Include="Map.fs" />
     <Compile Include="Buffer.fs" />
     <Compile Include="Cache.fs" />
     <Compile Include="Task.fs" />

@@ -243,19 +243,19 @@ module Data =
         if data.Alignment % alignment = 0 then data
         else new NotImplementedException() |> raise
 
-    /// Matches data for a buffer representation, if possible.
+    /// Matches data for a buffer representation.
     let (|Buffer|_|) (data : Data<'a>) =
         match data with
         | :? BufferData<'a> as data -> Some data
         | _ -> None
 
-    /// Matches data for a complete (no offset, matching size) array representation, if possible.
+    /// Matches data for a complete (no offset, matching size) array representation.
     let (|ArrayComplete|_|) (data : Data<'a>) =
         match data with
         | :? ArrayData<'a> as data when data.Offset = 0 && data.NativeSize = data.Array.Length -> Some data
         | _ -> None
 
-    /// Matches data for an array representation, if possible.
+    /// Matches data for an array representation.
     let (|Array|_|) (data : Data<'a>) =
         match data with
         | :? ArrayData<'a> as data -> Some data

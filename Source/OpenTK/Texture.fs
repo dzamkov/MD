@@ -18,20 +18,20 @@ type Texture (id : int) =
         new Texture (id)
 
     /// Creates and binds a 2d texture for the given image. This will not set any parameters or generate bitmaps.
-    static member Create (image : Image<Paint>) =
+    static member Create (image : Image, size : ImageSize) =
         let tex = Texture.Create ()
-        Texture.SetImage (image, 0)
+        Texture.SetImage (image, size, 0)
         tex
 
     /// Sets the image for the given mipmap level of the currently-bound 2d texture.
-    static member SetImage (image : Image<Paint>, level : int) =
+    static member SetImage (image : Image, size : ImageSize, level : int) =
         match image with
         | Opaque image -> 
-            let data = image.Source |> Image.toArray |> Image.toBGR24
-            GL.TexImage2D (TextureTarget.Texture2D, level, PixelInternalFormat.Rgb, image.Width, image.Height, 0, PixelFormat.Bgr, PixelType.UnsignedByte, data)
+            let data = Image.toBGR24 (image, size)
+            GL.TexImage2D (TextureTarget.Texture2D, level, PixelInternalFormat.Rgb, size.Width, size.Height, 0, PixelFormat.Bgr, PixelType.UnsignedByte, data)
         | image ->
-            let data = image |> Image.toArray |> Image.toBGRA32
-            GL.TexImage2D (TextureTarget.Texture2D, level, PixelInternalFormat.Rgba, image.Width, image.Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, data)
+            let data = Image.toBGRA32 (image, size)
+            GL.TexImage2D (TextureTarget.Texture2D, level, PixelInternalFormat.Rgba, size.Width, size.Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, data)
 
     /// Sets the wrap mode for the currently-bound texture.
     static member SetWrapMode (target, horizontal : TextureWrapMode, vertical : TextureWrapMode) =

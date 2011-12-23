@@ -51,6 +51,28 @@ type CombineExclusive<'a, 'b, 'c> (obj : 'a, subA : 'b exclusive, subB : 'c excl
         subA.Finish ()
         subB.Finish ()
 
+/// A shared, reference-counted handle to an exclusive object. The object will be released
+/// when all shared handles to it have been released.
+type SharedExclusive<'a> (source : 'a exclusive) =
+    inherit Exclusive<'a> (source.Object)
+    let mutable count = 1
+
+    /// Gets the source handle for this shared handle.
+    member this.Source = source
+
+    /// Splits this shared handle to get another shared reference to its object.
+    member this.Split () =
+        count <- count + 1
+        this
+
+    override this.Finish () =
+        count <- count - 1
+        if count <= 0 then
+            source.Finish ()
+
+// Create type abbreviation.
+type 'a shared = SharedExclusive<'a>
+
 /// Contains functions for constructing and manipulating exclusive handles.
 module Exclusive =
 
@@ -87,3 +109,12 @@ module Exclusive =
 
     /// Calls finish on the given handle.
     let finish (handle : 'a exclusive) = handle.Finish ()
+
+    /// Gets a shared handle for the given exclusive handle.
+    let share (handle : 'a exclusive) =
+        match handle with
+        | :? SharedExclusive<'a> as shared -> shared : 'a shared
+        | _ -> new SharedExclusive<'a> (handle) : 'a shared
+
+    /// Splits a shared handle to get another handle for its object.
+    let split (handle : 'a shared) = handle.Split () : 'a shared

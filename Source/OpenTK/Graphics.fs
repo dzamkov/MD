@@ -152,8 +152,8 @@ type SequentialProcedure (procedures : seq<Procedure>) =
 
 /// An interface to an OpenGL graphics context that tracks resources and continuity when rendering.
 [<AbstractClass>]
-type Graphics () =
-    let cache = new ManualCache<Figure, Procedure> (fun proc -> proc.Delete ())
+type Graphics () as this =
+    let cache = new ManualCache<Figure, Procedure> (this.CreateProcedure, fun proc -> proc.Delete ())
 
     /// Initializes this graphics interface with the OpenGL context on the current thread.
     abstract member Initialize : unit -> unit
@@ -170,13 +170,7 @@ type Graphics () =
     abstract member CreateProcedure : Figure -> Procedure
 
     /// Gets a procedure to render the given figure.
-    member this.GetProcedure figure =
-        match cache.Fetch figure with
-        | Some procedure -> procedure
-        | None -> 
-            let procedure = this.CreateProcedure figure
-            cache.Submit (figure, procedure)
-            procedure
+    member this.GetProcedure figure = cache.[figure]
 
     /// Renders the given figure on the current graphics context.
     member this.Render figure =

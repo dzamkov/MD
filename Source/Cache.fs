@@ -3,69 +3,69 @@
 open System
 open System.Collections.Generic
 
-/// A store of data or information that is indexed by a key and used for performance 
-/// reasons. Cache items are explicitly added and queried but implicitly removed. Keys should
-/// be paired with unique items so that there is only one potential item for each key.
+/// A cached mapping that creates and stores items that are accessed frequently and automatically
+/// removes items that are not used for a while.
 [<AbstractClass>]
-type Cache<'a, 'b when 'a : equality> () =
-    
-    /// Tries getting the datum with the given key, or returns None if it is not found in the cache.
-    abstract member Fetch : key : 'a -> 'b option
+type Cache<'a, 'b when 'a : equality> (create : 'a -> 'b, delete : 'b -> unit) =
+    inherit Map<'a, 'b> ()
 
-    /// Submits an item to the cache. Note that this will fail if an item with the given key is
-    /// already in the cache.
-    abstract member Submit : key : 'a * item : 'b -> unit
+    /// Gets the function used to create an item (for a certain parameter) for the cache.
+    member this.Create = create
+
+    /// Gets the function used to delete an item when no longer used.
+    member this.Delete = delete
 
 /// A cache that automatically removes items when they are no longer being used. All items must be
-/// completely managed (in order to be freed with garbage collection).
+/// completely managed (in order to be freed with garbage collection) and can not have a custom delete function.
 [<Sealed>]
-type AutoCache<'a, 'b when 'a : equality> () =
-    inherit Cache<'a, 'b> ()
+type AutoCache<'a, 'b when 'a : equality> (create : 'a -> 'b) =
+    inherit Cache<'a, 'b> (create, ignore)
     let items = new Dictionary<'a, WeakReference> ()
 
-    override this.Fetch key =
+    override this.Get param =
+        let create = this.Create
         let mutable itemRef = null
-        if items.TryGetValue (key, &itemRef) then
+        if items.TryGetValue (param, &itemRef) then
             if itemRef.IsAlive then
-                Some (itemRef.Target :?> 'b)
+                itemRef.Target :?> 'b
             else
-                items.Remove key |> ignore
-                None
-        else None
-
-    override this.Submit (key, item) =
-        items.Add (key, new WeakReference (item :> obj))
+                let item = create param
+                itemRef.Target <- item
+                item
+        else 
+            let item = create param
+            items.Add (param, new WeakReference (item))
+            item
 
 /// A cache that removes items during explicit collection cycles at regular intervals.
-type CyclicCache<'a, 'b when 'a : equality> (remove : 'b -> unit) =
-    inherit Cache<'a, 'b> ()
+type CyclicCache<'a, 'b when 'a : equality> (create : 'a -> 'b, delete : 'b -> unit) =
+    inherit Cache<'a, 'b> (create, delete)
     let items = new Dictionary<'a, CyclicCacheItem<'b>> ()
-
-    override this.Fetch key =
-        let mutable item = Unchecked.defaultof<CyclicCacheItem<'b>>
-        if items.TryGetValue (key, &item) then
-            item.Used <- true
-            Some (item.Item)
-        else None
-
-    override this.Submit (key, item) =
-        items.Add (key, { Item = item; Used = true })
-
-    /// The function called on items as they are removed.
-    member this.Remove = remove
 
     /// Removes all items that were not used (fetched or submitted) since the last call to Collect.
     member this.Collect () =
+        let delete = this.Delete
         let toRemove = new List<'a> ()
         for kvp in items do
             let value = kvp.Value
             if not value.Used then
-                remove value.Item
+                delete value.Item
                 toRemove.Add kvp.Key
             else
                 value.Used <- false
         for key in toRemove do
             items.Remove key |> ignore
+
+    override this.Get param =
+        let create = this.Create
+        let mutable item = Unchecked.defaultof<CyclicCacheItem<'b>>
+        if items.TryGetValue (param, &item) then
+            item.Used <- true
+            item.Item
+        else
+            let item = create param
+            items.Add (param, { Item = item; Used = true })
+            item
 
 /// The internal representation of an item in a Cyclic cache.
 and CyclicCacheItem<'b> = {
@@ -74,34 +74,18 @@ and CyclicCacheItem<'b> = {
     }
 
 /// A cache that removes items (in order of age and disuse) when explicitly requested. 
-type ManualCache<'a, 'b when 'a : equality> (remove : 'b -> unit) =
-    inherit Cache<'a, 'b> ()
+type ManualCache<'a, 'b when 'a : equality> (create : 'a -> 'b, delete : 'b -> unit) =
+    inherit Cache<'a, 'b> (create, delete)
     let items = new LinkedList<'a * 'b> ()
     let index = new Dictionary<'a, LinkedListNode<'a * 'b>> ()
-
-    override this.Fetch key =
-        let mutable node = null
-        if index.TryGetValue (key, &node) then
-
-            // Bring the node to the front of the items list to delay its collection.
-            items.Remove node
-            items.AddFirst node
-
-            let _, value = node.Value
-            Some value
-        else None
-
-    override this.Submit (key, item) =
-        let node = new LinkedListNode<'a * 'b> ((key, item))
-        items.AddFirst node
-        index.Add (key, node)
 
     /// Gets the amount of items in this cache.
     member this.Size = items.Count
 
     /// Removes the given amount of items from this cache. Items will be removed in the order
-    /// of the last time they fetched.
+    /// of the last time they were fetched.
     member this.Collect count =
+        let delete = this.Delete
         let mutable count = count
         let mutable node = items.Last
         while count > 0 && node <> null do
@@ -109,5 +93,24 @@ type ManualCache<'a, 'b when 'a : equality> (remove : 'b -> unit) =
             let key, value = node.Value
             index.Remove key |> ignore
             items.Remove node
-            remove value
+            delete value
             node <- next
+
+    override this.Get param =
+        let create = this.Create
+        let mutable node = null
+        if index.TryGetValue (param, &node) then
+
+            // Bring the node to the front of the items list to delay its collection.
+            items.Remove node
+            items.AddFirst node
+
+            let _, item = node.Value
+            item
+
+        else 
+            let item = create param
+            let node = new LinkedListNode<'a * 'b> ((param, item))
+            items.AddFirst node
+            index.Add (param, node)
+            item

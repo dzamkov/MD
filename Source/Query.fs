@@ -73,6 +73,44 @@ type CollateQuery<'a, 'b> (first : 'a query, second : 'b query) =
             | _ -> state := SecondReady value
         (first.Register firstCallback) + (second.Register secondCallback)
 
+/// A query that caches the result of a source query.
+type CacheQuery<'a> (source : 'a query) =
+    inherit Query<'a> ()
+    let callbacks = new Registry<'a -> unit> ()
+    let mutable result = None
+    let mutable retractSource = None
+
+    override this.Register callback =
+        match result with
+        | Some result ->
+            callback result
+            Retract.Nil
+        | None ->
+            Monitor.Enter this
+            let retractCallback = callbacks.Add callback
+
+            // Start the request for the source.
+            if callbacks.Count >= 1 && Option.isNone retractSource then
+                let sourceCallback value =
+                    Monitor.Enter this
+                    result <- Some value
+                    for callback in callbacks do
+                        callback value
+                    Monitor.Exit this
+                retractSource <- Some (source.Register sourceCallback)
+
+            // If there are no more callbacks left, retract the source request.
+            let retract () =
+                Monitor.Enter this
+                if callbacks.Count = 0 && Option.isSome retractSource then
+                    (Option.get retractSource).Invoke ()
+                    retractSource <- None
+                Monitor.Exit this
+            let retract = retractCallback + Retract.Single retract
+
+            Monitor.Exit this
+            retract
+
 /// Contains functions for constructing and manipulating queries.
 module Query =
 
@@ -82,8 +120,14 @@ module Query =
     /// Constructs a query that gets its result from an asynchronous task.
     let task task = new TaskQuery<'a> (task) :> 'a query
 
+    /// Constructs a mapped form of a query.
+    let map map source = new MapQuery<'b, 'a> (source, map) :> 'b query
+
     /// Constructs a query that depends on the result of another.
     let bind second first = new BindQuery<'b, 'a> (first, second) :> 'b query
 
     /// Constructs a collation of two queries.
     let collate first second = new CollateQuery<'a, 'b> (first, second) :> ('a * 'b) query
+
+    /// Constructs a cached form of the given query.
+    let cache source = new CacheQuery<'a> (source) :> 'a query

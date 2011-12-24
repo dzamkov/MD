@@ -11,6 +11,16 @@ type Map<'a, 'b> () =
     /// Gets the value for an item in this map.
     member this.Item with get param = this.Get param
 
+/// The identity mapping.
+type IdentityMap<'a> private () =
+    inherit Map<'a, 'a> ()
+    static let instance = new IdentityMap<'a> ()
+
+    /// Gets the only instance of this class.
+    static member Instance = instance
+
+    override this.Get param = param
+
 /// A mapping from a function.
 type FuncMap<'a, 'b> (func : 'a -> 'b) =
     inherit Map<'a, 'b> ()
@@ -21,8 +31,16 @@ type ComposeMap<'a, 'b, 'c> (first : Map<'a, 'b>, second : Map<'b, 'c>) =
     inherit Map<'a, 'c> ()
     override this.Get param = second.[first.[param]]
 
+/// A collation of two mappings.
+type CollateMap<'a, 'b, 'c> (first : Map<'a, 'b>, second : Map<'a, 'c>) =
+    inherit Map<'a, 'b * 'c> ()
+    override this.Get param = (first.[param], second.[param])
+
 /// Contains functions and methods for manipulating mappings.
 module Map =
+
+    /// The identity mapping.
+    let identity<'a> = IdentityMap<'a>.Instance :> Map<'a, 'a>
 
     /// Constructs a mapping from a (consistent) function.
     let func func = new FuncMap<'a, 'b> (func) :> Map<'a, 'b>
@@ -32,6 +50,9 @@ module Map =
 
     /// Applies a mapping function to a mapping (same as compose, but with arguments swapped).
     let map second first = new ComposeMap<'a, 'b, 'c> (first, second) :> Map<'a, 'c>
+
+    /// Collates two mappings.
+    let collate first second = new CollateMap<'a, 'b, 'c> (first, second) :> Map<'a, 'b * 'c>
 
     /// Matches a mapping for a function representation.
     let (|Func|_|) (map : Map<'a, 'b>) =

@@ -49,6 +49,7 @@
     <Compile Include="Reflection.fs" />
     <Compile Include="Map.fs" />
     <Compile Include="Buffer.fs" />
+    <Compile Include="Query.fs" />
     <Compile Include="Cache.fs" />
     <Compile Include="Task.fs" />
     <Compile Include="Complex.fs" />
@@ -58,7 +59,6 @@
     <Compile Include="Path.fs" />
     <Compile Include="Update.fs" />
     <Compile Include="Exclusive.fs" />
-    <Compile Include="Shared.fs" />
     <Compile Include="Temporary.fs" />
     <Compile Include="Plugin.fs" />
     <Compile Include="Stream.fs" />

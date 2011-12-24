@@ -9,6 +9,7 @@ type Retract =
     | Nil
     | Single of (unit -> unit)
     | Binary of Retract * Retract
+    | Dynamic of Retract ref
 
     /// Invokes this retract operation.
     member this.Invoke () = 
@@ -18,6 +19,7 @@ type Retract =
         | Binary (x, y) ->
             x.Invoke ()
             y.Invoke ()
+        | Dynamic ref -> (!ref).Invoke ()
 
     /// Determines wether this retract operation will perform an operation when invoked.
     member this.HasAction =

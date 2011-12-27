@@ -8,13 +8,6 @@ open System
 System.Linq.Enumerable.Count([]) |> ignore
 #endif
 
-type TestA () =
-    class
-    end
-
-type TestB<'a> () =
-    inherit TestA ()
-
 [<EntryPoint>]
 let main args =
     let wd = Path.WorkingDirectory

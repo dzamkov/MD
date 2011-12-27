@@ -9,32 +9,6 @@ type ImageInterpolation =
     | Linear
     | Cubic
 
-/// A large or complex dynamically-loaded image made up of tiles containing images that can
-/// be loaded upon request.
-[<AbstractClass>]
-type TileImage (area : Rectangle) =
-
-    /// Gets the rectangular area this image occupies. Note that this can be infinite.
-    member this.Area = area
-
-/// A tile image with a specific tile type.
-[<AbstractClass>]
-type TileImage<'a when 'a : equality> (area : Rectangle) =
-    inherit TileImage (area)
-
-    /// Gets the tiles of the most appropriate resolution that intersect the given area with resolution
-    /// given in pixels per unit along each axis. The returned tiles should not overlap each other and should
-    /// collectively cover the entire area given.
-    abstract member GetTiles : area : Rectangle * resolution : Point -> seq<'a>
-
-    /// Gets the area occupied by the given tile.
-    abstract member GetTileArea : tile : 'a -> Rectangle
-
-    /// Requests the image for the given tile. When the image is available, the provided callback
-    /// should be called with an exclusive handle to it. If the returned retract action is
-    /// called, the image is no longer needed, but may still be provided.
-    abstract member RequestTileImage : tile : 'a * callback : (Image exclusive * ImageSize -> unit) -> Retract
-
 /// A figure for a solid, colored line.
 type Line = {
 
@@ -85,7 +59,6 @@ type Figure =
     | Sample of Sample
     | Line of Line
     | Image of Image * ImageSize * ImageInterpolation
-    | TileImage of TileImage
 
     /// Constructs a transformed figure.
     static member (*) (a : Figure, b : Transform) =
@@ -119,9 +92,6 @@ module Figure =
     /// Constructs a figure for an image placed in the given rectangular area. Note that this figure will respect 
     /// the transparency information encoded in the image, if any.
     let placeImage area (image, size) interpolation = Figure.Transform (Transform.Place area, Figure.Image (image, size, interpolation))
-
-    /// Constructs a figure for a tile image.
-    let tileImage tile = Figure.TileImage tile
 
     /// Constructs a transformed form of a figure.
     let transform transform figure = Figure.Transform (transform, figure)

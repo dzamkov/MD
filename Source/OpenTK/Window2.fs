@@ -17,9 +17,7 @@ type Window () =
     let size = new ControlSignalFeed<Point> (new Point (float 640, float 480))
     let programTime = Feed.time
 
-    let mutable graphics = Unchecked.defaultof<Graphics>
-    let mutable figure = Unchecked.defaultof<Figure signal>
-    let mutable projection = Unchecked.defaultof<Transform signal>
+    let mutable display = Unchecked.defaultof<Display>
 
     /// Gets a feed that gives the size of the client area of this window in pixels.
     member this.Size = size
@@ -32,23 +30,6 @@ type Window () =
     override this.OnLoad args =
         this.MakeCurrent ()
         this.VSync <- VSyncMode.Off
-        graphics <- new FixedGraphics () :> Graphics
-        graphics.Initialize ()
-
-        // Sinc
-        let sincArray = Array.zeroCreate<float> 10
-        sincArray.[0] <- 1.0
-        let sinc x = sin (Math.PI * x) / (Math.PI * x)
-        let mutable total = 0.5
-        for index = 1 to sincArray.Length - 1 do
-            let value = sinc (float index * 0.5)
-            sincArray.[index] <- value
-            total <- total + value
-        let mutable values = ""
-        for index = 0 to sincArray.Length - 1 do
-            let value = sincArray.[index] * total
-            values <- values + "\n" + value.ToString ()
-
 
         // Get audio container
         let music = new Path (@"F:\Music\Me\19.mp3")
@@ -112,35 +93,34 @@ type Window () =
                 Samples = floatData
                 Window = Window.hamming
                 WindowSize = 4096.0 * 2.0
-                Scaling = (fun x y -> y * 100.0)
-                Gradient = gradient
+                Coloring = Map.compose (Map.func (fun (freq, value) -> value.Abs)) gradient
             }
 
         // Spectrogram
         let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 
-        let spectrogram = new SpectrogramTileImage (parameters, area)
 
         // Figure
         let getFigure playSample =
-            let image = Figure.tileImage spectrogram
             let linex = 2.0 * float playSample / float floatData.Size - 1.0
             let line = Figure.line { A = new Point (linex, -1.0); B = (new Point (linex, 1.0)); Weight = 0.002; Paint = Paint.ARGB (1.0, 1.0, 0.3, 0.0) }
-            image + line
+            line
+        let figure = playPosition |> Feed.maps getFigure 
+        let figure = Feed.collate figure view.Projection |> Feed.maps (fun (fig, proj) -> fig * proj.Inverse)
 
         // Start
         Input.link (this :> GameWindow) (view :> Interface |> Input.transform worldspaceProjection) |> ignore
-        projection <- view.Projection
-        figure <- playPosition |> Feed.maps getFigure
+        display <- new FixedDisplay (figure) :> Display
+        display.Setup (this.Width, this.Height)
         control.Fire AudioControl.Play
 
     override this.OnRenderFrame args =
         GL.Clear ClearBufferMask.ColorBufferBit
-        graphics.Render (figure.Current * projection.Current.Inverse)
+        display.Render ()
         this.SwapBuffers ()
 
     override this.OnUpdateFrame args =
         Update.invoke args.Time
 
     override this.OnResize args =
-        graphics.Setup (this.Width, this.Height)
+        display.Setup (this.Width, this.Height)
         size.Update (new Point (double this.Width, double this.Height))

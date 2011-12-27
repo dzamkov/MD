@@ -73,32 +73,15 @@ type FixedContext (width, height) =
         GL.Vertex2 (transform * new Point (1.0, 1.0))
         GL.End ()
 
-/// A graphics interface that uses a fixed-function pipeline (OpenGL 2.1 and below).
-type FixedGraphics () =
-    inherit Graphics ()
+/// A graphics display that uses the fixed-function pipeline (OpenGL 2.1 and below).
+type FixedDisplay (figure) =
+    inherit Display (figure)
 
-    override this.Initialize () =
+    override this.Setup (width, height) =
         GL.Enable EnableCap.Texture2D
         GL.Enable EnableCap.CullFace
         GL.Enable EnableCap.Blend
         GL.BlendFunc (BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha)
+        GL.Viewport (0, 0, width, height)
 
-    override this.CreateContext () = 
-        let viewport = Array.zeroCreate 4
-        GL.GetInteger (GetPName.Viewport, viewport)
-        new FixedContext (viewport.[2], viewport.[3]) :> OpenTK.Context
-
-    override this.CreateProcedure figure =
-        match figure with
-        | Transform (transform, figure) -> new TransformProcedure (this.GetProcedure figure, transform) :> Procedure
-        | Composite (a, b) -> new SequentialProcedure [| this.GetProcedure a; this.GetProcedure b |] :> Procedure
-        | Line line -> new LineProcedure (line) :> Procedure
-        | Image (image, size, interpolation) ->
-            let texture = Texture.Create (image, size)
-            Texture.CreateMipmap GenerateMipmapTarget.Texture2D
-            match interpolation with
-            | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
-            | _ -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
-            new TextureProcedure (texture |> Exclusive.custom (fun tex -> tex.Delete ())) :> Procedure
-        | TileImage tileImage -> TileProcedure.create tileImage
-        | _ -> NullProcedure.Instance :> Procedure
+    override this.Render () = ()

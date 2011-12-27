@@ -51,7 +51,6 @@
     <Compile Include="Buffer.fs" />
     <Compile Include="Query.fs" />
     <Compile Include="Cache.fs" />
-    <Compile Include="Task.fs" />
     <Compile Include="Complex.fs" />
     <Compile Include="DSignal.fs" />
     <Compile Include="DFT.fs" />
@@ -59,7 +58,6 @@
     <Compile Include="Path.fs" />
     <Compile Include="Update.fs" />
     <Compile Include="Exclusive.fs" />
-    <Compile Include="Temporary.fs" />
     <Compile Include="Plugin.fs" />
     <Compile Include="Stream.fs" />
     <Compile Include="Data.fs" />
@@ -77,10 +75,10 @@
     <Compile Include="OpenTK\Input2.fs" />
     <Compile Include="OpenTK\Texture.fs" />
     <Compile Include="OpenTK\VBO.fs" />
-    <Compile Include="OpenTK\Graphics.fs" />
-    <Compile Include="OpenTK\Tile.fs" />
+    <Compile Include="OpenTK\Context.fs" />
+    <Compile Include="OpenTK\Procedure.fs" />
+    <Compile Include="OpenTK\Display.fs" />
     <Compile Include="OpenTK\Fixed.fs" />
-    <Compile Include="OpenTK\Programmable.fs" />
     <Compile Include="OpenTK\Window2.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

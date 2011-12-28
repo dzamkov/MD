@@ -52,9 +52,6 @@
     <Compile Include="Query.fs" />
     <Compile Include="Cache.fs" />
     <Compile Include="Complex.fs" />
-    <Compile Include="DSignal.fs" />
-    <Compile Include="DFT.fs" />
-    <Compile Include="Window.fs" />
     <Compile Include="Path.fs" />
     <Compile Include="Update.fs" />
     <Compile Include="Exclusive.fs" />
@@ -62,6 +59,9 @@
     <Compile Include="Stream.fs" />
     <Compile Include="Data.fs" />
     <Compile Include="Container.fs" />
+    <Compile Include="DSP\Util2.fs" />
+    <Compile Include="DSP\DFT.fs" />
+    <Compile Include="DSP\Window.fs" />
     <Compile Include="UI\Feed.fs" />
     <Compile Include="UI\Audio.fs" />
     <Compile Include="UI\Geometry.fs" />

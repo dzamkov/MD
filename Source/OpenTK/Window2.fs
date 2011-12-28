@@ -2,9 +2,9 @@
 
 open MD
 open MD.UI
+open MD.DSP
 open Util
 open System
-open Microsoft.FSharp.NativeInterop
 open global.OpenTK
 open OpenTK.Graphics
 open OpenTK.Graphics.OpenGL

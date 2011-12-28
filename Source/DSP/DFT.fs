@@ -1,8 +1,9 @@
-﻿namespace MD
+﻿namespace MD.DSP
 
-open Util
+open MD
+open MD.Util
+open MD.DSP.Util
 open System
-open Microsoft.FSharp.NativeInterop
 
 /// A method of computing a DFT (Discrete Fourier Transform) and corresponding IDFT of a certain size.
 [<AbstractClass>]
@@ -17,15 +18,13 @@ type DFT (size : int) =
     /// Computes the DFT on complex input using this method.
     abstract member ComputeComplex : Buffer<Complex> * Buffer<Complex> -> unit
 
-    /// Computes the IDFT on complex input using this method.
-    abstract member ComputeInverse : Buffer<Complex> * Buffer<Complex> -> unit
-
-    default this.ComputeInverse (input, output) =
-        DSignal.conjugate input size
+    /// Computes the IDFT on complex input using this method for the base DFT.
+    member this.ComputeInverse (input, output) =
+        conjugate input size
         this.ComputeComplex (input, output)
-        DSignal.conjugate input size
-        DSignal.conjugate output size
-        DSignal.scaleComplex (1.0 / float size) output size
+        conjugate input size
+        conjugate output size
+        scaleComplex (1.0 / float size) output size
 
 /// A hard-coded, fast DFT method on 4 samples.
 type QuickDFT private () =

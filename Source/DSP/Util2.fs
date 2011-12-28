@@ -1,11 +1,11 @@
-﻿namespace MD
+﻿namespace MD.DSP
 
-open Util
+open MD
+open MD.Util
 open System
-open Microsoft.FSharp.NativeInterop
 
-/// Contains functions for constructing and manipulating discrete signals.
-module DSignal =
+/// Contains utility functions for constructing and manipulating discrete signals.
+module Util =
 
     /// Performs an in-place downsampling of the given signal by an integer factor. Note that this will
     /// cause aliasing if there is still high-frequency content present.

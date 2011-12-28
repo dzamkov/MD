@@ -26,27 +26,6 @@ type Line = {
 
     }
 
-/// A sampled image that defines an infinitely detailed mapping of points to colors.
-[<ReferenceEquality>]
-type Sample = {
-
-    /// The mapping function for the sample.
-    Map : Point -> Paint
-
-    /// The bounds of the sample, such that all points outside the bounds are transparent.
-    Bounds : Rectangle
-
-    }
-
-/// Indentifies a hint for how a figure should be rendered or managed.
-type RenderHint =
-
-    /// Indicates that the figure is persistent, and will likely appear again.
-    | Static
-
-    /// Indicates that the figure is dynamic, and is not likely to appear again.
-    | Dynamic
-
 /// Describes a visual object on a two-dimensional plane.
 type Figure =
     | Null
@@ -55,8 +34,7 @@ type Figure =
     | Transform of Transform * Figure
     | Composite of Figure * Figure
     | Clip of Rectangle * Figure
-    | Hint of RenderHint * Figure
-    | Sample of Sample
+    | Sample of Map<Point, Paint>
     | Line of Line
     | Image of Image * ImageSize * ImageInterpolation
 
@@ -106,6 +84,3 @@ module Figure =
     /// Constructs a clipped form of a figure. This will cause all paints of the figure outside the given area to
     /// be completely transparent.
     let clip area figure = Figure.Clip (area, figure)
-
-    /// Provides a hint for the given figure.
-    let hint hint figure = Figure.Hint (hint, figure)

@@ -1,8 +1,8 @@
-﻿namespace MD
+﻿namespace MD.DSP
 
-open Util
+open MD
+open MD.Util
 open System
-open Microsoft.FSharp.NativeInterop
 
 /// A windowing function on the interval (-1/2, 1/2) for use in signal processing.
 type Window = float -> float

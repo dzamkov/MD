@@ -1,10 +1,10 @@
 ﻿namespace MD.UI
 
 open MD
-open Util
+open MD.Util
+open MD.DSP
 open System
 open System.Collections.Generic
-open Microsoft.FSharp.NativeInterop
 
 /// Defines a coloring for components in a spectrogram, based on the relative frequency (where 0.0 is 0 hz and 
 /// 1.0 is the Nyquist frequency) and component value.

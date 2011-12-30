@@ -41,7 +41,7 @@ public:
 	/// <summary>
 	/// Initializes a context.
 	/// </summary>
-	static ExclusiveContext^ Initialize(AVIOContext* IOContext, AVFormatContext* FormatContext);
+	static ExclusiveContext Initialize(AVIOContext* IOContext, AVFormatContext* FormatContext);
 
 	virtual bool NextFrame(int% ContentIndex) override;
 
@@ -65,8 +65,8 @@ public:
 		this->Output = NULL;
 	}
 
-    virtual FSharpOption<ExclusiveContext^>^ Decode(ExclusiveByteStream^ Stream) override;
-    virtual FSharpOption<ExclusiveByteStream^>^ Encode(ExclusiveContext^ Context) override;
+    virtual FSharpOption<ExclusiveContext>^ Decode(ExclusiveByteStream Stream) override;
+    virtual FSharpOption<ExclusiveByteStream>^ Encode(ExclusiveContext Context) override;
 
 	AVInputFormat* Input;
 	AVOutputFormat* Output;
@@ -96,11 +96,11 @@ public:
 		}
 	}
 
-	virtual Retract^ Load() override;
+	virtual MD::Action^ Load() override;
 
 private:
 	static Dictionary<String^, _Container^>^ _Containers = nullptr;
 
-	static FSharpOption<Tuple<Container^, ExclusiveContext^>^>^ _LoadContainer(ExclusiveByteData^ Data, String^ Filename);
+	static FSharpOption<Tuple<Container^, ExclusiveContext>^>^ _LoadContainer(ExclusiveByteData Data, String^ Filename);
 };
 

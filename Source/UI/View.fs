@@ -159,7 +159,7 @@ type View (parameters : ViewParameters) =
             // Begin dragging
             let lock positionFeed =
                 drag <- Some (positionFeed, position)
-                Retract.Single (fun () -> drag <- None)
+                Action.Custom (fun () -> drag <- None)
             Handled (Some lock)
         else Unhandled
 

@@ -2,76 +2,26 @@
 
 open System
 
-/// An exclusive handle to a value or object that will need to be explicitly released at some point. Exclusive handles
-/// may not be shared or copied. They can be transfered by being passed as arguments or returned from methods,
-/// in which case the original handle must be forgotten. A handle can only be destroyed after Finish is called
-/// on it.
-[<AbstractClass>]
-type Exclusive<'a> (obj : 'a) =
+open MD
 
-    /// Dereferences an exclusive handle.
-    static member (!!) (a : Exclusive<'a>) = a.Object
+/// An exclusive reference to an object with an obligation to invoke a release action when the object will
+/// no longer be used.
+type Exclusive<'a> (obj : 'a, release : ReleaseAction) =
+    struct
 
-    /// Gets the object for this exclusive handle.
-    member this.Object = obj
+        /// Gets the object for the given handle.
+        static member (!!) (a : Exclusive<'a>) = a.Object
 
-    /// Releases this handle.
-    abstract member Finish : unit -> unit
+        /// Gets the object for this handle.
+        member this.Object = obj
+
+        /// Gets the release action for this handle.
+        member this.Release = release
+
+    end
 
 // Create type abbreviation.
 type 'a exclusive = Exclusive<'a>
-
-/// An exclusive handle that does nothing upon release.
-type ReturnExclusive<'a> (obj : 'a) =
-    inherit Exclusive<'a> (obj)
-    override this.Finish () = ()
-
-/// An exclusive handle to a disposable object to be disposed upon release.
-type DisposeExclusive<'a> (obj : 'a) =
-    inherit Exclusive<'a> (obj)
-    override this.Finish () =
-        match this.Object :> System.Object with
-        | :? IDisposable as x -> x.Dispose()
-        | _ -> ()
-
-/// An exclusive handle that calls a given function upon release.
-type CustomExclusive<'a> (obj : 'a, finish : 'a -> unit) =
-    inherit Exclusive<'a> (obj)
-    override this.Finish () = finish this.Object
-
-/// An exclusive handle that gives an object while separately managing another exclusive handle.
-type MapExclusive<'a, 'b> (obj : 'a, sub : 'b exclusive) =
-    inherit Exclusive<'a> (obj)
-    override this.Finish () = sub.Finish ()
-
-/// An exclusive handle that manages two others.
-type CombineExclusive<'a, 'b, 'c> (obj : 'a, subA : 'b exclusive, subB : 'c exclusive) =
-    inherit Exclusive<'a> (obj)
-    override this.Finish () =
-        subA.Finish ()
-        subB.Finish ()
-
-/// A shared, reference-counted handle to an exclusive object. The object will be released
-/// when all shared handles to it have been released.
-type SharedExclusive<'a> (source : 'a exclusive) =
-    inherit Exclusive<'a> (source.Object)
-    let mutable count = 1
-
-    /// Gets the source handle for this shared handle.
-    member this.Source = source
-
-    /// Splits this shared handle to get another shared reference to its object.
-    member this.Split () =
-        count <- count + 1
-        this
-
-    override this.Finish () =
-        count <- count - 1
-        if count <= 0 then
-            source.Finish ()
-
-// Create type abbreviation.
-type 'a shared = SharedExclusive<'a>
 
 /// Contains functions for constructing and manipulating exclusive handles.
 module Exclusive =
@@ -80,41 +30,37 @@ module Exclusive =
     let get (handle : 'a exclusive) = handle.Object
 
     /// Creates an exclusive handle for an object that does nothing upon release.
-    let make obj = new ReturnExclusive<'a> (obj) :> 'a exclusive
+    let make obj = new Exclusive<'a> (obj, Action.Nil) : 'a exclusive
 
     /// Creates an exclusive handle for a disposable object to be disposed upon release.
-    let dispose obj = new DisposeExclusive<'a> (obj) :> 'a exclusive
+    let dispose obj =
+        let disposable = 
+            match obj :> Object with
+            | :? IDisposable as obj -> obj
+            | _ -> null
+        let dispose () =
+            match disposable with
+            | null -> ()
+            | disposable -> disposable.Dispose ()
+        new Exclusive<'a> (obj, Action.Custom dispose) : 'a exclusive
 
     /// Creates an exclusive handle that calls the given function upon release.
-    let custom finish obj = new CustomExclusive<'a> (obj, finish) :> 'a exclusive
-
-    /// Combines two exclusive handles into one.
-    let combine obj subA subB = new CombineExclusive<'a, 'b, 'c> (obj, subA, subB) :> 'a exclusive
+    let custom release obj = new Exclusive<'a> (obj, Action.Custom release) : 'a exclusive
 
     /// Determines wether the given handle is static. If so, there is no need to call Finish on it.
     let isStatic (handle : 'a exclusive) = 
-        match handle with
-        | :? ReturnExclusive<'a> -> true
+        match handle.Release with
+        | Nil -> true
         | _ -> false
 
     /// Maps an exclusive handle.
     let map map (handle : 'a exclusive) =
-        let res : 'b = map handle.Object
-        new MapExclusive<'b, 'a> (res, handle) :> 'b exclusive
+        new Exclusive<'b> (map handle.Object, handle.Release) : 'b exclusive
 
     /// Monadically binds an exclusive handle.
     let bind map (handle : 'a exclusive) =
-        let res : 'b exclusive = map handle.Object
-        new CombineExclusive<'b, 'b, 'a> (res.Object, res, handle) :> 'b exclusive
+        let res = (map handle.Object) : 'b exclusive
+        new Exclusive<'b> (res.Object, handle.Release + res.Release) : 'b exclusive
 
-    /// Calls finish on the given handle.
-    let finish (handle : 'a exclusive) = handle.Finish ()
-
-    /// Gets a shared handle for the given exclusive handle.
-    let share (handle : 'a exclusive) =
-        match handle with
-        | :? SharedExclusive<'a> as shared -> shared : 'a shared
-        | _ -> new SharedExclusive<'a> (handle) : 'a shared
-
-    /// Splits a shared handle to get another handle for its object.
-    let split (handle : 'a shared) = handle.Split () : 'a shared
+    /// Releases the given handle.
+    let release (handle : 'a exclusive) = handle.Release.Invoke ()

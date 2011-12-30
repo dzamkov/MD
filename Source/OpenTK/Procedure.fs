@@ -50,7 +50,7 @@ type TextureProcedure (texture : Texture exclusive) =
     member this.Texture = texture.Object
 
     override this.Invoke context = context.RenderTexture texture.Object
-    override this.Delete () = texture.Finish ()
+    override this.Delete () = texture.Release.Invoke ()
 
 /// A procedure that invokes a sequence of component procedures sequentially.
 type SequentialProcedure (procedures : seq<Procedure>) =
@@ -86,7 +86,7 @@ module Procedure =
             match interpolation with
             | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
             | _ -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
-            new TextureProcedure (texture |> Exclusive.custom (fun texture -> texture.Delete ())) :> Procedure
+            new TextureProcedure (texture.MakeExclusive ()) :> Procedure
         | _ -> new NotImplementedException () |> raise
 
     /// Creates the default procedure for rendering the given dynamic figure.

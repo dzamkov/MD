@@ -44,7 +44,7 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Retract.fs" />
+    <Compile Include="Action.fs" />
     <Compile Include="Util.fs" />
     <Compile Include="Reflection.fs" />
     <Compile Include="Map.fs" />

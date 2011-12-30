@@ -69,8 +69,8 @@ module Input =
         let buttonState = Feed.alias defaultButtonAlias sourceButtonState
         let modifierState = Feed.constant (fun x -> false)
         let keyState = Feed.constant (fun x -> false)
-        let unlock = ref (None : (MouseButton * Retract) option)
-        let unfocus = ref (None : Retract option)
+        let unlock = ref (None : (MouseButton * RetractAction) option)
+        let unfocus = ref (None : RetractAction option)
 
         // Gets the current mouse input context.
         let context () = (buttonState.Current, modifierState.Current)

@@ -75,9 +75,9 @@ type ChunkStream<'a, 'b when 'a : unmanaged> (alignment : int, initial : (Stream
     member this.Retrieve = retrieve
 
     /// Releases this stream and all subordinate chunk streams.
-    member this.Finish () =
+    member this.Release () =
         match current with
-        | Some (stream, _) -> stream.Finish ()
+        | Some (stream, _) -> stream.Release.Invoke ()
         | None -> ()
 
     override this.Read (array, offset, size) = 
@@ -86,7 +86,7 @@ type ChunkStream<'a, 'b when 'a : unmanaged> (alignment : int, initial : (Stream
             | Some (stream, state) ->
                 let readSize = stream.Object.Read (array, offset, size)
                 if readSize < size then
-                    stream.Finish ()
+                    stream.Release.Invoke ()
                     current <- retrieve state
                     read (array, offset + readSize, size - readSize) (totalReadSize + readSize)
                 else totalReadSize + size
@@ -179,18 +179,18 @@ module Stream =
     let file (path : MD.Path) =
         let fs = new FileStream (path.Source, FileMode.Open)
         let is = new IOStream (fs) :> Stream<byte>
-        Exclusive.custom (fun x -> fs.Dispose ()) is
+        Exclusive.custom fs.Dispose is
 
     /// Constructs a stream that concatenates a series of chunks produced by the given retrieve function.
     let chunk alignment (initial : 'b) retrieve = 
         let cs = new ChunkStream<'a, 'b> (alignment, initial, retrieve)
-        cs |> Exclusive.custom (fun cs -> cs.Finish ()) |> Exclusive.map (fun x -> x :> Stream<'a>)
+        Exclusive.custom cs.Release (cs :> Stream<'a>)
 
     /// Constructs a stream that concatenates a series of chunks produced by the given retrieve function. The initial chunk
     /// must be provided when using this function.
     let chunkInit alignment (initial : (Stream<'a> exclusive * 'b) option) retrieve = 
         let cs = new ChunkStream<'a, 'b> (alignment, initial, retrieve)
-        cs |> Exclusive.custom (fun cs -> cs.Finish ()) |> Exclusive.map (fun x -> x :> Stream<'a>)
+        Exclusive.custom cs.Release (cs :> Stream<'a>)
 
     /// Constructs a mapped form of a stream.
     let map map source = new MapStream<'a, 'b> (source, map) :> Stream<'a>

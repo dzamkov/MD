@@ -57,7 +57,7 @@ type Texture (id : int) =
     member this.Bind2D () = GL.BindTexture (TextureTarget.Texture2D, id)
 
     /// Creates an exclusive handle to this texture that will delete it upon release.
-    member this.MakeExclusive () = this |> Exclusive.custom (fun this -> this.Delete ())
+    member this.MakeExclusive () = Exclusive.custom this.Delete this
 
     /// Deletes this texture.
     member this.Delete () = GL.DeleteTexture id

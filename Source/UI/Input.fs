@@ -55,12 +55,12 @@ type KeyState = Key -> bool
 /// receive information from the mouse and its position will be reported in a signal feed, even if that position
 /// is outside the bounds of the interface it was locked in. When the mouse button that started the lock is released,
 /// the retract action for the corresponding lock will be called.
-type Lock = Point signal -> Retract
+type Lock = Point signal -> RetractAction
 
 /// A function that responds to a "focused" mouse after a button is pressed. When focused, keystate and typing
 /// information will be reported. Focus is lost when another interface requests it, in which case the retract
 /// action for the last focus function will be called.
-type Focus = KeyState signal -> Retract
+type Focus = KeyState signal -> RetractAction
 
 /// A possible response to an event.
 type Response<'a> =

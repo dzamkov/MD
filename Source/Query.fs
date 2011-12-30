@@ -4,6 +4,8 @@ open System
 open System.Threading
 open System.Threading.Tasks
 
+open MD
+
 /// Represents an operation that results in a value of a certain type.
 [<AbstractClass>]
 type Query<'a> () =
@@ -11,7 +13,7 @@ type Query<'a> () =
     /// Registers a callback to be called with the result of this query when it is known 
     /// (may be immediately). The returned retract action can be used to retract the request, 
     /// but does not gurantee the callback won't be called.
-    abstract member Register : ('a -> unit) -> Retract
+    abstract member Register : ('a -> unit) -> RetractAction
 
 // Create type abbreviation.
 type 'a query = Query<'a>
@@ -22,7 +24,7 @@ type ReturnQuery<'a> (value : 'a) =
 
     override this.Register callback =
         callback value
-        Retract.Nil
+        Action.Nil
 
 /// A query that performs a task asynchronously upon request.
 type TaskQuery<'a> (task : unit -> 'a) =
@@ -32,7 +34,7 @@ type TaskQuery<'a> (task : unit -> 'a) =
         let cancelSource = new CancellationTokenSource ()
         let task = new Task (Action (task >> callback), cancelSource.Token)
         task.Start ()
-        Retract.Single cancelSource.Cancel
+        Action.Custom cancelSource.Cancel
 
 /// A query that applies a mapping to the result of a source query.
 type MapQuery<'a, 'b> (source : 'b query, map : 'b -> 'a) =
@@ -46,10 +48,10 @@ type BindQuery<'a, 'b> (first : 'b query, second : 'b -> 'a query) =
     inherit Query<'a> ()
 
     override this.Register callback =
-        let retract = ref Unchecked.defaultof<Retract>
+        let retract = ref Unchecked.defaultof<Action>
         let next value = retract := (second value).Register callback
         retract := first.Register next
-        Retract.Dynamic retract
+        Action.Dynamic retract
 
 /// The state for an unfinished collate query at any one time.
 type CollateQueryState<'a, 'b> =
@@ -84,7 +86,7 @@ type CacheQuery<'a> (source : 'a query) =
         match result with
         | Some result ->
             callback result
-            Retract.Nil
+            Action.Nil
         | None ->
             Monitor.Enter this
             let retractCallback = callbacks.Add callback
@@ -106,7 +108,7 @@ type CacheQuery<'a> (source : 'a query) =
                     (Option.get retractSource).Invoke ()
                     retractSource <- None
                 Monitor.Exit this
-            let retract = retractCallback + Retract.Single retract
+            let retract = retractCallback + Action.Custom retract
 
             Monitor.Exit this
             retract

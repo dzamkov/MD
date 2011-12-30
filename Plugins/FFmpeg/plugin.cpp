@@ -8,7 +8,7 @@ AVIOContext* InitStreamContext(ExclusiveByteStream^ Context) {
 
 void CloseStreamContext(AVIOContext* Context) {
 	gcroot<ExclusiveByteStream^>* stream = (gcroot<ExclusiveByteStream^>*)Context->opaque;
-	(*stream)->Finish();
+	(*stream)->Release->Invoke();
 	delete stream;
 	av_free(Context);
 }
@@ -45,7 +45,7 @@ _Context::!_Context() {
 	}
 }
 
-ExclusiveContext^ _Context::Initialize(AVIOContext* IOContext, AVFormatContext* FormatContext) {
+ExclusiveContext _Context::Initialize(AVIOContext* IOContext, AVFormatContext* FormatContext) {
 
 	// Initialize content streams
 	List<MD::Content^>^ contents = gcnew List<MD::Content^>(FormatContext->nb_streams);
@@ -124,9 +124,9 @@ bool _Context::NextFrame(int% ContentIndex) {
 	return false;
 }
 
-FSharpOption<ExclusiveContext^>^ _Container::Decode(ExclusiveByteStream^ Stream) {
+FSharpOption<ExclusiveContext>^ _Container::Decode(ExclusiveByteStream Stream) {
 	if (this->Input == NULL)
-		return FSharpOption<ExclusiveContext^>::None;
+		return FSharpOption<ExclusiveContext>::None;
 
 	AVIOContext* io = InitStreamContext(Stream);
 		
@@ -136,7 +136,7 @@ FSharpOption<ExclusiveContext^>^ _Container::Decode(ExclusiveByteStream^ Stream)
 	if (err != 0)
 	{
 		CloseStreamContext(io);
-		return FSharpOption<ExclusiveContext^>::None;
+		return FSharpOption<ExclusiveContext>::None;
 	}
 
 	err = av_find_stream_info(formatcontext);
@@ -144,17 +144,17 @@ FSharpOption<ExclusiveContext^>^ _Container::Decode(ExclusiveByteStream^ Stream)
 	{
 		av_close_input_stream(formatcontext);
 		CloseStreamContext(io);
-		return FSharpOption<ExclusiveContext^>::None;
+		return FSharpOption<ExclusiveContext>::None;
 	}
 
-	return FSharpOption<ExclusiveContext^>::Some(_Context::Initialize(io, formatcontext));
+	return FSharpOption<ExclusiveContext>::Some(_Context::Initialize(io, formatcontext));
 }
 
-FSharpOption<ExclusiveByteStream^>^ _Container::Encode(ExclusiveContext^ Context) {
-	return FSharpOption<ExclusiveByteStream^>::None;
+FSharpOption<ExclusiveByteStream>^ _Container::Encode(ExclusiveContext Context) {
+	return FSharpOption<ExclusiveByteStream>::None;
 }
 
-Retract^ ::Plugin::Load() {
+MD::Action^ ::Plugin::Load() {
 	if (!Initialized)
 	{
 		Initialized = true;
@@ -188,7 +188,7 @@ Retract^ ::Plugin::Load() {
 		}
 	}
 
-	Retract^ retract = Retract::Nil;
+	MD::Action^ retract = MD::Action::Nil;
 
 	// Register containers
 	for each(_Container^ container in _Containers->Values) {
@@ -201,10 +201,10 @@ Retract^ ::Plugin::Load() {
 	return retract;
 }
 
-FSharpOption<Tuple<Container^, ExclusiveContext^>^>^ ::Plugin::_LoadContainer(ExclusiveByteData^ Data, String^ Filename) {
+FSharpOption<Tuple<Container^, ExclusiveContext>^>^ ::Plugin::_LoadContainer(ExclusiveByteData Data, String^ Filename) {
 	using namespace Runtime::InteropServices;
 
-	AVIOContext* io = InitStreamContext(Data->Object->Lock());
+	AVIOContext* io = InitStreamContext(Data.Object->Lock());
 
 	// Get file name if possible
 	char* filename = NULL;
@@ -218,7 +218,7 @@ FSharpOption<Tuple<Container^, ExclusiveContext^>^>^ ::Plugin::_LoadContainer(Ex
 	if (err != 0)
 	{
 		CloseStreamContext(io);
-		return FSharpOption<Tuple<Container^, ExclusiveContext^>^>::None;
+		return FSharpOption<Tuple<Container^, ExclusiveContext>^>::None;
 	}
 
 	// Free file name
@@ -232,7 +232,7 @@ FSharpOption<Tuple<Container^, ExclusiveContext^>^>^ ::Plugin::_LoadContainer(Ex
 	if (err != 0)
 	{
 		CloseStreamContext(io);
-		return FSharpOption<Tuple<Container^, ExclusiveContext^>^>::None;
+		return FSharpOption<Tuple<Container^, ExclusiveContext>^>::None;
 	}
 
 	err = av_find_stream_info(formatcontext);
@@ -240,7 +240,7 @@ FSharpOption<Tuple<Container^, ExclusiveContext^>^>^ ::Plugin::_LoadContainer(Ex
 	{
 		av_close_input_stream(formatcontext);
 		CloseStreamContext(io);
-		return FSharpOption<Tuple<Container^, ExclusiveContext^>^>::None;
+		return FSharpOption<Tuple<Container^, ExclusiveContext>^>::None;
 	}
 
 	// Find corresponding managed container
@@ -252,5 +252,5 @@ FSharpOption<Tuple<Container^, ExclusiveContext^>^>^ ::Plugin::_LoadContainer(Ex
 		}
 	}
 
-	return FSharpOption<Tuple<Container^, ExclusiveContext^>^>::Some(Tuple::Create<Container^, ExclusiveContext^>(container, _Context::Initialize(io, formatcontext)));
+	return FSharpOption<Tuple<Container^, ExclusiveContext>^>::Some(Tuple::Create<Container^, ExclusiveContext>(container, _Context::Initialize(io, formatcontext)));
 }

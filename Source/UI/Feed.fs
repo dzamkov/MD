@@ -1,9 +1,10 @@
 ﻿namespace MD.UI
 
-open MD
 open System
 open System.Threading
 open System.Collections.Generic
+
+open MD
 
 /// An interface to a source of discrete events of a certain type.
 [<AbstractClass>]
@@ -12,14 +13,14 @@ type EventFeed<'a> () =
     /// Registers a callback to be called whenever an event occurs in this
     /// feed. The returned retract operation can be used to remove the callback, but
     /// is not guranteed to stop calls to it.
-    abstract member Register : ('a -> unit) -> Retract
+    abstract member Register : ('a -> unit) -> RetractAction
 
     /// Registers a callback to be called at most once, the next time this event occurs.
     member this.RegisterOnce callback = 
-        let retract = ref Retract.Nil
+        let retract = ref Action.Nil
         let newCallback event =
             (!retract).Invoke ()
-            retract := Retract.Nil
+            retract := Action.Nil
             callback event
         retract := this.Register callback
 
@@ -59,7 +60,7 @@ type NullEventFeed<'a> private () =
     /// Gets the only instance of this type.
     static member Instance = instance
 
-    override this.Register _ = Retract.Nil
+    override this.Register _ = Action.Nil
 
 /// A signal feed that maintains a constant value.
 [<Sealed>]
@@ -167,7 +168,7 @@ type CollateSignalFeed<'a, 'b> (sourceA : 'a signal, sourceB : 'b signal) =
 type ChangePollEventFeed<'a when 'a : equality> (source : 'a signal) =
     inherit EventFeed<'a change> ()
     let mutable last = source.Current
-    let mutable retractUpdate : Retract = Retract.Nil
+    let mutable retractUpdate : RetractAction = Action.Nil
     let callbacks : Registry<'a change -> unit> = new Registry<'a change -> unit> ()
 
     // Polling function
@@ -185,7 +186,7 @@ type ChangePollEventFeed<'a when 'a : equality> (source : 'a signal) =
         let retract () =
             retractCallback.Invoke ()
             if callbacks.Count = 0 then retractUpdate.Invoke ()
-        Retract.Single retract
+        Action.Custom retract
 
 /// A signal feed that gives the current time in seconds.
 [<Sealed>]

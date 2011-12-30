@@ -10,7 +10,7 @@ open OpenTK.Audio.OpenAL
 
 /// An interface to an audio output device managed by OpenAL.
 type AudioOutput private (context : AudioContext) =
-    let sources = new Dictionary<AudioOutputSource, Retract> ()
+    let sources = new Dictionary<AudioOutputSource, RetractAction> ()
     let messages = new Queue<AudioOutputMessage> ()
     let wait = new ManualResetEvent (false)
     let mutable exit = false
@@ -204,7 +204,7 @@ and private AudioOutputSource (parameters : AudioOutputSourceParameters, format 
         AL.DeleteBuffers buffers
         AL.DeleteSource sid
        
-        stream.Finish ()
+        stream.Release.Invoke ()
 
     /// Updates the state of this source and ensures play buffers are queued. Returns the amount of buffers processed since the last
     /// update.
@@ -241,5 +241,5 @@ and private AudioOutputSource (parameters : AudioOutputSourceParameters, format 
 
 /// A message for audio output.
 and private AudioOutputMessage =
-    | New of AudioOutputSource * Retract
+    | New of AudioOutputSource * RetractAction
     | Control of AudioOutputSource * AudioControl

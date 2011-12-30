@@ -1,8 +1,9 @@
 ﻿namespace MD
 
-open Util
 open System
 open System.IO
+open MD
+open MD.Util
 
 /// An immutable collection of items indexed by an integer.
 [<AbstractClass>]
@@ -211,7 +212,7 @@ module Data =
             data.Append (new ArrayData<'a> (array, 0, size) :> Data<'a>)
             if size = chunkSize then readChunk ()
         readChunk ()
-        stream.Finish ()
+        stream.Release.Invoke ()
         data :> Data<'a>
 
     /// Constructs data for the file at the given path.

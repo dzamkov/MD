@@ -1,12 +1,12 @@
 ﻿namespace MD.UI
 
-open MD
-open MD.Util
 open System
 open System.Drawing
 open System.Drawing.Imaging
 open Microsoft.FSharp.NativeInterop
 
+open MD
+open MD.Util
 open MD.UI
 
 /// Identifies a pixel in an image.

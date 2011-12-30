@@ -29,10 +29,10 @@ type Window () =
 
     override this.OnLoad args =
         this.MakeCurrent ()
-        this.VSync <- VSyncMode.Off
+        this.VSync <- VSyncMode.On
 
         // Get audio container
-        let music = new Path (@"F:\Music\Me\19.mp3")
+        let music = new Path (@"E:\Music\Me\19.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()

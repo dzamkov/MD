@@ -54,4 +54,4 @@ type Plugin () =
 
     /// Attaches this plugin to the program. Returns a retract to later unload
     /// the plugin.
-    abstract member Load : unit -> Retract
+    abstract member Load : unit -> RetractAction

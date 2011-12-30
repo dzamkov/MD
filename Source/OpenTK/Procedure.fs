@@ -5,21 +5,9 @@ open MD.UI
 open MD.OpenTK
 open System
 open System.Collections.Generic
-
-/// Describes a rendering procedure that manipulates a graphics context in order to produce a visual object or
-/// effect. Procedures are used for rendering operations that occur often, are complex, or require continuity.
-[<AbstractClass>]
-type Procedure () =
-
-    /// Deletes the given procedure.
-    static member Delete (procedure : Procedure) = procedure.Delete ()
-    
-    /// Invokes this procedure using the given context.
-    abstract member Invoke : Context -> unit
-
-    /// Deletes this procedure and all resources it uses.
-    abstract member Delete : unit -> unit
-    default this.Delete () = ()
+open global.OpenTK
+open OpenTK.Graphics
+open OpenTK.Graphics.OpenGL
 
 /// A procedure that does nothing.
 type NullProcedure private () =
@@ -77,7 +65,30 @@ type SequentialProcedure (procedures : seq<Procedure>) =
     override this.Delete () =
         for procedure in procedures do procedure.Delete ()
 
-/// A procedure that renders a dynamic figure given by a signal, using a given rendering method.
-type DynamicFigureProcedure (figure : Figure signal, render : Context * Figure -> unit) =
+/// A procedure that renders a dynamic figure given by a signal.
+type DynamicFigureProcedure (figure : Figure signal) =
     inherit Procedure ()
-    override this.Invoke context = render (context, figure.Current)
+    override this.Invoke context = context.RenderFigure figure.Current
+
+/// Contains functions for constructing and manipulating procedures.
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module Procedure =
+
+    /// Creates the default procedure for rendering the given static figure.
+    let createDefaultStatic (create : Figure -> Procedure) (figure : Figure) =
+        match figure with
+        | Null -> NullProcedure.Instance :> Procedure
+        | Transform (transform, figure) -> new TransformProcedure (create figure, transform) :> Procedure
+        | Line line -> new LineProcedure (line) :> Procedure
+        | Image (image, size, interpolation) ->
+            let texture = Texture.Create (image, size)
+            Texture.CreateMipmap GenerateMipmapTarget.Texture2D
+            match interpolation with
+            | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
+            | _ -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
+            new TextureProcedure (texture |> Exclusive.custom (fun texture -> texture.Delete ())) :> Procedure
+        | _ -> new NotImplementedException () |> raise
+
+    /// Creates the default procedure for rendering the given dynamic figure.
+    let createDefaultDynamic (create : Figure signal -> Procedure) (figure : Figure signal) =
+        new DynamicFigureProcedure (figure) :> Procedure

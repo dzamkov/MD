@@ -11,8 +11,8 @@ open OpenTK.Graphics.OpenGL
 open GLExtensions
 
 /// A render context for a graphics interface using a fixed-function pipeline.
-type FixedContext (size : ImageSize) =
-    inherit OpenTK.Context ()
+type FixedContext (graphics : Graphics, size : ImageSize) =
+    inherit OpenTK.Context (graphics)
     let effectRemoveStack = new Stack<unit -> unit> ()
     let mutable transform = Transform.Identity
 
@@ -84,6 +84,10 @@ type FixedGraphics () =
         GL.Enable EnableCap.Blend
         GL.BlendFunc (BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha)
 
+    override this.CreateProcedure figure = Procedure.createDefaultStatic this.GetProcedure figure
+    
+    override this.CreateProcedure figure = Procedure.createDefaultDynamic this.GetProcedure figure
+
     override this.CreateContext size =
         GL.Viewport (0, 0, size.Width, size.Height)
-        new FixedContext (size) :> Context
+        new FixedContext (this, size) :> Context

@@ -41,8 +41,7 @@ type SignalFeed<'a> () =
     /// Gets an event feed that fires an event for every change that occurs in this signal feed, or None 
     /// if not possible (the signal changes continuously or it is derived from another signal with unknown properties).
     /// During an event fired by the returned feed, this signal will use the new value as the current value. Note that 
-    /// this feed may be fired even when there is no change, in which case, 
-    /// New and Old on the given change will be the same.
+    /// this feed may be fired even when there is no change, in which case, New and Old on the change will be the same.
     abstract member Delta : EventFeed<Change<'a>> option
     default this.Delta = None
 

@@ -2,6 +2,7 @@
 
 open MD
 open MD.UI
+open MD.OpenTK
 open System
 open System.Collections.Generic
 open global.OpenTK
@@ -10,7 +11,7 @@ open OpenTK.Graphics.OpenGL
 open GLExtensions
 
 /// A render context for a graphics interface using a fixed-function pipeline.
-type FixedContext (width, height) =
+type FixedContext (size : ImageSize) =
     inherit OpenTK.Context ()
     let effectRemoveStack = new Stack<unit -> unit> ()
     let mutable transform = Transform.Identity
@@ -39,7 +40,7 @@ type FixedContext (width, height) =
         let unitArea = hRes.Normal ^^ vRes.Normal
         let hRes = hRes.Length * unitArea
         let vRes = vRes.Length * unitArea
-        new Point (hRes * float width / 2.0, vRes * float height / 2.0)
+        new Point (hRes * float size.Width / 2.0, vRes * float size.Height / 2.0)
 
     override this.Transform = transform
 
@@ -73,15 +74,16 @@ type FixedContext (width, height) =
         GL.Vertex2 (transform * new Point (1.0, 1.0))
         GL.End ()
 
-/// A graphics display that uses the fixed-function pipeline (OpenGL 2.1 and below).
-type FixedDisplay (figure) =
-    inherit Display (figure)
+/// A graphics interface that uses the fixed-function pipeline (OpenGL 2.1 and below).
+type FixedGraphics () =
+    inherit Graphics ()
 
-    override this.Setup (width, height) =
+    override this.Initialize () =
         GL.Enable EnableCap.Texture2D
         GL.Enable EnableCap.CullFace
         GL.Enable EnableCap.Blend
         GL.BlendFunc (BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha)
-        GL.Viewport (0, 0, width, height)
 
-    override this.Render () = ()
+    override this.CreateContext size =
+        GL.Viewport (0, 0, size.Width, size.Height)
+        new FixedContext (size) :> Context

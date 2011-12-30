@@ -108,19 +108,19 @@ type Window () =
         let figure = Feed.collate figure view.Projection |> Feed.maps (fun (fig, proj) -> fig * proj.Inverse)
 
         // Start
+        let graphics = new FixedGraphics ()
+        graphics.Initialize ()
+        display <- new Display (graphics, figure)
         Input.link (this :> GameWindow) (view :> Interface |> Input.transform worldspaceProjection) |> ignore
-        display <- new FixedDisplay (figure) :> Display
-        display.Setup (this.Width, this.Height)
         control.Fire AudioControl.Play
 
     override this.OnRenderFrame args =
         GL.Clear ClearBufferMask.ColorBufferBit
-        display.Render ()
+        display.Render (new ImageSize (this.Width, this.Height))
         this.SwapBuffers ()
 
     override this.OnUpdateFrame args =
         Update.invoke args.Time
 
     override this.OnResize args =
-        display.Setup (this.Width, this.Height)
         size.Update (new Point (double this.Width, double this.Height))

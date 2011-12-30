@@ -10,6 +10,9 @@ open System.Collections.Generic
 /// effect. Procedures are used for rendering operations that occur often, are complex, or require continuity.
 [<AbstractClass>]
 type Procedure () =
+
+    /// Deletes the given procedure.
+    static member Delete (procedure : Procedure) = procedure.Delete ()
     
     /// Invokes this procedure using the given context.
     abstract member Invoke : Context -> unit
@@ -73,3 +76,8 @@ type SequentialProcedure (procedures : seq<Procedure>) =
 
     override this.Delete () =
         for procedure in procedures do procedure.Delete ()
+
+/// A procedure that renders a dynamic figure given by a signal, using a given rendering method.
+type DynamicFigureProcedure (figure : Figure signal, render : Context * Figure -> unit) =
+    inherit Procedure ()
+    override this.Invoke context = render (context, figure.Current)

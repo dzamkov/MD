@@ -34,8 +34,6 @@ type TransformProcedure (inner : Procedure, transform : Transform) =
         inner.Invoke context
         context.Pop ()
 
-    override this.Delete () = inner.Delete ()
-
 /// A procedure that draws a line.
 type LineProcedure (line : Line) =
     inherit Procedure ()
@@ -50,7 +48,6 @@ type TextureProcedure (texture : Texture exclusive) =
     member this.Texture = texture.Object
 
     override this.Invoke context = context.RenderTexture texture.Object
-    override this.Delete () = texture.Release.Invoke ()
 
 /// A procedure that invokes a sequence of component procedures sequentially.
 type SequentialProcedure (procedures : seq<Procedure>) =
@@ -61,9 +58,6 @@ type SequentialProcedure (procedures : seq<Procedure>) =
 
     override this.Invoke context =
         for procedure in procedures do procedure.Invoke context
-
-    override this.Delete () =
-        for procedure in procedures do procedure.Delete ()
 
 /// A procedure that renders a dynamic figure given by a signal.
 type DynamicFigureProcedure (figure : Figure signal) =

@@ -32,8 +32,8 @@ module GLExtensions =
 /// dynamic figures.
 [<AbstractClass>]
 type Graphics () as this =
-    let staticCache = new ManualCache<Figure, Procedure> (this.CreateProcedure, Procedure.Delete)
-    let dynamicCache = new ManualCache<Figure signal, Procedure> (this.CreateProcedure, Procedure.Delete)
+    let staticCache = new ManualCache<Figure, Procedure> (this.CreateProcedure, ignore)
+    let dynamicCache = new ManualCache<Figure signal, Procedure> (this.CreateProcedure, ignore)
 
     /// Initializes the OpenGL graphics context on the current thread.
     abstract member Initialize : unit -> unit
@@ -142,16 +142,9 @@ and [<AbstractClass>] Context (graphics : Graphics) =
 /// Describes a rendering procedure that manipulates a graphics context in order to produce a visual object or
 /// effect. Procedures are used for rendering operations that occur often, are complex, or require continuity.
 and [<AbstractClass>] Procedure () =
-
-    /// Deletes the given procedure.
-    static member Delete (procedure : Procedure) = procedure.Delete ()
     
     /// Invokes this procedure using the given context.
     abstract member Invoke : Context -> unit
-
-    /// Deletes this procedure and all resources it uses.
-    abstract member Delete : unit -> unit
-    default this.Delete () = ()
 
 /// Tracks resources and continuity for rendering a specified dynamic figure using a graphics interface.
 type Display (graphics : Graphics, figure : Figure signal) =

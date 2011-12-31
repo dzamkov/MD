@@ -10,7 +10,7 @@ type Action =
     | Composite of Action * Action
     | Dynamic of Action ref
 
-    /// Invokes this retract operation.
+    /// Invokes this action.
     member this.Invoke () = 
         match this with
         | Nil -> ()

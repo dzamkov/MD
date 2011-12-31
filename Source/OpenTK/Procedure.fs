@@ -86,7 +86,7 @@ module Procedure =
             match interpolation with
             | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
             | _ -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
-            new TextureProcedure (texture.MakeExclusive ()) :> Procedure
+            new TextureProcedure (Exclusive.custom texture.Delete texture) :> Procedure
         | _ -> new NotImplementedException () |> raise
 
     /// Creates the default procedure for rendering the given dynamic figure.

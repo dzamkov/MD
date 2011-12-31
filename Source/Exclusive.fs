@@ -20,8 +20,37 @@ type Exclusive<'a> (obj : 'a, release : ReleaseAction) =
 
     end
 
-// Create type abbreviation.
+/// A shared reference-counted handle to an exclusive object.
+type Shared<'a> (handle : Exclusive<'a>) =
+    let mutable count = 0
+
+    /// Gets the object for the given handle.
+    static member (!!) (a : Shared<'a>) = a.Object
+
+    /// Gets the object for this handle.
+    member this.Object = handle.Object
+
+    /// Gets the current reference count for this handle.
+    member this.Count = count
+
+    /// Increments the reference count for this shared handle. Note that a shared handle starts with
+    /// a reference count of 1.
+    member this.Reference () = count <- count + 1 
+
+    /// Decrements the reference count for this shared handle and releases the
+    /// handle if the new count is zero.
+    member this.Unreference () =
+        count <- count - 1
+        if count <= 0 then handle.Release.Invoke ()
+
+    /// Gets an exclusive handle for this shared handle.
+    member this.GetExclusiveHandle () =
+        this.Reference ()
+        new Exclusive<'a> (handle.Object, Action.Custom this.Unreference)
+
+// Create type abbreviations.
 type 'a exclusive = Exclusive<'a>
+type 'a shared = Shared<'a>
 
 /// Contains functions for constructing and manipulating exclusive handles.
 module Exclusive =
@@ -64,3 +93,6 @@ module Exclusive =
 
     /// Releases the given handle.
     let release (handle : 'a exclusive) = handle.Release.Invoke ()
+
+    /// Creates a shared handle for the given exclusive handle.
+    let share (handle : 'a exclusive) = new Shared<'a> (handle) : 'a shared

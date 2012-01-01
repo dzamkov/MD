@@ -134,7 +134,7 @@ type View (parameters : ViewParameters) =
         and set state = changeState state
 
     /// Gets the projection feed for this view.
-    member this.Projection = Feed.query (fun () -> state.Projection)
+    member this.Projection = Feed.property (fun () -> state.Projection)
 
     /// Updates the state of this view by the given amount of time in seconds.
     member this.Update time = 

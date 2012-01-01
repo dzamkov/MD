@@ -26,7 +26,7 @@ type Line = {
 
     }
 
-/// Describes a visual object on a two-dimensional plane.
+/// Describes a (possibly dynamic) visual object on a two-dimensional plane.
 type Figure =
     | Null
     | Solid of Color
@@ -34,9 +34,11 @@ type Figure =
     | Transform of Transform * Figure
     | Composite of Figure * Figure
     | Clip of Rectangle * Figure
+    | Query of Figure query
     | Sample of Map<Point, Paint>
     | Line of Line
     | Image of Image * ImageSize * ImageInterpolation
+    | Dynamic of Figure signal
 
     /// Constructs a transformed figure.
     static member (*) (a : Figure, b : Transform) =
@@ -84,3 +86,9 @@ module Figure =
     /// Constructs a clipped form of a figure. This will cause all paints of the figure outside the given area to
     /// be completely transparent.
     let clip area figure = Figure.Clip (area, figure)
+
+    /// Constructs a figure that is lazily and asynchronously loaded from a query.
+    let query query = Figure.Query query
+
+    /// Constructs a dynamic figure from a figure signal.
+    let dynamic figure = Figure.Dynamic figure

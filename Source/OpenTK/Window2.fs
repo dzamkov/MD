@@ -100,12 +100,12 @@ type Window () =
         let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 
 
         // Figure
-        let getFigure playSample =
+        let getLineFigure playSample =
             let linex = 2.0 * float playSample / float floatData.Size - 1.0
             let line = Figure.line { A = new Point (linex, -1.0); B = (new Point (linex, 1.0)); Weight = 0.002; Paint = Paint.ARGB (1.0, 1.0, 0.3, 0.0) }
             line
-        let figure = playPosition |> Feed.maps getFigure 
-        let figure = Feed.collate figure view.Projection |> Feed.maps (fun (fig, proj) -> fig * proj.Inverse)
+        let line = Figure.dynamic (playPosition |> Feed.maps getLineFigure)
+        let figure = line
 
         // Start
         let graphics = new FixedGraphics ()

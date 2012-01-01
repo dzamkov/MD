@@ -1,13 +1,31 @@
 ﻿namespace MD.OpenTK
 
-open MD
-open MD.UI
-open MD.OpenTK
 open System
 open System.Collections.Generic
 open global.OpenTK
 open OpenTK.Graphics
 open OpenTK.Graphics.OpenGL
+
+open MD
+open MD.UI
+open MD.OpenTK
+
+/// Describes a rendering procedure that manipulates a graphics context in order to produce a visual object or
+/// effect. Procedures are used for rendering operations that occur often, are complex, or require continuity.
+[<AbstractClass>]
+type Procedure () =
+
+    /// Invokes the given procedure using the given context.
+    static member Invoke (procedure : Procedure byref, context) = procedure.Invoke (context, &procedure)
+    
+    /// Invokes this procedure using the given context. A reference to the procedure to be used for the next
+    /// invokation is provided to allow the procedure to defer to another.
+    abstract member Invoke : Context * Procedure byref -> unit
+
+    /// Invokes this procedure using the given context.
+    member this.Invoke context =
+        let mutable dummy = this
+        this.Invoke (context, &dummy)
 
 /// A procedure that does nothing.
 type NullProcedure private () =
@@ -17,11 +35,12 @@ type NullProcedure private () =
     /// Gets the only instance of this class.
     static member Instance = instance
 
-    override this.Invoke _ = ()
+    override this.Invoke (_, _) = ()
 
 /// A procedure that applies a transform to an inner procedure.
 type TransformProcedure (inner : Procedure, transform : Transform) =
     inherit Procedure ()
+    let mutable inner = inner
 
     /// Gets the inner procedure for this procedure.
     member this.Inner = inner
@@ -29,16 +48,15 @@ type TransformProcedure (inner : Procedure, transform : Transform) =
     /// Gets the transform applied by this procedure.
     member this.Transform = transform
 
-    override this.Invoke context =
+    override this.Invoke (context, _) =
         context.PushTransform transform
-        inner.Invoke context
+        Procedure.Invoke (&inner, context)
         context.Pop ()
 
 /// A procedure that draws a line.
 type LineProcedure (line : Line) =
     inherit Procedure ()
-
-    override this.Invoke context = context.RenderLine line
+    override this.Invoke (context, _) = context.RenderLine line
 
 /// A procedure that renders a full 2D texture to the unit square.
 type TextureProcedure (texture : Texture exclusive) =
@@ -47,42 +65,17 @@ type TextureProcedure (texture : Texture exclusive) =
     /// Gets the texture for this procedure.
     member this.Texture = texture.Object
 
-    override this.Invoke context = context.RenderTexture texture.Object
+    override this.Invoke (context, _) = context.RenderTexture texture.Object
 
 /// A procedure that invokes a sequence of component procedures sequentially.
-type SequentialProcedure (procedures : seq<Procedure>) =
+type SequentialProcedure (procedures : Procedure[]) =
     inherit Procedure ()
 
     /// Gets the component procedures of this procedure.
     member this.Procedures = procedures
 
-    override this.Invoke context =
-        for procedure in procedures do procedure.Invoke context
-
-/// A procedure that renders a dynamic figure given by a signal.
-type DynamicFigureProcedure (figure : Figure signal) =
-    inherit Procedure ()
-    override this.Invoke context = context.RenderFigure figure.Current
-
-/// Contains functions for constructing and manipulating procedures.
-[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
-module Procedure =
-
-    /// Creates the default procedure for rendering the given static figure.
-    let createDefaultStatic (create : Figure -> Procedure) (figure : Figure) =
-        match figure with
-        | Null -> NullProcedure.Instance :> Procedure
-        | Transform (transform, figure) -> new TransformProcedure (create figure, transform) :> Procedure
-        | Line line -> new LineProcedure (line) :> Procedure
-        | Image (image, size, interpolation) ->
-            let texture = Texture.Create (image, size)
-            Texture.CreateMipmap GenerateMipmapTarget.Texture2D
-            match interpolation with
-            | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
-            | _ -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
-            new TextureProcedure (Exclusive.custom texture.Delete texture) :> Procedure
-        | _ -> new NotImplementedException () |> raise
-
-    /// Creates the default procedure for rendering the given dynamic figure.
-    let createDefaultDynamic (create : Figure signal -> Procedure) (figure : Figure signal) =
-        new DynamicFigureProcedure (figure) :> Procedure
+    override this.Invoke (context, _) =
+        let mutable index = 0
+        while index < procedures.Length do
+            Procedure.Invoke (&procedures.[index], context)
+            index <- index + 1

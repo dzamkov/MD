@@ -100,12 +100,11 @@ type ControlSignalFeed<'a> (initial : 'a) =
     override this.Current = value
     override this.Delta = Some (delta :> 'a change event)
 
-/// A signal feed that performs a query operation to get the current value of the signal.
+/// A signal feed that performs an operation to get the current value of the signal.
 [<Sealed>]
-type QuerySignalFeed<'a> (query : unit -> 'a) =
+type PropertySignalFeed<'a> (property : unit -> 'a) =
     inherit SignalFeed<'a> ()
-
-    override this.Current = query ()
+    override this.Current = property ()
 
 /// An event feed that applies a mapping and filter to all events from a source feed.
 [<Sealed>]
@@ -234,8 +233,8 @@ module Feed =
     /// Constructs a signal feed with a constant value.
     let constant value = new ConstSignalFeed<'a> (value) :> 'a signal
 
-    /// Constructs a signal feed that performs a query operation to get its current value.
-    let query query = new QuerySignalFeed<'a> (query) :> 'a signal
+    /// Constructs a signal feed that performs an operation to get its current value.
+    let property property = new PropertySignalFeed<'a> (property) :> 'a signal
 
     /// A signal feed that gives the amount of real-world time, in seconds, that has
     /// elapsed since the start of the program.
@@ -303,3 +302,9 @@ module Feed =
         match source with 
         | :? CompoundSignalFeed<'a, 'b> as source -> source.GetElementSignal index
         | source -> maps (fun value -> value index) source
+
+    /// Matches a signal for a constant representation.
+    let (|Constant|_|) (source : 'a signal) =
+        match source with
+        | :? ConstSignalFeed<'a> as source -> Some source.Value
+        | _ -> None

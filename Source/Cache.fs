@@ -9,11 +9,25 @@ open System.Collections.Generic
 type Cache<'a, 'b when 'a : equality> (create : 'a -> 'b, delete : 'b -> unit) =
     inherit Map<'a, 'b> ()
 
-    /// Gets the function used to create an item (for a certain parameter) for the cache.
+    /// Gets the default function used to create an item (for a certain parameter) for the cache.
     member this.Create = create
 
     /// Gets the function used to delete an item when no longer used.
     member this.Delete = delete
+
+    /// Manually submits an item to the cache. The item should not already exist.
+    abstract member Submit : 'a * 'b -> unit
+
+    /// Looks up an item in the cache, returning None if it has not yet been submitted.
+    abstract member Fetch : 'a -> 'b option
+
+    override this.Get param =
+        match this.Fetch param with
+        | Some item -> item
+        | None ->
+            let item = create param
+            this.Submit (param, item)
+            item
 
 /// A cache that automatically removes items when they are no longer being used. All items must be
 /// completely managed (in order to be freed with garbage collection) and can not have a custom delete function.
@@ -22,12 +36,21 @@ type AutoCache<'a, 'b when 'a : equality> (create : 'a -> 'b) =
     inherit Cache<'a, 'b> (create, ignore)
     let items = new Dictionary<'a, WeakReference> ()
 
+    override this.Submit (param, item) =
+        items.Add (param, new WeakReference (item))
+
+    override this.Fetch param =
+        let mutable itemRef = null
+        if items.TryGetValue (param, &itemRef) && itemRef.IsAlive 
+        then Some (itemRef.Target :?> 'b)
+        else None
+
     override this.Get param =
         let create = this.Create
         let mutable itemRef = null
         if items.TryGetValue (param, &itemRef) then
-            if itemRef.IsAlive then
-                itemRef.Target :?> 'b
+            if itemRef.IsAlive 
+            then itemRef.Target :?> 'b
             else
                 let item = create param
                 itemRef.Target <- item
@@ -56,16 +79,15 @@ type CyclicCache<'a, 'b when 'a : equality> (create : 'a -> 'b, delete : 'b -> u
         for key in toRemove do
             items.Remove key |> ignore
 
-    override this.Get param =
-        let create = this.Create
+    override this.Submit (param, item) =
+        items.Add (param, { Item = item; Used = true })
+
+    override this.Fetch param =
         let mutable item = Unchecked.defaultof<CyclicCacheItem<'b>>
         if items.TryGetValue (param, &item) then
             item.Used <- true
-            item.Item
-        else
-            let item = create param
-            items.Add (param, { Item = item; Used = true })
-            item
+            Some item.Item
+        else None
 
 /// The internal representation of an item in a Cyclic cache.
 and CyclicCacheItem<'b> = {
@@ -96,8 +118,12 @@ type ManualCache<'a, 'b when 'a : equality> (create : 'a -> 'b, delete : 'b -> u
             delete value
             node <- next
 
-    override this.Get param =
-        let create = this.Create
+    override this.Submit (param, item) =
+        let node = new LinkedListNode<'a * 'b> ((param, item))
+        items.AddFirst node
+        index.Add (param, node)
+
+    override this.Fetch param =
         let mutable node = null
         if index.TryGetValue (param, &node) then
 
@@ -106,11 +132,5 @@ type ManualCache<'a, 'b when 'a : equality> (create : 'a -> 'b, delete : 'b -> u
             items.AddFirst node
 
             let _, item = node.Value
-            item
-
-        else 
-            let item = create param
-            let node = new LinkedListNode<'a * 'b> ((param, item))
-            items.AddFirst node
-            index.Add (param, node)
-            item
+            Some item
+        else None

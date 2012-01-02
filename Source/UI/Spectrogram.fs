@@ -1,10 +1,11 @@
 ﻿namespace MD.UI
 
+open System
+open System.Collections.Generic
+
 open MD
 open MD.Util
 open MD.DSP
-open System
-open System.Collections.Generic
 
 /// Defines a coloring for components in a spectrogram, based on the relative frequency (where 0.0 is 0 hz and 
 /// 1.0 is the Nyquist frequency) and component value.
@@ -27,7 +28,7 @@ type SpectrogramParameters = {
 
     }
     
-/// A tile for a spectrogram tile image.
+/// Identifies a tile for a spectrogram.
 type SpectrogramTile = {
 
     /// The first time sample in the range of this spectrogram tile.

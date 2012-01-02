@@ -54,3 +54,6 @@ let npow2 (x : uint32) =
     let x = x ||| (x >>> 8);
     let x = x ||| (x >>> 16);
     x + 1u
+
+/// Determines wether the given integer is a power of two.
+let ispow2 (x : uint32) = npow2 x = x

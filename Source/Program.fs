@@ -1,7 +1,9 @@
 ﻿module public MD.Program
 
-open MD.OpenTK
 open System
+
+open MD.DSP
+open MD.OpenTK
 
 // Ensure System.Core is loaded for debugging
 #if DEBUG

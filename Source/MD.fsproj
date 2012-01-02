@@ -62,6 +62,7 @@
     <Compile Include="DSP\Util2.fs" />
     <Compile Include="DSP\DFT.fs" />
     <Compile Include="DSP\Window.fs" />
+	<Compile Include="DSP\Frame.fs" />
     <Compile Include="UI\Feed.fs" />
     <Compile Include="UI\Audio.fs" />
     <Compile Include="UI\Geometry.fs" />

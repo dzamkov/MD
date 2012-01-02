@@ -1,10 +1,12 @@
 ﻿namespace MD.DSP
 
-open MD
-open MD.Util
 open System
 
-/// A windowing function on the interval (-1/2, 1/2) for use in signal processing.
+open MD
+open MD.Util
+
+/// A windowing function on the interval (-1/2, 1/2) for use in signal processing. The function should be normalized
+/// such that the definite integral over (-1/2, 1/2) is 1.
 type Window = float -> float
 
 /// Constains functions for constructing and manipulating windowing functions.
@@ -18,9 +20,9 @@ module Window =
     let hann : Window = fun x -> 1.0 + cos (2.0 * Math.PI  * x)
 
     /// The Hamming window
-    let hamming : Window = fun x -> 0.54 + 0.46 * cos (2.0 * Math.PI  * x)
+    let hamming : Window = fun x -> 1.08 + 0.92 * cos (2.0 * Math.PI  * x)
 
-    /// Creates a normalized instance of a window.
+    /// Creates a normalized instance of a window such that the total of all values is 1.
     let create (window : Window) (windowSize : float) bufferSize =
         let buffer = Array.zeroCreate bufferSize
         let start = max 0 (int (float bufferSize / 2.0 - windowSize / 2.0))
@@ -31,15 +33,8 @@ module Window =
         let mutable total = 0.0
         while index < size do
             let value = window parameter
-            buffer.[start + index] <- value
-            total <- total + value
+            buffer.[start + index] <- value * delta
             parameter <- parameter + delta
-            index <- index + 1
-
-        // Normalize
-        let mutable index = 0
-        while index < size do
-            buffer.[start + index] <- buffer.[start + index] / total
             index <- index + 1
 
         // Return

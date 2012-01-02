@@ -162,3 +162,26 @@ type CooleyTukeyDFT (size : int, unit : DFT) =
     override this.ComputeComplex (input, output) =
         this.InitializeUnitsComplex (input, output)
         this.ApplyRounds (output)
+
+/// Contains functions and methods related to DFT's.
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module DFT =
+
+    /// Creates a DFT method for a DFT of the given size.
+    let create size =
+        match size with
+        | 4 -> QuickDFT.Instance :> DFT
+        | x when ispow2 (uint32 x) && x > 4 -> new CooleyTukeyDFT (size) :> DFT
+        | _ -> new NotImplementedException () |> raise
+
+    /// Gets a DFT method for a DFT of the given size.
+    let get size = create size
+
+    /// Computes a DFT of the given size on real input.
+    let computeReal input output size = (get size).ComputeReal (input, output)
+
+    /// Computes a DFT of the given size on complex input.
+    let computeComplex input output size = (get size).ComputeComplex (input, output)
+
+    /// Computes an inverse DFT of the given size on complex input.
+    let computeInverse input output size = (get size).ComputeInverse (input, output)

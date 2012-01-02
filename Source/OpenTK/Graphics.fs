@@ -24,7 +24,7 @@ type Graphics () as this =
 
     /// Creates a procedure to render the given figure.
     abstract member CreateProcedure : Figure -> Procedure
-    default this.CreateProcedure figure =
+    default this.CreateProcedure (figure : Figure) =
         match figure with
         | Null -> NullProcedure.Instance :> Procedure
         | Transform (transform, figure) -> new TransformProcedure (this.CreateProcedure figure, transform) :> Procedure
@@ -36,35 +36,15 @@ type Graphics () as this =
             | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
             | _ -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
             new TextureProcedure (Exclusive.custom texture.Delete texture) :> Procedure
+        | TransformDynamic (transform, figure) -> new TransformDynamicProcedure (this.CreateProcedure figure, transform) :> Procedure
+        | Dynamic figure -> new DefaultDynamicProcedure (figure, cache) :> Procedure
         | _ -> new NotImplementedException () |> raise
 
     /// Gets the procedure to render the given figure.
     member this.GetProcedure (figure : Figure) = cache.[figure]
 
     /// Renders the given figure using the given context.
-    abstract member RenderFigure : Context * Figure -> unit
-    default this.RenderFigure (context, figure) =
-        match figure with
-        | Null -> ()
-        | Transform (transform, figure) ->
-            context.PushTransform transform
-            this.RenderFigure (context, figure)
-            context.Pop ()
-        | Modulate (paint, figure) ->
-            context.PushModulate paint
-            this.RenderFigure (context, figure)
-            context.Pop ()
-        | Clip (clip, figure) ->
-            context.PushClip clip
-            this.RenderFigure (context, figure)
-            context.Pop ()
-        | Composite (a, b) ->
-            this.RenderFigure (context, a)
-            this.RenderFigure (context, b)
-        | Line line ->
-            context.RenderLine line
-        | Dynamic figure -> this.RenderFigure (context, figure.Current)
-        | figure -> (this.GetProcedure figure).Invoke context
+    member this.RenderFigure (context, figure) = cache.[figure].Invoke context
 
 /// Tracks resources and continuity for rendering a specified figure using a graphics interface.
 type Display (graphics : Graphics, figure : Figure) =

@@ -39,10 +39,15 @@ type Figure =
     | Line of Line
     | Image of Image * ImageSize * ImageInterpolation
     | Dynamic of Figure signal
+    | TransformDynamic of Transform signal * Figure
 
     /// Constructs a transformed figure.
     static member (*) (a : Figure, b : Transform) =
         Figure.Transform (b, a)
+
+    /// Constructs a transformed figure.
+    static member (*) (a : Figure, b : Transform signal) =
+        Figure.TransformDynamic (b, a)
 
     /// Constructs a modulated figure
     static member (*) (a : Figure, b : Paint) =
@@ -92,3 +97,6 @@ module Figure =
 
     /// Constructs a dynamic figure from a figure signal.
     let dynamic figure = Figure.Dynamic figure
+
+    /// Constructs a dynamically-transformed form of a figure.
+    let transformDynamic transform figure = Figure.TransformDynamic (transform, figure)

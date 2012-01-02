@@ -29,10 +29,10 @@ type Window () =
 
     override this.OnLoad args =
         this.MakeCurrent ()
-        this.VSync <- VSyncMode.On
+        this.VSync <- VSyncMode.Off
 
         // Get audio container
-        let music = new Path (@"E:\Music\Me\19.mp3")
+        let music = new Path (@"N:\Music\Me\19.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -105,7 +105,7 @@ type Window () =
             let line = Figure.line { A = new Point (linex, -1.0); B = (new Point (linex, 1.0)); Weight = 0.002; Paint = Paint.ARGB (1.0, 1.0, 0.3, 0.0) }
             line
         let line = Figure.dynamic (playPosition |> Feed.maps getLineFigure)
-        let figure = line
+        let figure = line |> Figure.transformDynamic (view.Projection |> Feed.maps (fun transform -> transform.Inverse))
 
         // Start
         let graphics = new FixedGraphics ()

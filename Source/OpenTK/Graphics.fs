@@ -28,6 +28,26 @@ type Graphics () as this =
         match figure with
         | Null -> NullProcedure.Instance :> Procedure
         | Transform (transform, figure) -> new TransformProcedure (this.CreateProcedure figure, transform) :> Procedure
+        | Composite (a, b) ->
+        
+            // Try to reduce the amount of sequential procedures needed by combining chained composite figures into a single procedure.
+            let rec count current figure =
+                match figure with
+                | Composite (a, _) -> count (current + 1) a
+                | _ -> current
+            let count = count 2 a
+            let procedures = Array.zeroCreate<Procedure> count
+            let rec fill index figure =
+                match figure with
+                | Composite (a, b) -> 
+                    procedures.[index] <- this.CreateProcedure b
+                    fill (index - 1) a
+                | figure -> procedures.[index] <- this.CreateProcedure figure
+            procedures.[count - 1] <- this.CreateProcedure b
+            fill (count - 2) a
+
+            new SequentialProcedure (procedures) :> Procedure
+
         | Line line -> new LineProcedure (line) :> Procedure
         | Image (image, size, interpolation) ->
             let texture = Texture.Create (image, size)

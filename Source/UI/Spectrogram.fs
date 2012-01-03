@@ -22,7 +22,7 @@ type Spectrogram (samples : Data<float>, frame : Frame) =
 
     /// Creates a figure to display this spectrogram.
     member this.CreateFigure (coloring : SpectrogramColoring, area : Rectangle) =
-        let sampleCount = 65536 * 8
+        let sampleCount = 65536 * 16
         let height = 1024
         let supports = Frame.getSpectralSupportsPartial 0.008 frame sampleCount 0 (frame.Size / height)
         let width = supports.[0].Data.Length
@@ -40,12 +40,13 @@ type Spectrogram (samples : Data<float>, frame : Frame) =
 
         DFT.computeReal sampleBuffer spectrumBuffer sampleCount
         Util.scaleComplex (1.0 / float sampleCount) spectrumBuffer sampleCount
+        let dft = DFT.get width
         for t = 0 to height - 1 do
             let tempBuffer = sampleBuffer.Cast ()
             let support = supports.[t]
             Frame.applySupport spectrumBuffer sampleCount support tempBuffer
             Util.conjugate tempBuffer width
-            DFT.computeComplex tempBuffer outputBuffer width
+            dft.ComputeComplex (tempBuffer, outputBuffer)
             Util.conjugate outputBuffer width
             for x = 0 to width - 1 do
                 image.[x, height - t - 1] <- coloring.[0.0, outputBuffer.[x]]

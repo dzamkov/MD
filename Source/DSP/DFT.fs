@@ -174,8 +174,11 @@ module DFT =
         | x when ispow2 (uint32 x) && x > 4 -> new CooleyTukeyDFT (size) :> DFT
         | _ -> new NotImplementedException () |> raise
 
+    /// A cache containing DFT's of various sizes.
+    let cache = new AutoCache<int, DFT> (create) :> Cache<int, DFT>
+
     /// Gets a DFT method for a DFT of the given size.
-    let get size = create size
+    let get size = cache.[size]
 
     /// Computes a DFT of the given size on real input.
     let computeReal input output size = (get size).ComputeReal (input, output)

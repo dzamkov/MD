@@ -88,16 +88,12 @@ type Window () =
                 { Value = 1.0; Color = Color.RGB(0.5, 0.0, 0.0) };
             |]
 
-        // Spectrogram parameters
-        let parameters = {
-                Samples = floatData
-                Window = Window.hamming
-                WindowSize = 4096.0 * 2.0
-                Coloring = Map.compose (Map.func (fun (freq, value) -> value.Abs)) gradient
-            }
-
         // Spectrogram
+        let frame = new LinearFrame (Window.hamming, 2048.0, 4096, false)
+        let spectrogram = new Spectrogram (floatData, frame)
+        let coloring = Map.compose (Map.func (fun (freq, value : Complex) -> value.Abs * 100.0)) gradient
         let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 
+        let spectrogram = spectrogram.CreateFigure (coloring, area)
 
         // Figure
         let getLineFigure playSample =
@@ -105,7 +101,7 @@ type Window () =
             let line = Figure.line { A = new Point (linex, -1.0); B = (new Point (linex, 1.0)); Weight = 0.002; Paint = Paint.ARGB (1.0, 1.0, 0.3, 0.0) }
             line
         let line = Figure.dynamic (playPosition |> Feed.maps getLineFigure)
-        let figure = line |> Figure.transformDynamic (view.Projection |> Feed.maps (fun transform -> transform.Inverse))
+        let figure = spectrogram + line |> Figure.transformDynamic (view.Projection |> Feed.maps (fun transform -> transform.Inverse))
 
         // Start
         let graphics = new FixedGraphics ()

@@ -179,3 +179,13 @@ module Frame =
 
     /// Gets the supports for the spectral kernels in the given frame.
     let getSpectralSupports threshold (frame : Frame) kernelSize = getSpectralSupportsPartial threshold (frame : Frame) kernelSize 0 1
+
+    /// Applies a support to a signal and writes the resulting product to the given output buffer.
+    let applySupport (signal : Buffer<Complex>) signalSize (support : Support) (output : Buffer<Complex>) =
+        let supportData = support.Data
+        let supportSize = supportData.Length
+        let supportOffset = support.Offset
+
+        let mutable output = output
+        for t = 0 to supportSize - 1 do
+            output.[t] <- signal.[(supportOffset + t) % signalSize] * supportData.[t]

@@ -11,40 +11,47 @@ open MD.DSP
 /// 1.0 is the Nyquist frequency) and component value.
 type SpectrogramColoring = Map<float * Complex, Color>
 
-/// Contains parameters for a spectrogram.
-type SpectrogramParameters = {
-    
-    /// The monochannel sample data for the spectrogram
-    Samples : Data<float>
+/// A time-frequency representation of a discrete waveform derived with a certain frame.
+type Spectrogram (samples : Data<float>, frame : Frame) =
 
-    /// The window to use for the spectrogram.
-    Window : Window
+    /// Gets the sample data for this spectrogram.
+    member this.Samples = samples
 
-    /// The size of the window, in samples.
-    WindowSize : float
+    /// Gets the frame for this spectrogram.
+    member this.Frame = frame
 
-    /// The coloring method for the spectrogram.
-    Coloring : SpectrogramColoring
+    /// Creates a figure to display this spectrogram.
+    member this.CreateFigure (coloring : SpectrogramColoring, area : Rectangle) =
+        let sampleCount = 65536 * 8
+        let height = 1024
+        let supports = Frame.getSpectralSupportsPartial 0.008 frame sampleCount 0 (frame.Size / height)
+        let width = supports.[0].Data.Length
 
-    }
-    
-/// Identifies a tile for a spectrogram.
-type SpectrogramTile = {
+        let image = new ArrayImage<Color> (width, height)
 
-    /// The first time sample in the range of this spectrogram tile.
-    MinTime : uint64
+        let sampleArray = Array.zeroCreate<float> sampleCount
+        samples.Read (0UL, sampleArray, 0, sampleCount)
 
-    /// The amount of time samples this spectrogram tile covers.
-    TimeRange : uint64
+        let outputArray = Array.zeroCreate<Complex> width
+        let spectrumArray = Array.zeroCreate<Complex> sampleCount
+        let spectrumBuffer, unpinSpectrum = Buffer.PinArray spectrumArray
+        let sampleBuffer, unpinSample = Buffer.PinArray sampleArray
+        let outputBuffer, unpinOutput = Buffer.PinArray outputArray
 
-    /// The first frequency sample in the range of this spectrogram tile.
-    MinFrequency : int
+        DFT.computeReal sampleBuffer spectrumBuffer sampleCount
+        Util.scaleComplex (1.0 / float sampleCount) spectrumBuffer sampleCount
+        for t = 0 to height - 1 do
+            let tempBuffer = sampleBuffer.Cast ()
+            let support = supports.[t]
+            Frame.applySupport spectrumBuffer sampleCount support tempBuffer
+            Util.conjugate tempBuffer width
+            DFT.computeComplex tempBuffer outputBuffer width
+            Util.conjugate outputBuffer width
+            for x = 0 to width - 1 do
+                image.[x, height - t - 1] <- coloring.[0.0, outputBuffer.[x]]
 
-    /// The amount of frequency samples this spectrogram tile covers. This must be a power
-    /// of two less than or equal to the window size.
-    FrequencyRange : int
+        unpinSpectrum ()
+        unpinSample ()
+        unpinOutput ()
 
-    /// The image size of the tile. Height should be a power of two.
-    Size : ImageSize
-
-    }
+        Figure.placeImage area (Image.opaque image, image.Size) ImageInterpolation.Linear

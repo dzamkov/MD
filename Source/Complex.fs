@@ -51,6 +51,9 @@ type Complex (real : float, imag : float) =
         /// Gets the absolute value, or magnitude of this number.
         member this.Abs = sqrt (real * real + imag * imag)
 
+        /// Gets the square of the absolute value of this number.
+        member this.SquareAbs = real * real + imag * imag
+
         /// Gets the phase of this complex number in radians
         member this.Phase = atan2 imag real
 

@@ -101,3 +101,17 @@ type Buffer<'a when 'a : unmanaged> (start : nativeint, stride : uint32) =
                         index <- index + 1
 
     end
+
+/// Contains functions and methods related to Frames.
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module Buffer =
+
+    /// Fills a buffer of the given size with the given value.
+    let fill value (buffer : Buffer<'a>) size =
+        let mutable buffer = buffer
+        for t = 0 to size - 1 do
+            buffer.[t] <- value
+
+    /// Copies data between buffers.
+    let copy (source : Buffer<'a>) (destination : Buffer<'a>) size =
+        source.CopyTo (destination, size)

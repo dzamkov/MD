@@ -100,7 +100,7 @@ type DefaultDynamicProcedure (figure : Figure signal, cache : Cache<Figure, Proc
         | Some procedure -> procedure.Invoke context
         | None ->
             match figure with
-            | Null -> ()
+            | Nil -> ()
             | Transform (transform, figure) ->
                 context.PushTransform transform
                 this.Render (context, figure)

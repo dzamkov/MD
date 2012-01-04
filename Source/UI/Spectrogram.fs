@@ -23,8 +23,8 @@ type Spectrogram (samples : Data<float>, frame : Frame) =
     /// Creates a figure to display this spectrogram.
     member this.CreateFigure (coloring : SpectrogramColoring, area : Rectangle) =
         let sampleCount = 65536 * 16
-        let height = 1024
-        let supports = Frame.getSpectralSupportsPartial 0.008 frame sampleCount 0 (frame.Size / height)
+        let height = 512
+        let supports = Frame.getSpectralSupports 0.008 frame sampleCount 0.0 (0.5 / float height) height
         let width = supports.[0].Data.Length
 
         let image = new ArrayImage<Color> (width, height)

@@ -5,72 +5,57 @@ open System
 open MD
 open MD.Util
 
-/// An collection of convolution kernels that localize a discrete signal in time and frequency. Kernel's are
-/// ordered such that a kernel with a higher index has higher frequency content.
+/// A continuous collection of discrete convolution kernels localized in time and frequency. Kernels are parameterized and ordered by
+/// their frequency content such that kernel 0.0 will have most of its frequency content near 0 Hz, kernel 0.5 will have most of
+/// its frequency content near the Nyquist frequency and kernel 1.0 will have most of its frequency content near the sample rate.
+/// Every frequency in the spectrum should be included in at least one kernel of the frame, in order to allow the frame to be
+/// invertible.
 [<AbstractClass>]
-type Frame (size : int) =
+type Frame () =
 
-    /// Gets the amount of kernels in this frame.
-    member this.Size = size
-
-    /// Gets the size (in temporal samples) of the given kernel. This is the minimum size of the buffer
+    /// Gets the size (in temporal samples) of the kernel for the given frequency parameter. This is the minimum size of the buffer
     /// the kernel can be written to.
-    abstract GetKernelSize : int -> int
+    abstract GetKernelSize : float -> int
 
-    /// Gets the maximum size (in temporal samples) of all kernels in the given range.
-    abstract GetMaximumKernelSize : int * int -> int
-    default this.GetMaximumKernelSize (index, count) =
-        let rec getMax curMax (index, count) =
-            if count = 0 then curMax
-            else getMax (max curMax (this.GetKernelSize index)) (index + 1, count - 1)
-        getMax 0 (index, count)
-
-    /// Writes the temporal kernel with the given index to the given cyclical buffer. Note that the kernel will be 
-    /// centered on sample 0, since that makes it more useful for convolution. If the buffer has extra space,
-    /// the extra center samples will be zero-padded. 
-    abstract GetTemporalKernel : int -> Buffer<Complex> * int -> unit
-    default this.GetTemporalKernel index (buffer, size) =
+    /// Reads the temporal kernel with the given frequency parameter into the given cyclical buffer. Note that the kernel will be 
+    /// centered on sample 0, since that makes it more useful for convolution. If the buffer has extra space, the extra center samples
+    /// will be zero-padded. 
+    abstract ReadTemporalKernel : float -> Buffer<Complex> * int -> unit
+    default this.ReadTemporalKernel param (buffer, size) =
         let tempArray = Array.zeroCreate<Complex> size
         let tempBuffer, unpinTemp = Buffer.PinArray tempArray
-        this.GetSpectralKernel index (tempBuffer, size)
+        this.ReadSpectralKernel param (tempBuffer, size)
         DFT.computeInverse tempBuffer buffer size
         unpinTemp ()
 
-    /// Writes the spectral kernel with the given index to the given buffer. If the buffer has extra space, the
+    /// Reads the spectral kernel with the given frequency parameter to the given buffer. If the buffer has extra space, the
     /// kernel will be interpolated along it.
-    abstract GetSpectralKernel : int -> Buffer<Complex> * int -> unit
-    default this.GetSpectralKernel index (buffer, size) =
+    abstract ReadSpectralKernel : float -> Buffer<Complex> * int -> unit
+    default this.ReadSpectralKernel param (buffer, size) =
         let tempArray = Array.zeroCreate<Complex> size
         let tempBuffer, unpinTemp = Buffer.PinArray tempArray
-        this.GetTemporalKernel index (tempBuffer, size)
+        this.ReadTemporalKernel param (tempBuffer, size)
         DFT.computeComplex tempBuffer buffer size
         unpinTemp ()
 
-/// A frame that contains linearly-spaced duplicate spectral kernels based on window functions. The "full" parameter determines
-/// what portion of the spectrum the frame covers. A value of true indicates that the frame covers the entire spectrum and is
-/// invertible for all signals. A value of false indicates that the frame covers the first half of the spectrum and is invertible
-/// for real signals.
-type LinearFrame (window : Window, windowSize : float, size : int, full : bool) =
-    inherit Frame (size)
+/// A frame that contains kernels which are congruent and linearly-spaced on the spectrum. The basic temporal kernel is defined
+/// by a window function.
+type LinearFrame (window : Window, windowSize : float) =
+    inherit Frame ()
     let kernelSize = round (int (ceil windowSize)) 2 + 1
 
-    /// Indicates wether this frame covers the full spectrum, as opposed to half.
-    member this.Full = full
+    override this.GetKernelSize param = kernelSize
 
-    override this.GetKernelSize index = kernelSize
-    override this.GetMaximumKernelSize (index, count) = kernelSize
-
-    override this.GetTemporalKernel index (buffer, size) =
+    override this.ReadTemporalKernel param (buffer, size) =
         let mutable buffer = buffer
         let leadingSize = kernelSize / 2
         let trailingSize = kernelSize - leadingSize
         let paddingSize = size - kernelSize
-        let freq = (if full then 1.0 else 0.5) * float index / float this.Size
         let mult = 1.0 / windowSize
 
         // Trailing half
         for t = 0 to trailingSize - 1 do
-            buffer.[t] <- Complex.ExpImag (2.0 * Math.PI * freq * float t) * window (float t / windowSize) * mult
+            buffer.[t] <- Complex.ExpImag (2.0 * Math.PI * param * float t) * window (float t / windowSize) * mult
         buffer <- buffer.Advance trailingSize
 
         // Padding
@@ -80,7 +65,7 @@ type LinearFrame (window : Window, windowSize : float, size : int, full : bool) 
 
         // Leading half
         for t = 0 to leadingSize - 1 do
-            buffer.[t] <- Complex.ExpImag (2.0 * Math.PI * freq * float (t - leadingSize)) * window (float t / windowSize - 0.5) * mult
+            buffer.[t] <- Complex.ExpImag (2.0 * Math.PI * param * float (t - leadingSize)) * window (float t / windowSize - 0.5) * mult
 
 /// Data for a part of kernel where values are highest.
 type Support = {
@@ -98,18 +83,12 @@ type Support = {
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Frame =
 
-    /// Constructs a linear frame that covers the first half of the spectrum. This frame is invertible when applied to
-    /// real signals (if there are enough kernels to cover the spectrum).
-    let linearHalf window windowSize kernels = new LinearFrame (window, windowSize, kernels, false) :> Frame
+    /// Constructs a linear frame from the given window function.
+    let linear window windowSize = new LinearFrame (window, windowSize) :> Frame
 
-    /// Constructs a linear frame that covers the first half of the spectrum. This frame is invertible when applied to
-    /// complex signals (if there are enough kernels to cover the spectrum).
-    let linearFull window windowSize kernels = new LinearFrame (window, windowSize, kernels, true) :> Frame
-
-    /// Gets a support for a full-sized kernel. The support will have a power-of-two size (to allow for quick DFT's) and
-    /// will contain all values of the kernel whose absolute values are above the given threshold.
-    let getSupport threshold (kernel : Buffer<Complex>) kernelSize =
-        let threshold = threshold * threshold
+    /// Gets the minimum size of a support that includes all components in the given kernel
+    /// with a magnitude above the given threshold.
+    let getSupportSize threshold (kernel : Buffer<Complex>) kernelSize =
 
         // Find the first and last values that are above the threshold and the
         // largest consecutive sequence of values that are below the threshold.
@@ -131,54 +110,88 @@ module Frame =
             largestBelowStart <- currentBelowStart
             largestBelowSize <- kernelSize - currentBelowStart
 
-        // Determine the smallest interval that includes all samples above the threshold. Note that
-        // the interval may wrap around the ends of the kernel.
-        let supportStart, supportSize =
-            let normalSize = lastAbove - firstAbove + 1
-            let wrapSize = kernelSize - largestBelowSize
-            if normalSize < wrapSize then (firstAbove, normalSize)
-            else (largestBelowStart + largestBelowSize, wrapSize)
+        // Find the smallest possible support size based on the minimum sizes of a wrapping support (wraps around the ends of the
+        // kernel) and a non-wrapping support.
+        let normalSize = lastAbove - firstAbove + 1
+        let wrapSize = kernelSize - largestBelowSize
+        min normalSize wrapSize
 
-        // Round the size up to the nearest power of two, pushing the start position back to center the support on
-        // the high values.
-        let nSupportSize = int (npow2 (uint32 supportSize))
-        let supportStart = supportStart - (nSupportSize - supportSize) / 2
-        let supportSize = nSupportSize
+    /// Finds the offset of the best support for a full-sized kernel such that the support will have the given size and
+    /// and the greatest possible sum of the square magnitudes of its components.
+    let findBestSupportOffset (kernel : Buffer<Complex>) kernelSize supportSize =
+        let mutable total = 0.0
 
-        // If the support start offset is negative, make it wrap around.
-        let supportStart = (supportStart % kernelSize + kernelSize) % kernelSize
-
-        // Create support data.
-        let supportData = Array.zeroCreate<Complex> supportSize
+        /// Compute initial total square magnitude for when the offset is zero.
         for t = 0 to supportSize - 1 do
-            supportData.[t] <- kernel.[(t + supportStart) % kernelSize]
-        { Data = supportData; Offset = supportStart }
+            total <- total + kernel.[t].SquareAbs
 
-    /// Gets the supports for the spectral kernels (or a subset of them) in the given frame.
-    let getSpectralSupportsPartial threshold (frame : Frame) kernelSize first delta =
-        let supports = Array.zeroCreate<Support> (frame.Size / delta)
-        let kernelArray = Array.zeroCreate<Complex> kernelSize
+        /// Search for the offset that has the greatest total square magnitude. (Note that the support can wrap around the ends of the kernel)
+        let mutable maxTotal = total
+        let mutable maxOffset = 0
+        for t = 0 to kernelSize - 2 do
+            total <- total + kernel.[(t + supportSize) % kernelSize].SquareAbs - kernel.[t].SquareAbs
+            if total > maxTotal then
+                maxTotal <- total
+                maxOffset <- t + 1
+
+        maxOffset
+
+    /// Reads a support from a kernel into a buffer, given the support size and offset in the kernel.
+    let readSupport (kernel : Buffer<Complex>) kernelSize (support : Buffer<Complex>) supportSize supportOffset =
+        let mutable support = support
+        for t = 0 to supportSize - 1 do
+            support.[t] <- kernel.[(t + supportOffset) % kernelSize]
+
+    /// Gets the supports for the spectral kernels in the given frame. The spectrum size should have a power-of-two size 
+    /// that is greater than or equal to the sizes of all kernels in the specified range. All returned supports will have 
+    /// a power-of-two size in order to allow for quick DFT's. 
+    let getSpectralSupports threshold (frame : Frame) spectrumSize kernelStart kernelDelta kernelCount =
+        let supports = Array.zeroCreate<Support> kernelCount
+        let kernelArray = Array.zeroCreate<Complex> spectrumSize
+        let tempArray = Array.zeroCreate<Complex> spectrumSize
         let kernelBuffer, unpinKernel = Buffer.PinArray kernelArray
-        match frame with
-        | :? LinearFrame as frame -> 
+        let tempBuffer, unpinTemp = Buffer.PinArray tempArray
+        
+        let supportBuffer = tempBuffer
+        let supportTemporalBuffer = kernelBuffer
 
-            // By definition, the kernels for a linear frame are all the same, just shifted by a constant amount.
-            frame.GetSpectralKernel 0 (kernelBuffer, kernelSize)
-            let support = getSupport threshold kernelBuffer kernelSize
-            let shiftOffset = kernelSize / frame.Size
-            let shiftOffset = if frame.Full then shiftOffset else shiftOffset / 2
-            for t = 0 to supports.Length - 1 do
-                supports.[t] <- { Data = support.Data; Offset = (support.Offset + (shiftOffset * (first + t * delta))) % kernelSize }
+        for t = 0 to kernelCount - 1 do
+            let kernelParam = kernelStart + kernelDelta * float t
+            let kernelSize = npow2i (frame.GetKernelSize kernelParam)
 
-        | frame ->
-            for t = 0 to supports.Length - 1 do
-                frame.GetSpectralKernel (first + t * delta) (kernelBuffer, kernelSize)
-                supports.[t] <- getSupport threshold kernelBuffer kernelSize 
+            // Read spectral kernel data and find its support.
+            frame.ReadSpectralKernel kernelParam (kernelBuffer, kernelSize)
+            let supportSize = npow2i (getSupportSize threshold kernelBuffer kernelSize)
+            let supportOffset = findBestSupportOffset kernelBuffer kernelSize supportSize
+            readSupport kernelBuffer kernelSize supportBuffer supportSize supportOffset
+
+            // Upsample the support to fit the spectrum size.
+            let upsampleFactor = spectrumSize / kernelSize
+            let newSupportSize = supportSize * upsampleFactor
+            Util.scaleComplex (1.0 / float supportSize) supportBuffer supportSize
+            DFT.computeComplex supportBuffer supportTemporalBuffer supportSize
+            Util.conjugate supportTemporalBuffer supportSize
+            Buffer.copy (supportTemporalBuffer.Advance (supportSize / 2)) (supportTemporalBuffer.Advance (newSupportSize - supportSize / 2)) (supportSize / 2)
+            Buffer.fill Complex.Zero (supportTemporalBuffer.Advance (supportSize / 2 + 1)) (newSupportSize - supportSize - 1)
+           
+            let supportSize = newSupportSize
+            let supportOffset = supportOffset * upsampleFactor
+
+            let supportArray = Array.zeroCreate<Complex> supportSize
+            let supportBuffer, unpinSupport = Buffer.PinArray supportArray
+
+            DFT.computeComplex supportTemporalBuffer supportBuffer supportSize
+            Util.conjugate supportBuffer supportSize
+
+            unpinSupport ()
+
+            // Set support.
+            supports.[t] <- { Data = supportArray; Offset = supportOffset }
+
+            
+        unpinTemp ()
         unpinKernel ()
         supports
-
-    /// Gets the supports for the spectral kernels in the given frame.
-    let getSpectralSupports threshold (frame : Frame) kernelSize = getSpectralSupportsPartial threshold (frame : Frame) kernelSize 0 1
 
     /// Applies a support to a signal and writes the resulting product to the given output buffer.
     let applySupport (signal : Buffer<Complex>) signalSize (support : Support) (output : Buffer<Complex>) =

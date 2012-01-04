@@ -28,7 +28,7 @@ type Line = {
 
 /// Describes a (possibly dynamic) visual object on a two-dimensional plane.
 type Figure =
-    | Null
+    | Nil
     | Solid of Color
     | Modulate of Paint * Figure
     | Transform of Transform * Figure
@@ -61,8 +61,8 @@ type Figure =
 [<CompilationRepresentationAttribute(CompilationRepresentationFlags.ModuleSuffix)>]
 module Figure =
 
-    /// Gets the null figure, a figure that is completely transparent.
-    let ``null`` = Figure.Null
+    /// Gets the nil figure, a figure that is completely transparent.
+    let nil = Figure.Nil
 
     /// Constructs a figure that has a solid color over the entire render plane.
     let solid color = Figure.Solid color

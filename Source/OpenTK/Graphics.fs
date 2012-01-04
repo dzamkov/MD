@@ -26,7 +26,7 @@ type Graphics () as this =
     abstract member CreateProcedure : Figure -> Procedure
     default this.CreateProcedure (figure : Figure) =
         match figure with
-        | Null -> NullProcedure.Instance :> Procedure
+        | Nil -> NullProcedure.Instance :> Procedure
         | Transform (transform, figure) -> new TransformProcedure (this.CreateProcedure figure, transform) :> Procedure
         | Composite (a, b) ->
         

@@ -55,5 +55,11 @@ let npow2 (x : uint32) =
     let x = x ||| (x >>> 16);
     x + 1u
 
+/// Gets the next highest power of two of a positive integer.
+let npow2i = uint32 >> npow2 >> int
+
 /// Determines wether the given integer is a power of two.
 let ispow2 (x : uint32) = npow2 x = x
+
+/// Determines wether the given positive integer is a power of two.
+let ispow2i (x : int) = npow2i x = x

@@ -89,7 +89,7 @@ type Window () =
             |]
 
         // Spectrogram
-        let frame = new LinearFrame (Window.hamming, 2048.0, 4096, false)
+        let frame = Frame.linear Window.hamming 2048.0
         let spectrogram = new Spectrogram (floatData, frame)
         let coloring = Map.compose (Map.func (fun (freq, value : Complex) -> value.Abs * 100.0)) gradient
         let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 

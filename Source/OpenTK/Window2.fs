@@ -89,8 +89,9 @@ type Window () =
             |]
 
         // Spectrogram
-        let spectrogram = new Spectrogram (floatData)
-        let coloring = Map.compose (Map.func (fun (freq, value : Complex) -> value.Abs * 1.0e5)) gradient
+        let frame = SpectrogramFrame.ConstantQ (Window.hann, 22.0, 0.004)
+        let spectrogram = new Spectrogram (floatData, frame)
+        let coloring = Map.compose (Map.func (fun (freq, value : Complex) -> value.Abs * (5.0e6 * freq))) gradient
         let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 
         let spectrogram = spectrogram.CreateFigure (coloring, area)
 

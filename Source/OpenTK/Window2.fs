@@ -32,7 +32,7 @@ type Window () =
         this.VSync <- VSyncMode.Off
 
         // Get audio container
-        let music = new Path (@"N:\Music\Me\19.mp3")
+        let music = new Path (@"N:\test.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -88,10 +88,21 @@ type Window () =
                 { Value = 1.0; Color = Color.RGB(0.5, 0.0, 0.0) };
             |]
 
+        let sixth = 2.0 * Math.PI / 6.0
+        let phaseGradient = 
+            new Gradient [|
+                { Value = 0.0 * sixth; Color = Color.RGB(1.0, 0.0, 0.0) };
+                { Value = 1.0 * sixth; Color = Color.RGB(1.0, 1.0, 0.0) };
+                { Value = 2.0 * sixth; Color = Color.RGB(0.0, 1.0, 0.0) };
+                { Value = 3.0 * sixth; Color = Color.RGB(0.0, 1.0, 1.0) };
+                { Value = 4.0 * sixth; Color = Color.RGB(0.0, 0.0, 1.0) };
+                { Value = 5.0 * sixth; Color = Color.RGB(1.0, 0.0, 1.0) };
+            |]
+
         // Spectrogram
         let frame = SpectrogramFrame.ConstantQ (Window.hann, 22.0, 0.004)
         let spectrogram = new Spectrogram (floatData, frame)
-        let coloring = Map.compose (Map.func (fun (freq, value : Complex) -> value.Abs * (5.0e6 * freq))) gradient
+        let coloring = Map.func (fun (freq, value : Complex) -> if value.Abs * (1.0e6 * freq) > 0.1 then phaseGradient.[(value.Phase + Math.PI * 2.0) % (Math.PI * 2.0)] else Color.White)
         let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 
         let spectrogram = spectrogram.CreateFigure (coloring, area)
 

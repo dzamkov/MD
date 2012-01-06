@@ -38,9 +38,9 @@ type Spectrogram (samples : Data<float>, frame : SpectrogramFrame) =
 
     /// Creates a figure to display this spectrogram.
     member this.CreateFigure (coloring : SpectrogramColoring, area : Rectangle) =
-        let sampleCount = 65536 * 32
+        let sampleCount = 65536 * 8
         let height = 1024
-        let width = 4096
+        let width = 2048
         let getKernel index =
             let kernel = frame.GetKernel (float index / float height)
             (kernel, Frame.createDiscreteKernel sampleCount width kernel)
@@ -61,13 +61,16 @@ type Spectrogram (samples : Data<float>, frame : SpectrogramFrame) =
         Util.scaleComplex (1.0 / float sampleCount) spectrumBuffer sampleCount
         let dft = DFT.get width
         for t = 0 to height - 1 do
+            let kernel, discreteKernel = kernels.[t]
             let tempBuffer = sampleBuffer.Cast ()
-            Frame.applyDiscreteKernel spectrumBuffer sampleCount (snd kernels.[t]) tempBuffer
+            Frame.applyDiscreteKernel spectrumBuffer sampleCount discreteKernel tempBuffer
             Util.conjugate tempBuffer width
             dft.ComputeComplex (tempBuffer, outputBuffer)
             Util.conjugate outputBuffer width
+            Util.modulate 0.5 outputBuffer width
+
             for x = 0 to width - 1 do
-                image.[x, height - t - 1] <- coloring.[(fst kernels.[t]).Center, outputBuffer.[x]]
+                image.[x, height - t - 1] <- coloring.[kernel.Center, outputBuffer.[x]]
 
         unpinSpectrum ()
         unpinSample ()

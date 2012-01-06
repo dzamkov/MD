@@ -97,6 +97,15 @@ module Util =
         while index < size do
             imagSource.[index] <- imagSource.[index] * -1.0
             index <- index + 1
+
+    /// Performs an in-place modulation of a complex signal.
+    let modulate frequency (source : Buffer<Complex>) size =
+        let mutable source = source
+        let mutable index = 0
+        let multiplier = Math.PI * 2.0 * frequency
+        while index < size do
+            source.[index] <- source.[index] * Complex.ExpImag (multiplier * float index)
+            index <- index + 1
         
     /// Performs an in-place downsampling of the given real signal by an integer factor.
     let downsampleReal factor (source : Buffer<float>) size = downsample factor source size

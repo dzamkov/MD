@@ -11,21 +11,21 @@ open MD.DSP
 /// 1.0 is the Nyquist frequency) and component value.
 type SpectrogramColoring = Map<float * Complex, Color>
 
-/// A time-frequency representation of a discrete waveform derived with a certain frame.
-type Spectrogram (samples : Data<float>, frame : Frame) =
+/// A time-frequency representation of a discrete waveform.
+type Spectrogram (samples : Data<float>) =
 
     /// Gets the sample data for this spectrogram.
     member this.Samples = samples
 
-    /// Gets the frame for this spectrogram.
-    member this.Frame = frame
-
     /// Creates a figure to display this spectrogram.
     member this.CreateFigure (coloring : SpectrogramColoring, area : Rectangle) =
         let sampleCount = 65536 * 16
-        let height = 512
-        let supports = Frame.getSpectralSupports 0.008 frame sampleCount 0.0 (0.5 / float height) height
-        let width = supports.[0].Data.Length
+        let height = 2048
+        let width = 4096
+        let getKernel index =
+            let center = float index / (float height * 2.0)
+            Frame.createDiscreteKernel sampleCount width { Window = Window.hann; Bandwidth = 1.0 / 1024.0; Center = center }
+        let kernels = Array.init height getKernel
 
         let image = new ArrayImage<Color> (width, height)
 
@@ -43,8 +43,7 @@ type Spectrogram (samples : Data<float>, frame : Frame) =
         let dft = DFT.get width
         for t = 0 to height - 1 do
             let tempBuffer = sampleBuffer.Cast ()
-            let support = supports.[t]
-            Frame.applySupport spectrumBuffer sampleCount support tempBuffer
+            Frame.applyDiscreteKernel spectrumBuffer sampleCount kernels.[t] tempBuffer
             Util.conjugate tempBuffer width
             dft.ComputeComplex (tempBuffer, outputBuffer)
             Util.conjugate outputBuffer width

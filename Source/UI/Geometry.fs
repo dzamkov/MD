@@ -98,6 +98,10 @@ type Rectangle (left : float, right : float, bottom : float, top : float) =
         /// Gets the intersection of two rectangles.
         static member (&&&) (a : Rectangle, b : Rectangle) =
             new Rectangle (max a.Left b.Left, min a.Right b.Right, max a.Bottom b.Bottom, min a.Top b.Top)
+
+        /// Gets the union of two rectangles.
+        static member (|||) (a : Rectangle, b : Rectangle) =
+            new Rectangle (min a.Left b.Left, max a.Right b.Right, min a.Bottom b.Bottom, max a.Top b.Top)
         
         /// Gets the horizontal component of the left edge of this rectangle.
         member this.Left = left
@@ -149,8 +153,11 @@ type Transform (offset : Point, x : Point, y : Point) =
         static member (*) (a : Transform, b : Transform) =
             new Transform (b.Apply a.Offset, b.ApplyDirection a.X, b.ApplyDirection a.Y)
 
-         /// Applies a transform to a point.
+        /// Applies a transform to a point.
         static member (*) (a : Transform, b : Point) = a.Apply b
+
+        /// Applies a transform to a bounding rectangle.
+        static member (*) (a : Transform, b : Rectangle) = a.ApplyBounds b
 
         /// Creates a rotation transform for a certain angle in radians.
         static member Rotate (angle : double) =
@@ -186,6 +193,16 @@ type Transform (offset : Point, x : Point, y : Point) =
 
         /// Applies this transform to a directional offset.
         member this.ApplyDirection (offset : Point) = (x * offset.X) + (y * offset.Y)
+
+        /// Applies this transform to a bounding rectangle such that the result will be the smallest rectangle that contains
+        /// all of the area in the transformed form of the input rectangle.
+        member this.ApplyBounds (bounds : Rectangle) =
+            let a, b, c, d = this * bounds.BottomLeft, this * bounds.BottomRight, this * bounds.TopRight, this * bounds.TopLeft
+            let minX = a.X |> min b.X |> min c.X |> min d.X
+            let minY = a.Y |> min b.Y |> min c.Y |> min d.Y
+            let maxX = a.X |> max b.X |> max c.X |> max d.X
+            let maxY = a.Y |> max b.Y |> max c.Y |> max d.Y
+            new Rectangle (minX, maxX, minY, maxY)
 
         /// Gets the determinant of this transform.
         member this.Determinant = (x.X * y.Y) - (x.Y * y.X)

@@ -36,12 +36,10 @@ type FixedContext (graphics : Graphics, size : ImageSize) =
         removeEffect ()
 
     override this.Resolution =
-        let hRes = transform.X
-        let vRes = transform.Y
-        let unitArea = hRes.Normal ^^ vRes.Normal
-        let hRes = hRes.Length * unitArea
-        let vRes = vRes.Length * unitArea
-        new Point (hRes * float size.Width / 2.0, vRes * float size.Height / 2.0)
+        let h = transform.X
+        let v = transform.Y
+        let unitArea = h ^^ v
+        sqrt (unitArea * float size.Width * float size.Height) / 2.0
 
     override this.Transform = transform
 

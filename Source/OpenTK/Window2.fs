@@ -101,12 +101,12 @@ type Window () =
             let line = Figure.line { A = new Point (linex, -1.0); B = (new Point (linex, 1.0)); Weight = 0.002; Paint = Paint.ARGB (1.0, 1.0, 0.3, 0.0) }
             line
         let line = Figure.dynamic (playPosition |> Feed.maps getLineFigure)
-        let figure = spectrogram + line |> Figure.transformDynamic (view.Projection |> Feed.maps (fun transform -> transform.Inverse))
+        let figure = spectrogram + line
 
         // Start
         let graphics = new FixedGraphics ()
         graphics.Initialize ()
-        display <- new Display (graphics, figure)
+        display <- new Display (graphics, Figure.transformDynamic (view.Projection |> Feed.maps (fun transform -> transform.Inverse)) figure)
         Input.link (this :> GameWindow) (view :> Interface |> Input.transform worldspaceProjection) |> ignore
         control.Fire AudioControl.Play
 

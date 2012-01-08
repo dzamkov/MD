@@ -56,6 +56,12 @@ type Graphics () as this =
             | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
             | _ -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
             new TextureProcedure (Exclusive.custom texture.Delete texture) :> Procedure
+
+        | LOD (simple, complex, res) -> new LODProcedure (this.CreateProcedure simple, this.CreateProcedure complex, res) :> Procedure
+        | Bounded (bounds, figure) -> new BoundsCheckProcedure (bounds, this.CreateProcedure figure) :> Procedure
+        | Lazy figure -> this.CreateProcedure (figure.Force ())
+        | Query query -> new QueryProcedure (query, this.CreateProcedure) :> Procedure
+
         | TransformDynamic (transform, figure) -> new TransformDynamicProcedure (this.CreateProcedure figure, transform) :> Procedure
         | Dynamic figure -> new DefaultDynamicProcedure (figure, cache) :> Procedure
         | _ -> new NotImplementedException () |> raise

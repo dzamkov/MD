@@ -45,8 +45,8 @@ type Context () =
     /// Pops the most recent effect on the effect stack.
     abstract member Pop : unit -> unit
     
-    /// Gets a point that gives the resolution (pixel area per unit) of each axis in worldspace.
-    abstract member Resolution : Point
+    /// Gets the resolution (pixels per unit) of this context.
+    abstract member Resolution : float
 
     /// Gets the current transform from worldspace to viewspace.
     abstract member Transform : Transform
@@ -58,15 +58,7 @@ type Context () =
     abstract member RenderTexture : Texture -> unit
 
     /// Gets the smallest rectangle that contains all points visible by the current view.
-    member this.ViewBounds = 
-        let view = this.Transform.Inverse
-        let a, b, c, d = new Point (-1.0, -1.0), new Point (1.0, -1.0), new Point (-1.0, 1.0), new Point (1.0, 1.0)
-        let a, b, c, d = view * a, view * b, view * c, view * d
-        let minX = a.X |> min b.X |> min c.X |> min d.X
-        let minY = a.Y |> min b.Y |> min c.Y |> min d.Y
-        let maxX = a.X |> max b.X |> max c.X |> max d.X
-        let maxY = a.Y |> max b.Y |> max c.Y |> max d.Y
-        new Rectangle (minX, maxX, minY, maxY)
+    member this.ViewBounds = this.Transform.Inverse.ApplyBounds Rectangle.View
 
     /// Determines wether the given rectangle is in the current view.
     member this.IsVisible (rect : Rectangle) =

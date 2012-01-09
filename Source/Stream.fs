@@ -46,7 +46,7 @@ type BufferStream<'a when 'a : unmanaged> (buffer : Buffer<'a>) =
     member this.Buffer = buffer
 
     override this.Read (array, offset, size) =
-        buffer.CopyTo (array, offset, size)
+        Buffer.copyba buffer array offset size
         buffer <- buffer.Advance size
         size
 
@@ -134,13 +134,19 @@ type SplitStream<'a, 'b when 'a : unmanaged and 'b : unmanaged> (source : Stream
 [<Sealed>]
 type CastStream<'a, 'b when 'a : unmanaged and 'b : unmanaged> (source : Stream<'b>, asize : uint32, bsize : uint32) =
     inherit Stream<'a> (fit (int asize) (source.Alignment * int bsize))
-    new (source) = new CastStream<'a, 'b> (source, Memory.SizeOf<'a> (), Memory.SizeOf<'b> ())
+    new (source) = new CastStream<'a, 'b> (source, uint32 sizeof<'a>, uint32 sizeof<'b>)
     
     override this.Read (array, offset, size) = 
         let sourceSize = size * int asize / int bsize
         let tempArray = Array.zeroCreate sourceSize
         let readSize = source.Read (tempArray, 0, sourceSize)
-        Memory.Copy (tempArray, 0, array, offset, bsize * uint32 readSize)
+        
+        let tempBuffer, unpinTemp = Buffer.PinArray tempArray
+        let targetBuffer, unpinTarget = Buffer.PinArray array
+        Buffer.copybb tempBuffer (targetBuffer.Cast ()) sourceSize
+        unpinTemp ()
+        unpinTarget ()
+
         readSize * int bsize / int asize
 
 /// A byte stream based on a System.IO stream.

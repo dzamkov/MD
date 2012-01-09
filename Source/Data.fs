@@ -28,7 +28,7 @@ type Data<'a when 'a : unmanaged> (alignment : int) =
         String.Format ("{0:####.###} {1}", size, suffixes.[mag])
 
     /// Gets a user-friendly string for the size of this data.
-    member this.SizeString = Data<'a>.GetSizeString (this.Size * uint64 (Memory.SizeOf<'a> ()))
+    member this.SizeString = Data<'a>.GetSizeString (this.Size * uint64 sizeof<'a>)
 
     /// Copies items from this data (starting at the given index) into the given array.
     abstract member Read : index : uint64 * array : 'a[] * offset : int * size : int -> unit
@@ -78,7 +78,7 @@ type BufferData<'a when 'a : unmanaged> (buffer : Buffer<'a>, size : int) =
     member this.NativeSize = size
 
     override this.Size = uint64 size
-    override this.Read (index, array, offset, size) = buffer.CopyTo (array, offset, size)
+    override this.Read (index, array, offset, size) = Buffer.copyba buffer array offset size
     override this.Lock (index, size) = Stream.buffer (buffer.Advance (int index)) |> Exclusive.make
 
 /// Data from an array.

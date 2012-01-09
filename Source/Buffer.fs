@@ -12,19 +12,14 @@ type Buffer<'a when 'a : unmanaged> (start : nativeint, stride : uint32) =
         /// Creates a buffer for an array. Note that the array should be pinned in order to access it
         /// with a buffer.
         static member FromArray (array : 'a[], offset : int) = 
-            new Buffer<'a> (Memory.AddressOf (array, offset), Memory.SizeOf<'a> ())
+            new Buffer<'a> (NativePtr.toNativeInt &&array.[0], uint32 sizeof<'a>)
 
         /// Pins an array and returns a buffer for it, along with a function to later unpin the array.
         static member PinArray (array : 'a[]) =
             let handle = GCHandle.Alloc (array, GCHandleType.Pinned)
-            let buffer = new Buffer<'a> (handle.AddrOfPinnedObject (), Memory.SizeOf<'a> ())
+            let buffer = new Buffer<'a> (handle.AddrOfPinnedObject (), uint32 sizeof<'a>)
             let unpin () = handle.Free ()
             (buffer, unpin)
-
-        /// Creates a buffer from a native pointer. The stride of the buffer will be the actual size of the items
-        /// in the buffer.
-        static member FromPointer (pointer : nativeptr<'a>) =
-            new Buffer<'a> (NativePtr.toNativeInt pointer, Memory.SizeOf<'a> ())
 
         /// Gets or sets an item in this buffer.
         member inline this.Item
@@ -49,56 +44,33 @@ type Buffer<'a when 'a : unmanaged> (start : nativeint, stride : uint32) =
         member this.Stride = stride
 
         /// Casts this buffer to a buffer of another type.
-        member this.Cast () = new Buffer<'b> (start, Memory.SizeOf<'b> ())
+        member this.Cast () = new Buffer<'b> (start, uint32 sizeof<'b>)
 
         /// Gets a buffer for a certain field of the items in this buffer, given the byte offset of the
         /// field from the start of an item.
         member this.Field offset = new Buffer<'b> (start + nativeint offset, stride)
 
-        /// Copies the items in this buffer into another buffer.
-        member this.CopyTo (buffer : Buffer<'a>, size : int) =
-            if size > 0 then
-                if uint32 stride <= Memory.SizeOf<'a> () && buffer.Stride = stride then
-                    Memory.Copy (start, buffer.Start, uint32 size * uint32 stride)
-                else
-                    let mutable buffer = buffer
-                    let mutable index = 0
-                    while index < size do
-                        buffer.[index] <- this.[index]
-                        index <- index + 1
+        /// Creates a buffer from a native pointer. The stride of the buffer will be the actual size of the items
+        /// in the buffer.
+        static member FromPointer (pointer : nativeptr<'a>) =
+            new Buffer<'a> (NativePtr.toNativeInt pointer, uint32 sizeof<'a>)
 
-        /// Copies the items in this buffer into an array.
-        member this.CopyTo (array : 'a[], offset : int, size : int) =
-            if size > 0 then
-                if uint32 stride = Memory.SizeOf<'a> () then
-                    Memory.Copy (start, array, offset, uint32 size * uint32 stride)
-                else
-                    let mutable index = 0
-                    while index < size do
-                        array.[index] <- this.[index]
-                        index <- index + 1
+        /// Copies items from a source buffer into a destination buffer.
+        static member Copy (source : Buffer<'a>, destination : Buffer<'a>, size : int) =
+            let mutable destination = destination
+            for t = 0 to size - 1 do
+                destination.[t] <- source.[t]
 
-        /// Copies the items from a buffer into this buffer.
-        member this.CopyFrom (buffer : Buffer<'a>, size : int) =
-            if size > 0 then
-                if uint32 stride <= Memory.SizeOf<'a> () && buffer.Stride = stride then
-                    Memory.Copy (buffer.Start, start, uint32 size * uint32 stride)
-                else
-                    let mutable index = 0
-                    while index < size do
-                        this.[index] <- buffer.[index]
-                        index <- index + 1
+        /// Copies items from a buffer to an array.
+        static member Copy (source : Buffer<'a>, destination : 'a[], offset : int, size : int) =
+            for t = 0 to size - 1 do
+                destination.[t + offset] <- source.[t]
 
-        /// Copies items from an array into this buffer.
-        member this.CopyFrom (array : 'a[], offset : int, size : int) =
-            if size > 0 then
-                if uint32 stride = Memory.SizeOf<'a> () then
-                    Memory.Copy (array, offset, start, uint32 size * uint32 stride)
-                else
-                    let mutable index = 0
-                    while index < size do
-                        this.[index] <- array.[index]
-                        index <- index + 1
+        /// Copies items from an array to a buffer.
+        static member Copy (source : 'a[], offset : int, destination : Buffer<'a>, size : int) =
+            let mutable destination = destination
+            for t = 0 to size - 1 do
+                destination.[t] <- source.[t + offset]
 
     end
 
@@ -113,5 +85,13 @@ module Buffer =
             buffer.[t] <- value
 
     /// Copies data between buffers.
-    let copy (source : Buffer<'a>) (destination : Buffer<'a>) size =
-        source.CopyTo (destination, size)
+    let copybb (source : Buffer<'a>) (destination : Buffer<'a>) size =
+        Buffer.Copy (source, destination, size)
+
+    /// Copies data from an array into a buffer.
+    let copyba (source : Buffer<'a>) (destination : 'a[]) offset size =
+        Buffer.Copy (source, destination, offset, size)
+
+    /// Copies data from a buffer into an array.
+    let copyab (source : 'a[]) offset (destination : Buffer<'a>) size =
+        Buffer.Copy (source, offset, destination, size)

@@ -29,7 +29,7 @@
     <Tailcalls>false</Tailcalls>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <NoWarn>9</NoWarn>
+    <NoWarn>9 51</NoWarn>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <OtherFlags>
     </OtherFlags>
@@ -62,7 +62,7 @@
     <Compile Include="DSP\Util2.fs" />
     <Compile Include="DSP\DFT.fs" />
     <Compile Include="DSP\Window.fs" />
-	<Compile Include="DSP\Frame.fs" />
+    <Compile Include="DSP\Frame.fs" />
     <Compile Include="UI\Feed.fs" />
     <Compile Include="UI\Audio.fs" />
     <Compile Include="UI\Geometry.fs" />
@@ -84,9 +84,6 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="Memory">
-      <HintPath>..\Memory.dll</HintPath>
-    </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="FSharp.Core" />
     <Reference Include="OpenTK">

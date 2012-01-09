@@ -78,4 +78,4 @@ type Display (graphics : Graphics, figure : Figure) =
     
     /// Renders the current figure for the display to the current OpenGL context, given the target viewport
     /// size.
-    member this.Render size = Procedure.Invoke (&main, graphics.CreateContext size)
+    member this.Render size = Procedure.Invoke (&main, graphics.CreateContext size) |> ignore

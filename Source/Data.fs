@@ -33,6 +33,15 @@ type Data<'a when 'a : unmanaged> (alignment : int) =
     /// Copies items from this data (starting at the given index) into the given array.
     abstract member Read : index : uint64 * array : 'a[] * offset : int * size : int -> unit
 
+    /// Copies items from this data (starting at the given index) into the given array, ignoring items
+    /// that are not in the range of this data.
+    member this.ReadSafe (index : int64, array, offset, size) =
+        let index, offset, size =
+            if index < 0L then 0L, offset - int index, size + int index
+            else index, offset, size
+        let size = int (min (uint64 size) (this.Size - uint64 index))
+        this.Read (uint64 index, array, offset, size)
+
     /// Creates a stream to read this data beginning at the given index. The given
     /// size sets a limit on the amount of items that can be read from the resulting
     /// stream, but does not ensure the stream will end after the given amount of items

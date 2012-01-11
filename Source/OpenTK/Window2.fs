@@ -32,7 +32,7 @@ type Window () =
         this.VSync <- VSyncMode.Off
 
         // Get audio container
-        let music = new Path (@"N:\Music\Me\19.mp3")
+        let music = new Path (@"test.mp3")
         let container, context = (Container.Load music).Value
         let audiocontent = context.Object.Content.[0] :?> AudioContent
         let control = new ControlEventFeed<AudioControl> ()
@@ -89,9 +89,9 @@ type Window () =
             |]
 
         // Spectrogram
-        let frame = SpectrogramFrame.ConstantQ (Window.hann, 22.0, 0.004)
+        let frame = SpectrogramFrame.ConstantQ (Window.hann, 22.0, 0.0005)
         let spectrogram = new Spectrogram (floatData, frame)
-        let coloring = Map.func (fun (freq, value) -> value * (4.0e2 * freq)) |> Map.map gradient
+        let coloring = Map.func (fun (freq, value) -> value * (1.0e2 * freq)) |> Map.map gradient
         let area = new Rectangle (-1.0, 1.0, -1.0, 0.0) 
         let spectrogram = spectrogram.CreateFigure (coloring, area)
 

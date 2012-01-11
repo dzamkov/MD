@@ -38,7 +38,7 @@ type Spectrogram (samples : Data<float>, frame : SpectrogramFrame) =
 
     /// Creates a figure to display this spectrogram.
     member this.CreateFigure (coloring : SpectrogramColoring, area : Rectangle) =
-        let sampleCount = 65536 * 16
+        let sampleCount = samples.Size |> int |> npow2i
         let height = 1024
         let width = 2048
         let getKernel index =
@@ -49,7 +49,7 @@ type Spectrogram (samples : Data<float>, frame : SpectrogramFrame) =
         let image = new ArrayImage<Color> (width, height)
 
         let sampleArray = Array.zeroCreate<float> sampleCount
-        samples.Read (0UL, sampleArray, 0, sampleCount)
+        samples.ReadSafe (0L, sampleArray, 0, sampleCount)
 
         let outputArray = Array.zeroCreate<Complex> width
         let spectrumArray = Array.zeroCreate<Complex> sampleCount

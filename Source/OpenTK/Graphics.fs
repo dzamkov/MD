@@ -27,27 +27,9 @@ type Graphics () as this =
     default this.CreateProcedure (figure : Figure) =
         match figure with
         | Nil -> NullProcedure.Instance :> Procedure
-        | Transform (transform, figure) -> new TransformProcedure (this.CreateProcedure figure, transform) :> Procedure
-        | Composite (a, b) ->
-        
-            // Try to reduce the amount of sequential procedures needed by combining chained composite figures into a single procedure.
-            let rec count current figure =
-                match figure with
-                | Composite (a, _) -> count (current + 1) a
-                | _ -> current
-            let count = count 2 a
-            let procedures = Array.zeroCreate<Procedure> count
-            let rec fill index figure =
-                match figure with
-                | Composite (a, b) -> 
-                    procedures.[index] <- this.CreateProcedure b
-                    fill (index - 1) a
-                | figure -> procedures.[index] <- this.CreateProcedure figure
-            procedures.[count - 1] <- this.CreateProcedure b
-            fill (count - 2) a
-
-            new SequentialProcedure (procedures) :> Procedure
-
+        | Transform (transform, figure) -> new TransformProcedure (this.GetProcedure figure, transform) :> Procedure
+        | Composite (a, b) -> new SequentialProcedure [| this.GetProcedure a; this.GetProcedure b |] :> Procedure
+        | CompositeMany figures -> new SequentialProcedure (Array.map this.GetProcedure figures) :> Procedure
         | Line line -> new LineProcedure (line) :> Procedure
         | Image (image, size, interpolation) ->
             let texture = Texture.Create (image, size)
@@ -56,13 +38,11 @@ type Graphics () as this =
             | ImageInterpolation.Nearest -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Nearest)
             | _ -> Texture.SetFilterMode (TextureTarget.Texture2D, TextureMinFilter.LinearMipmapLinear, TextureMagFilter.Linear)
             new TextureProcedure (Exclusive.custom texture.Delete texture) :> Procedure
-
-        | LOD (simple, complex, res) -> new LODProcedure (this.CreateProcedure simple, this.CreateProcedure complex, res) :> Procedure
-        | Bounded (bounds, figure) -> new BoundsCheckProcedure (bounds, this.CreateProcedure figure) :> Procedure
+        | LOD (simple, complex, res) -> new LODProcedure (this.GetProcedure simple, this.GetProcedure complex, res) :> Procedure
+        | Bounded (bounds, figure) -> new BoundsCheckProcedure (bounds, this.GetProcedure figure) :> Procedure
         | Lazy figure -> this.CreateProcedure (figure.Force ())
-        | Query query -> new QueryProcedure (query, this.CreateProcedure) :> Procedure
-
-        | TransformDynamic (transform, figure) -> new TransformDynamicProcedure (this.CreateProcedure figure, transform) :> Procedure
+        | Query query -> new QueryProcedure (query, this.GetProcedure) :> Procedure
+        | TransformDynamic (transform, figure) -> new TransformDynamicProcedure (this.GetProcedure figure, transform) :> Procedure
         | Dynamic figure -> new DefaultDynamicProcedure (figure, cache) :> Procedure
         | _ -> new NotImplementedException () |> raise
 

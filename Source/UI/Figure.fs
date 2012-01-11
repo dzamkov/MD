@@ -33,6 +33,7 @@ type Figure =
     | Modulate of Paint * Figure
     | Transform of Transform * Figure
     | Composite of Figure * Figure
+    | CompositeMany of Figure[]
     | Clip of Rectangle * Figure
     | Sample of Map<Point, Paint>
     | Line of Line
@@ -54,6 +55,7 @@ type Figure =
         | Modulate (_, figure) -> figure.Bounds
         | Transform (transform, figure) -> transform * figure.Bounds
         | Composite (a, b) -> a.Bounds ||| b.Bounds
+        | CompositeMany figures -> figures |> Array.fold (fun state figure -> state ||| figure.Bounds) Rectangle.Null
         | Clip (area, figure) -> area &&& figure.Bounds
         | Sample _ -> Rectangle.Unbound
         | Line line -> new Rectangle (min line.A.X line.B.X, max line.A.X line.B.X, min line.A.Y line.B.Y, max line.A.Y line.B.Y)
@@ -113,9 +115,7 @@ module Figure =
     let composite bottom top = Figure.Composite (bottom, top)
 
     /// Constructs a composite figure from a sequence of figures.
-    let compositeMany figures =
-        if Seq.isEmpty figures then Figure.Nil
-        else Seq.reduce composite figures
+    let compositeMany figures = Figure.CompositeMany figures
 
     /// Constructs a clipped form of a figure. This will cause all paints of the figure outside the given area to
     /// be completely transparent.

@@ -127,6 +127,7 @@ type QueryProcedure (query : Figure query, createProcedure : Figure -> Procedure
             false
         | HasFigure figure ->
             procedure <- createProcedure figure
+            state <- HasProcedure procedure
             Procedure.Invoke (&procedure, context)
         | HasProcedure a ->
             procedure <- a
